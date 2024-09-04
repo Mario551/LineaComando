@@ -6,12 +6,12 @@ namespace PER.Comandos.LineaComandos.Atributo
     public class Parametro : IEquatable<Parametro>
     {
         public string Nombre { get; set; }
-        public string Valor { get; set; }
+        public string? Valor { get; set; }
 
         public Parametro()
         {
             Nombre = string.Empty;
-            Valor = string.Empty;
+            Valor = null;
         }
 
         public static object New<T>(IEnumerable<Parametro> parametros) where T : IParametro, new()

@@ -11,12 +11,12 @@ namespace PER.Comandos.LineaComandos
         public ICollection<Parametro> Parametros { get; set; }
 
         public LineaComando(ICollection<string> args) 
-        { 
-            if (args.Count <= 1)
-                throw new ArgumentException("Debe escribir al menos un módulo seguido de un comando");
+        {
+            if (!args.Any())
+                throw new ArgumentException("Colección de argumentos vacía");
 
             int pos = -1;
-            for (int i = 0; i < args.Count(); i++)
+            for (int i = 0; i < args.Count; i++)
             {
                 if (args.ElementAt(i).Substring(0, 2) == "--")
                 {
@@ -25,23 +25,27 @@ namespace PER.Comandos.LineaComandos
                 }
             }
 
-            if (pos == -1)
-                throw new ArgumentException("El comando debe tener al menos un parámetro");
+            this.Parametros = new List<Parametro>();
 
-            var parametros = new List<Parametro>();
+            //Comando sin parámetros
+            if (pos == -1)
+            {
+                this.Ruta = args;
+                return;
+            }
 
             for (int i = pos; i < args.Count; i++)
             {
                 string arg = args.ElementAt(i);
                 string[] keyValor = arg.Split('=');
                 if (keyValor.Length == 2)
-                    parametros.Add(new Parametro
+                    Parametros.Add(new Parametro
                     {
                         Nombre = keyValor[0],
                         Valor = keyValor[1]
                     });
                 else
-                    parametros.Add(new Parametro
+                    Parametros.Add(new Parametro
                     {
                         Nombre = keyValor[0]
                     });

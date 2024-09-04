@@ -18,6 +18,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         public Nodo<TRead, TWrite> Add(string nombre)
         {
             var nodo = new Nodo<TRead, TWrite>();
+            nodo.Nombre = nombre;
             _nodos.Add(nombre, nodo);
 
             return nodo;
@@ -25,6 +26,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
 
         public Nodo<TRead, TWrite> Add(string nombre, Nodo<TRead, TWrite> nodo)
         {
+            nodo.Nombre = nombre;
             _nodos.Add(nombre, nodo);
             return nodo;
         }

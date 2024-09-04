@@ -44,19 +44,29 @@ namespace ComandosTest.FactoriaComandosTest.NodoTest
             Assert.NotNull(comando);
         }
 
-        private class ComandoPrueba : ComandoBase<string, string>
+        [Fact]
+        public void ComandoSinModulosOk()
         {
-            public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
-            { }
+            ICollection<string> ruta = new List<string> { "comando" };
+            var nodo = new Nodo<string, string>();
+            nodo.Add("comando", new Nodo<string, string>(new ComandoPrueba()));
 
-            public override async Task EjecutarAsync(IStream<string, string> stream, CancellationToken token = default)
+            var configuracionMock = new Mock<IConfiguracion>();
+            var loggerMock = new Mock<ILogger>();
+
+            Stack<string> stack = new Stack<string>(ruta.Reverse());
+
+            IComando<string, string>? comando = null;
+            try
             {
-                await EmpezarAsync(token);
-
-                // Código de comando
-                
-                await FinalizarAsync(token);
+                comando = nodo.Crear(stack, new List<Parametro> { new Parametro { Nombre = "--parametro1", Valor = "valor1" } }, configuracionMock.Object, loggerMock.Object);
             }
+            catch (Exception ex)
+            {
+                Assert.Fail(ex.ToString());
+            }
+
+            Assert.NotNull(comando);
         }
     }
 }

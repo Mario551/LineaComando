@@ -68,7 +68,13 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// <param name="nombre"></param>
         /// <returns>Nodo asociado al nombre</returns>
         public Nodo<TRead, TWrite> Get(string nombre)
-            => _nodos[nombre];
+        {
+            Nodo<TRead, TWrite>? nodo = null;
+            if (!_nodos.TryGetValue(nombre, out nodo))
+                throw new NoEncontradoExcepcion($"nodo '{nombre}' no encontrado");
+
+            return nodo;
+        }
 
         /// <summary>
         /// Recibe una lista LIFO la cual utiliza para recorrer el arbol e inicializar el comando encontrado al final de esta
