@@ -45,10 +45,9 @@ namespace PER.Comandos.LineaComandos.Atributo
                     return;
                 }
 
-                if (CompararTipos<int, int?>(propiedad.PropertyType))
+                if (CompararTipos<char, char?>(propiedad.PropertyType))
                 {
-                    int valor = int.Parse(par.Valor);
-                    propiedad.SetValue(instancia, valor);
+                    propiedad.SetValue(instancia, par.Valor);
                     return;
                 }
 
@@ -56,6 +55,41 @@ namespace PER.Comandos.LineaComandos.Atributo
                 {
                     DateTime fecha = StringToFecha(par.Valor, _nombre);
                     propiedad.SetValue(instancia, fecha);
+                    return;
+                }
+
+                if (CompararTipos<byte, byte?>(propiedad.PropertyType))
+                {
+                    byte valor = byte.Parse(par.Valor);
+                    propiedad.SetValue(instancia, valor);
+                    return;
+                }
+
+                if (CompararTipos<short, short?>(propiedad.PropertyType))
+                {
+                    short valor = short.Parse(par.Valor);
+                    propiedad.SetValue(instancia, valor);
+                    return;
+                }
+
+                if (CompararTipos<int, int?>(propiedad.PropertyType))
+                {
+                    int valor = int.Parse(par.Valor);
+                    propiedad.SetValue(instancia, valor);
+                    return;
+                }
+
+                if (CompararTipos<long, long?>(propiedad.PropertyType))
+                {
+                    long valor = long.Parse(par.Valor);
+                    propiedad.SetValue(instancia, valor);
+                    return;
+                }
+
+                if (CompararTipos<decimal, decimal?>(propiedad.PropertyType))
+                {
+                    decimal valor = decimal.Parse(par.Valor);
+                    propiedad.SetValue(instancia, valor);
                     return;
                 }
 
@@ -90,12 +124,10 @@ namespace PER.Comandos.LineaComandos.Atributo
             DateTime fecha;
             try
             {
-                var culture = new CultureInfo("es-ES");
-
                 if (strFecha.Length > 10)
-                    fecha = DateTime.ParseExact(strFecha, "yyyy-MM-dd'T'HH:mm:ss", culture);
+                    fecha = DateTime.ParseExact(strFecha, "yyyy-MM-dd'T'HH:mm:ss", CultureInfo.CurrentCulture);
                 else
-                    fecha = DateTime.ParseExact(strFecha, "yyyy-MM-dd", culture);
+                    fecha = DateTime.ParseExact(strFecha, "yyyy-MM-dd", CultureInfo.CurrentCulture);
             }
             catch (Exception ex)
             {

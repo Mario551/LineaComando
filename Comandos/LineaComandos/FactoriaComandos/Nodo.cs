@@ -14,7 +14,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         private Func<ICollection<Parametro>, IConfiguracion, ILogger, IComando<TRead, TWrite>>? _creador;
         private ComandoBase<TRead, TWrite>? _comando = null;
         private Func<CancellationToken, Task>? _comenzar;
-        private Func<CancellationToken, Task> _finalizar;
+        private Func<CancellationToken, Task>? _finalizar;
 
         public Nodo()
         {
@@ -36,12 +36,26 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// </summary>
         /// <param name="nombre">Nombre del nodo</param>
         /// <param name="nodo">Nodo a agregar al padre</param>
-        /// <returns>Retorna el nodo padre</returns>
+        /// <returns>Retorna el nodo creado</returns>
         public Nodo<TRead, TWrite> Add(string nombre, Nodo<TRead, TWrite> nodo)
         {
             nodo.Padre = this;
             _nodos.Add(nombre, nodo);
-            return this;
+            return nodo;
+        }
+
+        /// <summary>
+        /// Agrega un nodo hijo al padre y lo asocia a un nombre
+        /// </summary>
+        /// <param name="nombre">Nombre del nodo</param>
+        /// <param name="nodo">Nodo a agregar al padre</param>
+        /// <returns>Retorna el nodo creado</returns>
+        public Nodo<TRead, TWrite> Add(string nombre)
+        {
+            var nodo = new Nodo<TRead, TWrite>();
+            nodo.Padre = this;
+            _nodos.Add(nombre, nodo);
+            return nodo;
         }
 
         /// <summary>

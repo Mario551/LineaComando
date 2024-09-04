@@ -11,6 +11,13 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// Agrega un arbol de comandos a la factoria
         /// </summary>
         /// <param name="nombre">Nombre del primer nodo del arbol de comandos</param>
+        /// <returns>Retorna el nodo creado</returns>
+        Nodo<TRead, TWrite> Add(string nombre);
+
+        /// <summary>
+        /// Agrega un arbol de comandos a la factoria
+        /// </summary>
+        /// <param name="nombre">Nombre del primer nodo del arbol de comandos</param>
         /// <param name="nodo">Prime nodo del arbol de comandos</param>
         /// <returns>Retorna el nodo que fue pasado por parámetros</returns>
         Nodo<TRead, TWrite> Add(string nombre, Nodo<TRead, TWrite> nodo);
@@ -24,6 +31,6 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// <param name="configuracion">Configuración que se desea pasar al comando</param>
         /// <param name="logger">Log del sistema</param>
         /// <returns></returns>
-        IComando<TRead, TWrite> Crear(ICollection<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger);
+        IComando<TRead, TWrite> Crear(LineaComando lineaComando, IConfiguracion configuracion, ILogger logger);
     }
 }

@@ -15,16 +15,24 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
             _nodos = new Dictionary<string, Nodo<TRead, TWrite>>();
         }
 
+        public Nodo<TRead, TWrite> Add(string nombre)
+        {
+            var nodo = new Nodo<TRead, TWrite>();
+            _nodos.Add(nombre, nodo);
+
+            return nodo;
+        }
+
         public Nodo<TRead, TWrite> Add(string nombre, Nodo<TRead, TWrite> nodo)
         {
             _nodos.Add(nombre, nodo);
             return nodo;
         }
 
-        public IComando<TRead, TWrite> Crear(ICollection<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public IComando<TRead, TWrite> Crear(LineaComando lineaComando, IConfiguracion configuracion, ILogger logger)
         {
-            var pila = new Stack<string>(lineaComando.Reverse());
-            return Crear(pila, parametros, configuracion, logger);
+            var pila = new Stack<string>(lineaComando.Ruta.Reverse());
+            return Crear(pila, lineaComando.Parametros, configuracion, logger);
         }
 
         private IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
