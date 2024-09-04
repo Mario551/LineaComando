@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.Configuracion;
 

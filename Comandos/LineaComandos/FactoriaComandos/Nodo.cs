@@ -8,6 +8,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
 {
     public class Nodo<TRead, TWrite> : IComandoCreador<TRead, TWrite>
     {
+        public string Nombre { get; set; }
         public Nodo<TRead, TWrite>? Padre { get; private set; }
 
         private IDictionary<string, Nodo<TRead, TWrite>> _nodos;
@@ -19,6 +20,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         public Nodo()
         {
             _nodos = new Dictionary<string, Nodo<TRead, TWrite>>();
+            Nombre = string.Empty;
         }
 
         public Nodo(Func<ICollection<Parametro>, IConfiguracion, ILogger, IComando<TRead, TWrite>> creador) : this()
@@ -39,6 +41,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// <returns>Retorna el nodo creado</returns>
         public Nodo<TRead, TWrite> Add(string nombre, Nodo<TRead, TWrite> nodo)
         {
+            nodo.Nombre = nombre;
             nodo.Padre = this;
             _nodos.Add(nombre, nodo);
             return nodo;
@@ -53,6 +56,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         public Nodo<TRead, TWrite> Add(string nombre)
         {
             var nodo = new Nodo<TRead, TWrite>();
+            nodo.Nombre = nombre;
             nodo.Padre = this;
             _nodos.Add(nombre, nodo);
             return nodo;
@@ -66,6 +70,16 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         public Nodo<TRead, TWrite> Get(string nombre)
             => _nodos[nombre];
 
+        /// <summary>
+        /// Recibe una lista LIFO la cual utiliza para recorrer el arbol e inicializar el comando encontrado al final de esta
+        /// </summary>
+        /// <param name="lineaComando">Lista LIFO; tenga presente invertir su colección de ruta para inicializar la pila, porque la primera posición a buscar debe estar en la cima de la pila</param>
+        /// <param name="parametros">Colección de parámetros que se utilizarán para inicializar el comando</param>
+        /// <param name="configuracion">Configuración que será pasada al comando</param>
+        /// <param name="logger">Objeto de logger</param>
+        /// <returns>Comando encontrado al final de la ruta</returns>
+        /// <exception cref="NoEncontradoExcepcion">La ruta no existe o no posee un comando al final de esta</exception>
+        /// <exception cref="NullReferenceException">Se llegó al final de la ruta y no se encontró un creador de comando inicializado</exception>
         public IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
         {
             IComando<TRead, TWrite>? comando = null;
@@ -115,12 +129,22 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
             return comando;
         }
 
+        /// <summary>
+        /// Inicializa el middleware que se ejecutará al inicio del comando
+        /// </summary>
+        /// <param name="comenzar"></param>
+        /// <returns></returns>
         public IComandoCreador<TRead, TWrite> EmpezarCon(Func<CancellationToken, Task> comenzar)
         {
             _comenzar = comenzar;
             return this;
         }
 
+        /// <summary>
+        /// Inicializa el middleware que se ejecutará al final del comando
+        /// </summary>
+        /// <param name="finalizar"></param>
+        /// <returns></returns>
         public IComandoCreador<TRead, TWrite> FinalizarCon(Func<CancellationToken, Task> finalizar)
         {
             _finalizar = finalizar;

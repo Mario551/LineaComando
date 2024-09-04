@@ -16,6 +16,22 @@ namespace PER.Comandos.LineaComandos.Comando
         public void FinalizarCon(Func<CancellationToken, Task> finalizar)
             => _finalizar = finalizar;
 
+        protected async Task EmpezarAsync(CancellationToken token = default)
+        {
+            if (_comenzar == null)
+                return;
+
+            await _comenzar(token);
+        }
+
+        protected async Task FinalizarAsync(CancellationToken token = default)
+        {
+            if (_finalizar == null)
+                return;
+
+            await _finalizar(token);
+        }
+
         public abstract void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger);
         public abstract Task EjecutarAsync(IStream<TRead, TWrite> stream, CancellationToken token = default);
     }
