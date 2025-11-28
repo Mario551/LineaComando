@@ -1,5 +1,2 @@
-Comandos/bin/
-Comandos/obj/
-Comandos/.vs/
-Test/ComandosTest/bin/
-Test/ComandosTest/obj/
+**/bin
+**/obj
