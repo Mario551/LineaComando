@@ -1,4 +1,4 @@
-namespace PER.Comandos.LineaComandos.Cola
+namespace PER.Comandos.LineaComandos.Cola.Almacen
 {
     /// <summary>
     /// Comando encolado para procesamiento asíncrono.

@@ -1,6 +1,6 @@
-namespace PER.Comandos.LineaComandos.Persistence.DAO
+namespace PER.Comandos.LineaComandos.Cola.DAO
 {
-        private class ComandoEnCola
+        public class ComandoEnCola
         {
             public long Id { get; set; }
             public int IdComandoRegistrado { get; set; }

@@ -1,10 +1,9 @@
 using Dapper;
 using Npgsql;
 using PER.Comandos.LineaComandos.Cola;
-using PER.Comandos.LineaComandos.Persistence.DAO;
 using System.Threading.Tasks;
 
-namespace PER.Comandos.LineaComandos.Persistence.Cola
+namespace PER.Comandos.LineaComandos.Cola.Almacen
 {
     public class AlmacenColaComandos : IAlmacenColaComandos
     {
@@ -78,7 +77,7 @@ namespace PER.Comandos.LineaComandos.Persistence.Cola
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            var comandos = await connection.QueryAsync<ComandoEnColaDao>(sql,
+            var comandos = await connection.QueryAsync<DAO.ComandoEnCola>(sql,
             new
             {
                 TamanioLote = tamanioLote,
@@ -128,7 +127,7 @@ namespace PER.Comandos.LineaComandos.Persistence.Cola
         /// <summary>
         /// Mapea un DAO de base de datos a un objeto de dominio ComandoEnCola.
         /// </summary>
-        private static ComandoEnCola MapToComandoEnCola(ComandoEnCola dao)
+        private static ComandoEnCola MapToComandoEnCola(DAO.ComandoEnCola dao)
         {
             return new ComandoEnCola
             {

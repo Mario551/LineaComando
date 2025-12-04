@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComandosTest", "..\Test\Com
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineaComando.EventDriven", "..\LineaComando.EventDriven\LineaComando.EventDriven.csproj", "{ECB56A9D-8393-4604-8018-1498B3F86BDE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineaComando.Cola", "..\LineaComando.Cola\LineaComando.Cola.csproj", "{6AD53E3E-201B-453E-9445-B6F5E05EBE0B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,6 +31,10 @@ Global
 		{ECB56A9D-8393-4604-8018-1498B3F86BDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ECB56A9D-8393-4604-8018-1498B3F86BDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ECB56A9D-8393-4604-8018-1498B3F86BDE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6AD53E3E-201B-453E-9445-B6F5E05EBE0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AD53E3E-201B-453E-9445-B6F5E05EBE0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AD53E3E-201B-453E-9445-B6F5E05EBE0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AD53E3E-201B-453E-9445-B6F5E05EBE0B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

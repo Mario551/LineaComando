@@ -2,7 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Comandos\Comandos.csproj" />
-    <ProjectReference Include="..\LineaComando.EventDriven\LineaComando.EventDriven.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Npgsql" Version="10.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

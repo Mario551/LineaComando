@@ -90,15 +90,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Tabla de comandos registrados (para referencia)
+-- Tabla: comandos_registrados
+-- Almacena el catálogo de comandos disponibles en el sistema
 CREATE TABLE IF NOT EXISTS comandos_registrados (
     id SERIAL PRIMARY KEY,
     ruta_comando VARCHAR(2048) NOT NULL UNIQUE,
     descripcion TEXT NULL,
     esquema_parametros JSONB NULL,
     activo BOOLEAN NOT NULL DEFAULT true,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW()
+    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+    actualizado_en TIMESTAMP NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_comandos_registrados_ruta
     ON comandos_registrados(ruta_comando);
+
+CREATE INDEX IF NOT EXISTS idx_comandos_registrados_activo
+    ON comandos_registrados(activo);

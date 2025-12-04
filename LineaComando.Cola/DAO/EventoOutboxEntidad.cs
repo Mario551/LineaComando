@@ -1,4 +1,4 @@
-namespace PER.Comandos.Datos.Entidades
+namespace PER.Comandos.LineaComandos.Cola.DAO
 {
     /// <summary>
     /// Entidad: Event Store (Outbox).
@@ -36,10 +36,5 @@ namespace PER.Comandos.Datos.Entidades
         /// Cuándo se terminó de procesar (NULL = pendiente).
         /// </summary>
         public DateTime? ProcesadoEn { get; set; }
-
-        /// <summary>
-        /// Ejecuciones de handlers para este evento.
-        /// </summary>
-        public ICollection<EjecucionManejador> Ejecuciones { get; set; } = new List<EjecucionManejador>();
     }
 }
