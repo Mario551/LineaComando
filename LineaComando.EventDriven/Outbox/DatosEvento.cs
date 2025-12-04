@@ -13,7 +13,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// <summary>
         /// ID del agregado/entidad afectada.
         /// </summary>
-        public Guid? AgregadoId { get; set; }
+        public long? AgregadoId { get; set; }
 
         /// <summary>
         /// Datos completos del evento (serializados).

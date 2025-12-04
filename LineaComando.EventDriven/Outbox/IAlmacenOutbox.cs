@@ -9,7 +9,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// <summary>
         /// Guarda un evento en el outbox.
         /// </summary>
-        Task<Guid> GuardarEventoAsync(DatosEvento datosEvento, CancellationToken token = default);
+        Task<long> GuardarEventoAsync(DatosEvento datosEvento, CancellationToken token = default);
 
         /// <summary>
         /// Obtiene eventos pendientes de procesar.
@@ -19,11 +19,11 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// <summary>
         /// Marca un evento como procesado.
         /// </summary>
-        Task MarcarComoProcesadoAsync(Guid eventoId, CancellationToken token = default);
+        Task MarcarComoProcesadoAsync(long eventoId, CancellationToken token = default);
 
         /// <summary>
         /// Marca múltiples eventos como procesados.
         /// </summary>
-        Task MarcarComoProcesadosAsync(IEnumerable<Guid> eventosIds, CancellationToken token = default);
+        Task MarcarComoProcesadosAsync(IEnumerable<long> eventosIds, CancellationToken token = default);
     }
 }

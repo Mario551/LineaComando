@@ -8,7 +8,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// <summary>
         /// Identificador único del evento.
         /// </summary>
-        public Guid Id { get; set; }
+        public long Id { get; set; }
 
         /// <summary>
         /// Código del tipo de evento.
@@ -18,7 +18,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// <summary>
         /// ID del agregado/entidad afectada.
         /// </summary>
-        public Guid? AgregadoId { get; set; }
+        public long? AgregadoId { get; set; }
 
         /// <summary>
         /// Datos completos del evento (JSON).

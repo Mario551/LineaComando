@@ -1,8 +1,9 @@
-namespace PER.Comandos.LineaComandos.EventDriven.Handler
+namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 {
     /// <summary>
     /// Modelo de configuración de un handler.
     /// Define cuándo y cómo se ejecuta cada handler.
+    /// Los handlers son comandos que se encolan para su ejecución.
     /// </summary>
     public class ConfiguracionManejador
     {
@@ -15,6 +16,21 @@ namespace PER.Comandos.LineaComandos.EventDriven.Handler
         /// ID del handler a ejecutar.
         /// </summary>
         public int IDManejador { get; set; }
+
+        /// <summary>
+        /// ID del comando registrado que se ejecutará.
+        /// </summary>
+        public int IdComandoRegistrado { get; set; }
+
+        /// <summary>
+        /// Ruta del comando a ejecutar (ej: "notificacion email").
+        /// </summary>
+        public string RutaComando { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Argumentos predefinidos para el comando (opcional).
+        /// </summary>
+        public string? ArgumentosComando { get; set; }
 
         /// <summary>
         /// Modo de disparo: "Evento" o "Programado".
@@ -30,11 +46,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Handler
         /// Expresión cron (si ModoDisparo = "Programado").
         /// </summary>
         public string? ExpresionCron { get; set; }
-
-        /// <summary>
-        /// Filtros adicionales en JSON (opcional).
-        /// </summary>
-        public string? CondicionesFiltro { get; set; }
 
         /// <summary>
         /// Si esta configuración está activa.
