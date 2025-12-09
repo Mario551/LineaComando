@@ -16,6 +16,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
         public InicializadorEsquemaEventDriven(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
 
         /// <summary>

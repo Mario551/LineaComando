@@ -14,6 +14,7 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
         public InicializadorEsquema(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
 
         /// <summary>
@@ -28,6 +29,7 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
             await CrearTablaComandosRegistradosAsync(connection);
             await CrearTablaColaComandosAsync(connection);
             await CrearFuncionObtenerComandosPendientesAsync(connection);
+            await CrearFuncionMarcarComandosProcesandoAsync(connection);
         }
 
         /// <summary>
@@ -143,12 +145,11 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                 )
                 AS $$
                 DECLARE
-                    v_ahora TIMESTAMP := NOW();
                     v_timeout_timestamp TIMESTAMP;
                 BEGIN
-                    v_timeout_timestamp := v_ahora - (p_timeout_milisegundos || ' milliseconds')::INTERVAL;
+                    v_timeout_timestamp := NOW() - (p_timeout_milisegundos || ' milliseconds')::INTERVAL;
 
-                    CREATE TEMP TABLE tmp_comandos_a_procesar ON COMMIT DROP AS
+                    RETURN QUERY
                     SELECT c.*
                     FROM cola_comandos c
                     WHERE (
@@ -158,13 +159,41 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     )
                     ORDER BY c.id
                     LIMIT p_tamanio_lote;
+                END;
+                $$ LANGUAGE plpgsql;";
 
+            await connection.ExecuteAsync(sql);
+        }
+
+        private static async Task CrearFuncionMarcarComandosProcesandoAsync(NpgsqlConnection connection)
+        {
+            const string sql = @"
+                CREATE OR REPLACE FUNCTION marcar_comandos_procesando(
+                    p_ids BIGINT[]
+                )
+                RETURNS TABLE (
+                    id BIGINT,
+                    id_comando_registrado INTEGER,
+                    ruta_comando VARCHAR(2048),
+                    argumentos TEXT,
+                    datos_comando JSONB,
+                    fecha_creacion TIMESTAMP,
+                    fecha_leido TIMESTAMP,
+                    fecha_ejecucion TIMESTAMP,
+                    estado VARCHAR(50),
+                    mensaje_error TEXT,
+                    salida TEXT,
+                    duracion_ms BIGINT,
+                    intentos INTEGER
+                )
+                AS $$
+                BEGIN
                     UPDATE cola_comandos c
-                    SET fecha_leido = v_ahora,
+                    SET fecha_leido = NOW(),
                         estado = 'Procesando'
-                    WHERE c.id IN (SELECT tmp.id FROM tmp_comandos_a_procesar tmp);
+                    WHERE c.id = ANY(p_ids);
 
-                    RETURN QUERY SELECT * FROM tmp_comandos_a_procesar;
+                    RETURN QUERY SELECT c.* FROM cola_comandos c WHERE c.id = ANY(p_ids);
                 END;
                 $$ LANGUAGE plpgsql;";
 

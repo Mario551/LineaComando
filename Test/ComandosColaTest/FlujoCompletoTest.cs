@@ -3,20 +3,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
-using PER.Comandos.LineaComandos.Persistence.Procesadores;
-using PER.Comandos.LineaComandos.Persistence.Registro;
+using PER.Comandos.LineaComandos.Cola.Procesadores;
+using PER.Comandos.LineaComandos.Cola.Registro;
 using PER.Comandos.LineaComandos.Registro;
+using PER.Comandos.LineaComandos.Stream;
 using Dapper;
 
 namespace ComandosColaTest
 {
-    /// <summary>
-    /// Pruebas de integración del flujo completo:
-    /// 1. Registrar comandos
-    /// 2. Encolar comandos
-    /// 3. Procesar cola
-    /// 4. Verificar resultados
-    /// </summary>
+    [Collection("Database")]
     public class FlujoCompletoTest : BaseIntegracionTest
     {
         private readonly RegistroComandos<string, ResultadoComando> _registro;
@@ -24,7 +19,9 @@ namespace ComandosColaTest
         private readonly ILogger _logger;
         private readonly ConfiguracionPrueba _configuracion;
 
-        public FlujoCompletoTest() : base()
+        protected override string PrefijoTest => "flujo_completo_";
+
+        public FlujoCompletoTest(DatabaseFixture fixture) : base(fixture)
         {
             _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
             _almacen = new AlmacenColaComandos(ConnectionString);
@@ -38,13 +35,42 @@ namespace ComandosColaTest
             ComandoPrueba.ResetearContador();
         }
 
+        private async Task<ResultadoComando> EjecutarComandoAsync(
+            IFactoriaComandos<string, ResultadoComando> factoria,
+            ComandoEnCola comandoEnCola)
+        {
+            var lineaComando = ParsearLineaComando(comandoEnCola);
+            var comando = factoria.Crear(lineaComando, _configuracion, _logger);
+            var stream = new StreamEnMemoria<string, ResultadoComando>(comandoEnCola.DatosDeComando ?? string.Empty);
+
+            await comando.EjecutarAsync(stream);
+
+            return stream.ObtenerResultado() ?? ResultadoComando.Fallo("El comando no produjo resultado");
+        }
+
+        private PER.Comandos.LineaComandos.LineaComando ParsearLineaComando(ComandoEnCola comandoEnCola)
+        {
+            var partes = new List<string>();
+
+            var rutaPartes = comandoEnCola.RutaComando.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            partes.AddRange(rutaPartes);
+
+            if (!string.IsNullOrWhiteSpace(comandoEnCola.Argumentos))
+            {
+                var argumentosPartes = comandoEnCola.Argumentos.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                partes.AddRange(argumentosPartes);
+            }
+
+            return new PER.Comandos.LineaComandos.LineaComando(partes);
+        }
+
         [Fact]
         public async Task FlujoCompleto_RegistrarEncolarProcesar_DebeEjecutarComando()
         {
-            // === PASO 1: Registrar comando ===
+            var ruta = PrefijoTest + "orden procesar";
             var metadatos = new MetadatosComando
             {
-                RutaComando = "orden procesar",
+                RutaComando = ruta,
                 Descripcion = "Procesa una orden"
             };
             var comandoPrueba = new ComandoPrueba("Orden procesada exitosamente");
@@ -52,14 +78,12 @@ namespace ComandosColaTest
 
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Construir factoría
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            // === PASO 2: Encolar comando ===
             var comandoEnCola = new ComandoEnCola
             {
-                RutaComando = "orden procesar",
+                RutaComando = ruta,
                 Argumentos = "--orderId=123",
                 DatosDeComando = "{\"orderId\": 123, \"total\": 500}",
                 FechaCreacion = DateTime.UtcNow,
@@ -70,18 +94,22 @@ namespace ComandosColaTest
             var comandoId = await _almacen.EncolarAsync(comandoEnCola);
             Assert.True(comandoId > 0);
 
-            // === PASO 3: Procesar cola (simular procesador) ===
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(10);
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(10))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
             Assert.Single(pendientes);
 
             var comandoAProcesar = pendientes.First();
-            Assert.Equal("orden procesar", comandoAProcesar.RutaComando);
+            Assert.Equal(ruta, comandoAProcesar.RutaComando);
 
-            // Simular ejecución del comando
-            var resultado = ResultadoComando.Exito("Orden procesada exitosamente", TimeSpan.FromMilliseconds(100));
+            var contadorAntes = ComandoPrueba.ContadorEjecuciones;
+            var resultado = await EjecutarComandoAsync(factoria, comandoAProcesar);
+            
+            Assert.True(resultado.Exitoso);
+            Assert.Equal(contadorAntes + 1, ComandoPrueba.ContadorEjecuciones);
+
             await _almacen.MarcarComoProcesadoAsync(comandoAProcesar.Id, resultado);
 
-            // === PASO 4: Verificar resultado ===
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -97,11 +125,11 @@ namespace ComandosColaTest
         [Fact]
         public async Task FlujoCompleto_ComandoConParametros_DebeUsarParametros()
         {
-            // Registrar comando de suma
+            var ruta = PrefijoTest + "calculadora sumar";
             var metadatos = new MetadatosComando
             {
-                RutaComando = "calculadora sumar",
-                Descripcion = "Suma dos números",
+                RutaComando = ruta,
+                Descripcion = "Suma dos numeros",
                 EsquemaParametros = "{\"parametros\": [{\"nombre\": \"a\"}, {\"nombre\": \"b\"}]}"
             };
             var comandoSuma = new ComandoSuma();
@@ -109,10 +137,12 @@ namespace ComandosColaTest
 
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Encolar comando con parámetros
+            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            await _registro.ConstruirFactoriaAsync(factoria);
+
             var comandoEnCola = new ComandoEnCola
             {
-                RutaComando = "calculadora sumar",
+                RutaComando = ruta,
                 Argumentos = "--a=15 --b=27",
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
@@ -121,19 +151,22 @@ namespace ComandosColaTest
 
             var comandoId = await _almacen.EncolarAsync(comandoEnCola);
 
-            // Obtener y verificar
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(10);
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(10))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
             var comando = pendientes.First();
 
-            Assert.Equal("calculadora sumar", comando.RutaComando);
+            Assert.Equal(ruta, comando.RutaComando);
             Assert.Contains("--a=15", comando.Argumentos);
             Assert.Contains("--b=27", comando.Argumentos);
 
-            // Marcar como completado
-            var resultado = ResultadoComando.Exito("Resultado: 42", TimeSpan.FromMilliseconds(10));
+            var resultado = await EjecutarComandoAsync(factoria, comando);
+
+            Assert.True(resultado.Exitoso);
+            Assert.Contains("42", resultado.Salida);
+
             await _almacen.MarcarComoProcesadoAsync(comando.Id, resultado);
 
-            // Verificar
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -148,18 +181,20 @@ namespace ComandosColaTest
         [Fact]
         public async Task FlujoCompleto_MultipleComandosEnCola_DebeProcesarEnOrden()
         {
-            // Registrar comando
-            var metadatos = new MetadatosComando { RutaComando = "batch item" };
+            var ruta = PrefijoTest + "batch item";
+            var metadatos = new MetadatosComando { RutaComando = ruta };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Encolar múltiples comandos
+            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            await _registro.ConstruirFactoriaAsync(factoria);
+
             var ids = new List<long>();
             for (int i = 1; i <= 5; i++)
             {
                 var comando = new ComandoEnCola
                 {
-                    RutaComando = "batch item",
+                    RutaComando = ruta,
                     Argumentos = $"--index={i}",
                     FechaCreacion = DateTime.UtcNow.AddMilliseconds(i * 10),
                     Estado = "Pendiente",
@@ -168,31 +203,34 @@ namespace ComandosColaTest
                 ids.Add(await _almacen.EncolarAsync(comando));
             }
 
-            // Obtener pendientes
-            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(10)).ToList();
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(100))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
 
             Assert.Equal(5, pendientes.Count);
 
-            // Verificar orden (por fecha de creación)
             for (int i = 0; i < 5; i++)
             {
                 Assert.Contains($"--index={i + 1}", pendientes[i].Argumentos);
             }
 
-            // Marcar todos como procesados
+            var contadorAntes = ComandoPrueba.ContadorEjecuciones;
+
             foreach (var comando in pendientes)
             {
-                await _almacen.MarcarComoProcesadoAsync(
-                    comando.Id,
-                    ResultadoComando.Exito($"Item {comando.Id} procesado"));
+                var resultado = await EjecutarComandoAsync(factoria, comando);
+                Assert.True(resultado.Exitoso);
+                await _almacen.MarcarComoProcesadoAsync(comando.Id, resultado);
             }
 
-            // Verificar todos completados
+            Assert.Equal(contadorAntes + 5, ComandoPrueba.ContadorEjecuciones);
+
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             var completados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM cola_comandos WHERE estado = 'Completado'");
+                "SELECT COUNT(*) FROM cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
+                new { Ruta = ruta });
 
             Assert.Equal(5, completados);
         }
@@ -200,15 +238,17 @@ namespace ComandosColaTest
         [Fact]
         public async Task FlujoCompleto_ComandoFalla_DebeRegistrarError()
         {
-            // Registrar comando
-            var metadatos = new MetadatosComando { RutaComando = "proceso fallido" };
+            var ruta = PrefijoTest + "proceso fallido";
+            var metadatos = new MetadatosComando { RutaComando = ruta };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("", deberiaFallar: true));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Encolar
+            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            await _registro.ConstruirFactoriaAsync(factoria);
+
             var comandoEnCola = new ComandoEnCola
             {
-                RutaComando = "proceso fallido",
+                RutaComando = ruta,
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
                 Intentos = 0
@@ -216,15 +256,18 @@ namespace ComandosColaTest
 
             var comandoId = await _almacen.EncolarAsync(comandoEnCola);
 
-            // Obtener y procesar
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(10);
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(10))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
             var comando = pendientes.First();
 
-            // Simular fallo
-            var resultado = ResultadoComando.Fallo("Error de conexión a base de datos", TimeSpan.FromMilliseconds(50));
+            var resultado = await EjecutarComandoAsync(factoria, comando);
+
+            Assert.False(resultado.Exitoso);
+            Assert.Contains("Error simulado", resultado.MensajeError);
+
             await _almacen.MarcarComoProcesadoAsync(comando.Id, resultado);
 
-            // Verificar estado de error
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -233,22 +276,24 @@ namespace ComandosColaTest
                 new { Id = comandoId });
 
             Assert.Equal("Fallido", (string)comandoDb.estado);
-            Assert.Contains("Error de conexión", (string)comandoDb.mensaje_error);
+            Assert.Contains("Error simulado", (string)comandoDb.mensaje_error);
             Assert.Equal(1, (int)comandoDb.intentos);
         }
 
         [Fact]
         public async Task FlujoCompleto_ReintentarComandoFallido_DebeIncrementarIntentos()
         {
-            // Registrar comando
-            var metadatos = new MetadatosComando { RutaComando = "reintento test" };
-            var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
+            var ruta = PrefijoTest + "reintento test";
+            var metadatos = new MetadatosComando { RutaComando = ruta };
+            var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("", deberiaFallar: true));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Encolar
+            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            await _registro.ConstruirFactoriaAsync(factoria);
+
             var comandoEnCola = new ComandoEnCola
             {
-                RutaComando = "reintento test",
+                RutaComando = ruta,
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
                 Intentos = 0
@@ -256,13 +301,15 @@ namespace ComandosColaTest
 
             var comandoId = await _almacen.EncolarAsync(comandoEnCola);
 
-            // Primer intento - falla
-            var pendientes1 = await _almacen.ObtenerComandosPendientesAsync(10);
-            await _almacen.MarcarComoProcesadoAsync(
-                pendientes1.First().Id,
-                ResultadoComando.Fallo("Primer intento fallido"));
+            var pendientes1 = (await _almacen.ObtenerComandosPendientesAsync(10))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
 
-            // Resetear estado para reintento
+            var resultado1 = await EjecutarComandoAsync(factoria, pendientes1.First());
+            Assert.False(resultado1.Exitoso);
+
+            await _almacen.MarcarComoProcesadoAsync(pendientes1.First().Id, resultado1);
+
             using (var connection = CrearConexion())
             {
                 await connection.OpenAsync();
@@ -271,13 +318,15 @@ namespace ComandosColaTest
                     new { Id = comandoId });
             }
 
-            // Segundo intento - falla
-            var pendientes2 = await _almacen.ObtenerComandosPendientesAsync(10);
-            await _almacen.MarcarComoProcesadoAsync(
-                pendientes2.First().Id,
-                ResultadoComando.Fallo("Segundo intento fallido"));
+            var pendientes2 = (await _almacen.ObtenerComandosPendientesAsync(10))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
 
-            // Verificar intentos
+            var resultado2 = await EjecutarComandoAsync(factoria, pendientes2.First());
+            Assert.False(resultado2.Exitoso);
+
+            await _almacen.MarcarComoProcesadoAsync(pendientes2.First().Id, resultado2);
+
             using var conn = CrearConexion();
             await conn.OpenAsync();
 
@@ -291,9 +340,11 @@ namespace ComandosColaTest
         [Fact]
         public async Task FlujoCompleto_DesactivarComando_NoDebeAparecerEnFactoria()
         {
-            // Registrar comandos
-            var metadatos1 = new MetadatosComando { RutaComando = "activo comando" };
-            var metadatos2 = new MetadatosComando { RutaComando = "inactivo comando" };
+            var rutaActivo = PrefijoTest + "activo comando";
+            var rutaInactivo = PrefijoTest + "inactivo comando";
+
+            var metadatos1 = new MetadatosComando { RutaComando = rutaActivo };
+            var metadatos2 = new MetadatosComando { RutaComando = rutaInactivo };
 
             var nodo1 = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             var nodo2 = new Nodo<string, ResultadoComando>(new ComandoPrueba());
@@ -301,29 +352,27 @@ namespace ComandosColaTest
             await _registro.RegistrarComandoAsync(metadatos1, nodo1);
             await _registro.RegistrarComandoAsync(metadatos2, nodo2);
 
-            // Desactivar uno
-            await _registro.EliminarRegistroComandoAsync("inactivo comando");
+            await _registro.EliminarRegistroComandoAsync(rutaInactivo);
 
-            // Obtener comandos activos
-            var comandosActivos = await _registro.ObtenerComandosRegistradosAsync();
+            var comandosActivos = (await _registro.ObtenerComandosRegistradosAsync())
+                .Where(c => c.RutaComando.StartsWith(PrefijoTest));
 
             Assert.Single(comandosActivos);
-            Assert.Equal("activo comando", comandosActivos.First().RutaComando);
+            Assert.Equal(rutaActivo, comandosActivos.First().RutaComando);
         }
 
         [Fact]
         public async Task FlujoCompleto_ComandoConDatosJson_DebePreservarDatos()
         {
-            // Registrar comando
-            var metadatos = new MetadatosComando { RutaComando = "json test" };
+            var ruta = PrefijoTest + "json test";
+            var metadatos = new MetadatosComando { RutaComando = ruta };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Datos JSON complejos
             var datosJson = @"{
                 ""cliente"": {
                     ""id"": 12345,
-                    ""nombre"": ""Juan Pérez"",
+                    ""nombre"": ""Juan Perez"",
                     ""email"": ""juan@example.com""
                 },
                 ""items"": [
@@ -334,10 +383,9 @@ namespace ComandosColaTest
                 ""fecha"": ""2024-01-15T10:30:00Z""
             }";
 
-            // Encolar con datos JSON
             var comandoEnCola = new ComandoEnCola
             {
-                RutaComando = "json test",
+                RutaComando = ruta,
                 DatosDeComando = datosJson,
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
@@ -346,7 +394,6 @@ namespace ComandosColaTest
 
             var comandoId = await _almacen.EncolarAsync(comandoEnCola);
 
-            // Verificar que los datos se guardaron correctamente
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -354,7 +401,7 @@ namespace ComandosColaTest
                 "SELECT datos_comando::text FROM cola_comandos WHERE id = @Id",
                 new { Id = comandoId });
 
-            Assert.Contains("Juan Pérez", datos);
+            Assert.Contains("Juan Perez", datos);
             Assert.Contains("12345", datos);
             Assert.Contains("Laptop", datos);
             Assert.Contains("1050.99", datos);

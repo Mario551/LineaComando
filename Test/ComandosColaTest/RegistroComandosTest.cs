@@ -2,16 +2,19 @@ using Dapper;
 using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
-using PER.Comandos.LineaComandos.Persistence.Registro;
+using PER.Comandos.LineaComandos.Cola.Registro;
 using PER.Comandos.LineaComandos.Registro;
 
 namespace ComandosColaTest
 {
+    [Collection("Database")]
     public class RegistroComandosTest : BaseIntegracionTest
     {
         private readonly RegistroComandos<string, ResultadoComando> _registro;
 
-        public RegistroComandosTest() : base()
+        protected override string PrefijoTest => "registro_cmd_";
+
+        public RegistroComandosTest(DatabaseFixture fixture) : base(fixture)
         {
             _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
         }
@@ -19,25 +22,23 @@ namespace ComandosColaTest
         [Fact]
         public async Task RegistrarComandoAsync_DebeInsertarComando()
         {
-            // Arrange
+            var ruta = PrefijoTest + "insertar";
             var metadatos = new MetadatosComando
             {
-                RutaComando = "prueba ejecutar",
+                RutaComando = ruta,
                 Descripcion = "Comando de prueba",
                 EsquemaParametros = "{\"parametros\": []}"
             };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
 
-            // Act
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
                 "SELECT * FROM comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = "prueba ejecutar" });
+                new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);
             Assert.Equal("Comando de prueba", (string)comandoDb.descripcion);
@@ -48,85 +49,80 @@ namespace ComandosColaTest
         [Fact]
         public async Task RegistrarComandoAsync_DebeActualizarComandoExistente()
         {
-            // Arrange
+            var ruta = PrefijoTest + "actualizar";
             var metadatos1 = new MetadatosComando
             {
-                RutaComando = "orden procesar",
-                Descripcion = "Versión 1"
+                RutaComando = ruta,
+                Descripcion = "Version 1"
             };
             var metadatos2 = new MetadatosComando
             {
-                RutaComando = "orden procesar",
-                Descripcion = "Versión 2 actualizada"
+                RutaComando = ruta,
+                Descripcion = "Version 2 actualizada"
             };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
 
-            // Act
             await _registro.RegistrarComandoAsync(metadatos1, nodo);
             await _registro.RegistrarComandoAsync(metadatos2, nodo);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             var count = await connection.ExecuteScalarAsync<int>(
                 "SELECT COUNT(*) FROM comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = "orden procesar" });
+                new { Ruta = ruta });
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
                 "SELECT * FROM comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = "orden procesar" });
+                new { Ruta = ruta });
 
             Assert.Equal(1, count);
-            Assert.Equal("Versión 2 actualizada", (string)comandoDb.descripcion);
+            Assert.Equal("Version 2 actualizada", (string)comandoDb.descripcion);
         }
 
         [Fact]
         public async Task ObtenerComandosRegistradosAsync_DebeRetornarSoloActivos()
         {
-            // Arrange
-            var metadatos1 = new MetadatosComando { RutaComando = "activo uno" };
-            var metadatos2 = new MetadatosComando { RutaComando = "activo dos" };
+            var rutaActivo = PrefijoTest + "activo";
+            var rutaInactivo = PrefijoTest + "inactivo";
+            var metadatos1 = new MetadatosComando { RutaComando = rutaInactivo };
+            var metadatos2 = new MetadatosComando { RutaComando = rutaActivo };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
 
             await _registro.RegistrarComandoAsync(metadatos1, nodo);
             await _registro.RegistrarComandoAsync(metadatos2, nodo);
 
-            // Desactivar uno manualmente
             using (var connection = CrearConexion())
             {
                 await connection.OpenAsync();
                 await connection.ExecuteAsync(
                     "UPDATE comandos_registrados SET activo = false WHERE ruta_comando = @Ruta",
-                    new { Ruta = "activo uno" });
+                    new { Ruta = rutaInactivo });
             }
 
-            // Act
-            var comandos = await _registro.ObtenerComandosRegistradosAsync();
+            var comandos = (await _registro.ObtenerComandosRegistradosAsync())
+                .Where(c => c.RutaComando.StartsWith(PrefijoTest));
 
-            // Assert
             Assert.Single(comandos);
-            Assert.Equal("activo dos", comandos.First().RutaComando);
+            Assert.Equal(rutaActivo, comandos.First().RutaComando);
         }
 
         [Fact]
         public async Task EliminarRegistroComandoAsync_DebeDesactivarComando()
         {
-            // Arrange
-            var metadatos = new MetadatosComando { RutaComando = "comando a eliminar" };
+            var ruta = PrefijoTest + "eliminar";
+            var metadatos = new MetadatosComando { RutaComando = ruta };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Act
-            await _registro.EliminarRegistroComandoAsync("comando a eliminar");
+            await _registro.EliminarRegistroComandoAsync(ruta);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
                 "SELECT * FROM comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = "comando a eliminar" });
+                new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);
             Assert.False((bool)comandoDb.activo);
@@ -135,10 +131,13 @@ namespace ComandosColaTest
         [Fact]
         public async Task ConstruirFactoriaAsync_DebeConstruirArbolDeComandos()
         {
-            // Arrange
-            var metadatos1 = new MetadatosComando { RutaComando = "orden" };
-            var metadatos2 = new MetadatosComando { RutaComando = "orden crear" };
-            var metadatos3 = new MetadatosComando { RutaComando = "orden pagar" };
+            var rutaBase = PrefijoTest + "orden";
+            var rutaCrear = PrefijoTest + "orden crear";
+            var rutaPagar = PrefijoTest + "orden pagar";
+
+            var metadatos1 = new MetadatosComando { RutaComando = rutaBase };
+            var metadatos2 = new MetadatosComando { RutaComando = rutaCrear };
+            var metadatos3 = new MetadatosComando { RutaComando = rutaPagar };
 
             var nodoOrden = new Nodo<string, ResultadoComando>();
             var nodoCrear = new Nodo<string, ResultadoComando>(new ComandoPrueba("Orden creada"));
@@ -150,18 +149,17 @@ namespace ComandosColaTest
 
             var factoria = new FactoriaComandos<string, ResultadoComando>();
 
-            // Act
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            // Assert - verificar que los comandos están en la base de datos
-            var comandos = await _registro.ObtenerComandosRegistradosAsync();
+            var comandos = (await _registro.ObtenerComandosRegistradosAsync())
+                .Where(c => c.RutaComando.StartsWith(PrefijoTest));
             Assert.Equal(3, comandos.Count());
         }
 
         [Fact]
         public async Task RegistrarComandoAsync_ConEsquemaParametros_DebeGuardarJsonb()
         {
-            // Arrange
+            var ruta = PrefijoTest + "con_esquema";
             var esquema = @"{
                 ""parametros"": [
                     {""nombre"": ""orderId"", ""tipo"": ""int"", ""requerido"": true},
@@ -170,22 +168,20 @@ namespace ComandosColaTest
             }";
             var metadatos = new MetadatosComando
             {
-                RutaComando = "pago procesar",
+                RutaComando = ruta,
                 Descripcion = "Procesa un pago",
                 EsquemaParametros = esquema
             };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
 
-            // Act
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
                 "SELECT esquema_parametros::text as esquema FROM comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = "pago procesar" });
+                new { Ruta = ruta });
 
             Assert.NotNull(comandoDb.esquema);
             Assert.Contains("orderId", (string)comandoDb.esquema);

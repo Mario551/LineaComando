@@ -5,7 +5,7 @@ using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.DAO;
 
-namespace PER.Comandos.LineaComandos.Persistence.Registro
+namespace PER.Comandos.LineaComandos.Cola.Registro
 {
     public class RegistroComandos<TRead, TWrite> : IRegistroComandos<TRead, TWrite>
     {

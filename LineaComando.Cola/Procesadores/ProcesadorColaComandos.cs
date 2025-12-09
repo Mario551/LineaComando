@@ -6,7 +6,7 @@ using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Stream;
 using PER.Comandos.LineaComandos.Configuracion;
 
-namespace PER.Comandos.LineaComandos.Persistence.Procesadores
+namespace PER.Comandos.LineaComandos.Cola.Procesadores
 {
     public class ProcesadorColaComandos
     {

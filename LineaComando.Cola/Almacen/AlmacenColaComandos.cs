@@ -59,6 +59,9 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                     comando.Intentos
                 });
 
+            if (id == 0)
+                throw new InvalidOperationException($"El comando '{comando.RutaComando}' no está registrado");
+
             return id;
         }
 
@@ -78,11 +81,29 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
             await connection.OpenAsync(token);
 
             var comandos = await connection.QueryAsync<DAO.ComandoEnCola>(sql,
-            new
-            {
-                TamanioLote = tamanioLote,
-                TimeoutMilisegundos = 300000 // 5 minutos de timeout por defecto
-            });
+                new
+                {
+                    TamanioLote = tamanioLote,
+                    TimeoutMilisegundos = 300000
+                });
+
+            return comandos.Select(MapToComandoEnCola);
+        }
+
+        public async Task<IEnumerable<ComandoEnCola>> MarcarComandosProcesandoAsync(
+            long[] ids,
+            CancellationToken token = default)
+        {
+            if (ids.Length == 0)
+                return Enumerable.Empty<ComandoEnCola>();
+
+            const string sql = "SELECT * FROM marcar_comandos_procesando(@Ids);";
+
+            using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(token);
+
+            var comandos = await connection.QueryAsync<DAO.ComandoEnCola>(sql,
+                new { Ids = ids });
 
             return comandos.Select(MapToComandoEnCola);
         }

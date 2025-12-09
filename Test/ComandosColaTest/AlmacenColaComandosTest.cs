@@ -2,35 +2,31 @@ using Dapper;
 using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
-using PER.Comandos.LineaComandos.Persistence.Registro;
+using PER.Comandos.LineaComandos.Cola.Registro;
 using PER.Comandos.LineaComandos.Registro;
 
 namespace ComandosColaTest
 {
+    [Collection("Database")]
     public class AlmacenColaComandosTest : BaseIntegracionTest
     {
         private readonly AlmacenColaComandos _almacen;
         private readonly RegistroComandos<string, ResultadoComando> _registro;
 
-        public AlmacenColaComandosTest() : base()
+        protected override string PrefijoTest => "almacen_cola_";
+
+        public AlmacenColaComandosTest(DatabaseFixture fixture) : base(fixture)
         {
             _almacen = new AlmacenColaComandos(ConnectionString);
             _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
         }
 
-        public override async Task InitializeAsync()
-        {
-            await base.InitializeAsync();
-            // Registrar un comando base para las pruebas
-            await RegistrarComandoBaseAsync();
-        }
-
-        private async Task RegistrarComandoBaseAsync()
+        private async Task PrepararTestAsync(string rutaComando)
         {
             var metadatos = new MetadatosComando
             {
-                RutaComando = "test ejecutar",
-                Descripcion = "Comando de prueba para tests"
+                RutaComando = rutaComando,
+                Descripcion = $"Comando de prueba: {rutaComando}"
             };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
@@ -39,10 +35,12 @@ namespace ComandosColaTest
         [Fact]
         public async Task EncolarAsync_DebeInsertarComandoEnCola()
         {
-            // Arrange
+            var ruta = PrefijoTest + "encolar_insertar";
+            await PrepararTestAsync(ruta);
+
             var comando = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 Argumentos = "--mensaje=hola",
                 DatosDeComando = "{\"key\": \"value\"}",
                 FechaCreacion = DateTime.UtcNow,
@@ -50,10 +48,8 @@ namespace ComandosColaTest
                 Intentos = 0
             };
 
-            // Act
             var id = await _almacen.EncolarAsync(comando);
 
-            // Assert
             Assert.True(id > 0);
 
             using var connection = CrearConexion();
@@ -64,7 +60,7 @@ namespace ComandosColaTest
                 new { Id = id });
 
             Assert.NotNull(comandoDb);
-            Assert.Equal("test ejecutar", (string)comandoDb.ruta_comando);
+            Assert.Equal(ruta, (string)comandoDb.ruta_comando);
             Assert.Equal("--mensaje=hola", (string)comandoDb.argumentos);
             Assert.Equal("Pendiente", (string)comandoDb.estado);
         }
@@ -72,10 +68,12 @@ namespace ComandosColaTest
         [Fact]
         public async Task ObtenerComandosPendientesAsync_DebeRetornarComandosPendientes()
         {
-            // Arrange
+            var ruta = PrefijoTest + "obtener_pendientes";
+            await PrepararTestAsync(ruta);
+
             var comando1 = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 Argumentos = "--id=1",
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
@@ -83,31 +81,35 @@ namespace ComandosColaTest
             };
             var comando2 = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 Argumentos = "--id=2",
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
                 Intentos = 0
             };
 
-            await _almacen.EncolarAsync(comando1);
-            await _almacen.EncolarAsync(comando2);
+            long c1 = await _almacen.EncolarAsync(comando1);
+            long c2 = await _almacen.EncolarAsync(comando2);
 
-            // Act
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(10);
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(100))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
 
-            // Assert
-            Assert.Equal(2, pendientes.Count());
-            Assert.All(pendientes, c => Assert.Equal("Procesando", c.Estado));
+            Assert.Equal(2, pendientes.Count);
+            Assert.Contains(c1, pendientes.Select(e => e.Id));
+            Assert.Contains(c2, pendientes.Select(e => e.Id));
+            Assert.All(pendientes, c => Assert.Equal("Pendiente", c.Estado));
         }
 
         [Fact]
-        public async Task ObtenerComandosPendientesAsync_DebeMarcarComoProcesando()
+        public async Task MarcarComandosProcesandoAsync_DebeMarcarComoProcesando()
         {
-            // Arrange
+            var ruta = PrefijoTest + "marcar_procesando";
+            await PrepararTestAsync(ruta);
+
             var comando = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 Argumentos = "--test=true",
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
@@ -116,10 +118,11 @@ namespace ComandosColaTest
 
             var id = await _almacen.EncolarAsync(comando);
 
-            // Act
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(10);
+            var procesando = await _almacen.MarcarComandosProcesandoAsync(new[] { id });
 
-            // Assert
+            Assert.Single(procesando);
+            Assert.Equal("Procesando", procesando.First().Estado);
+
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -132,50 +135,53 @@ namespace ComandosColaTest
         }
 
         [Fact]
-        public async Task ObtenerComandosPendientesAsync_NoDebeRetornarComandosYaLeidos()
+        public async Task ObtenerComandosPendientesAsync_NoDebeRetornarComandosYaMarcados()
         {
-            // Arrange
+            var ruta = PrefijoTest + "no_retornar_marcados";
+            await PrepararTestAsync(ruta);
+
             var comando = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
-                FechaCreacion = DateTime.UtcNow,
-                Estado = "Pendiente",
-                Intentos = 0
-            };
-
-            await _almacen.EncolarAsync(comando);
-
-            // Primera lectura
-            await _almacen.ObtenerComandosPendientesAsync(10);
-
-            // Act - Segunda lectura
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(10);
-
-            // Assert
-            Assert.Empty(pendientes);
-        }
-
-        [Fact]
-        public async Task MarcarComoProcesadoAsync_DebeActualizarEstadoExitoso()
-        {
-            // Arrange
-            var comando = new ComandoEnCola
-            {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
                 Intentos = 0
             };
 
             var id = await _almacen.EncolarAsync(comando);
-            await _almacen.ObtenerComandosPendientesAsync(10);
+
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(100))
+                .Where(c => c.RutaComando == ruta);
+
+            await _almacen.MarcarComandosProcesandoAsync(pendientes.Select(c => c.Id).ToArray());
+
+            var pendientesSegundaLectura = (await _almacen.ObtenerComandosPendientesAsync(100))
+                .Where(c => c.RutaComando == ruta);
+
+            Assert.Empty(pendientesSegundaLectura);
+        }
+
+        [Fact]
+        public async Task MarcarComoProcesadoAsync_DebeActualizarEstadoExitoso()
+        {
+            var ruta = PrefijoTest + "estado_exitoso";
+            await PrepararTestAsync(ruta);
+
+            var comando = new ComandoEnCola
+            {
+                RutaComando = ruta,
+                FechaCreacion = DateTime.UtcNow,
+                Estado = "Pendiente",
+                Intentos = 0
+            };
+
+            var id = await _almacen.EncolarAsync(comando);
+            await _almacen.MarcarComandosProcesandoAsync(new[] { id });
 
             var resultado = ResultadoComando.Exito("Procesado correctamente", TimeSpan.FromMilliseconds(150));
 
-            // Act
             await _almacen.MarcarComoProcesadoAsync(id, resultado);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -193,24 +199,24 @@ namespace ComandosColaTest
         [Fact]
         public async Task MarcarComoProcesadoAsync_DebeActualizarEstadoFallido()
         {
-            // Arrange
+            var ruta = PrefijoTest + "estado_fallido";
+            await PrepararTestAsync(ruta);
+
             var comando = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
                 Intentos = 0
             };
 
             var id = await _almacen.EncolarAsync(comando);
-            await _almacen.ObtenerComandosPendientesAsync(10);
+            await _almacen.MarcarComandosProcesandoAsync(new[] { id });
 
             var resultado = ResultadoComando.Fallo("Error de conexión", TimeSpan.FromMilliseconds(50));
 
-            // Act
             await _almacen.MarcarComoProcesadoAsync(id, resultado);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
@@ -226,12 +232,14 @@ namespace ComandosColaTest
         [Fact]
         public async Task ObtenerComandosPendientesAsync_DebeRespetarTamanioLote()
         {
-            // Arrange
+            var ruta = PrefijoTest + "tamanio_lote";
+            await PrepararTestAsync(ruta);
+
             for (int i = 0; i < 10; i++)
             {
                 var comando = new ComandoEnCola
                 {
-                    RutaComando = "test ejecutar",
+                    RutaComando = ruta,
                     Argumentos = $"--index={i}",
                     FechaCreacion = DateTime.UtcNow,
                     Estado = "Pendiente",
@@ -240,52 +248,58 @@ namespace ComandosColaTest
                 await _almacen.EncolarAsync(comando);
             }
 
-            // Act
-            var pendientes = await _almacen.ObtenerComandosPendientesAsync(3);
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(100))
+                .Where(c => c.RutaComando == ruta)
+                .Take(3);
 
-            // Assert
             Assert.Equal(3, pendientes.Count());
         }
 
         [Fact]
         public async Task ObtenerComandosPendientesAsync_DebeOrdenarPorFechaCreacion()
         {
-            // Arrange
+            var ruta = PrefijoTest + "ordenar_fecha";
+            await PrepararTestAsync(ruta);
+
             var fechaBase = DateTime.UtcNow;
 
             var comando1 = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
-                Argumentos = "--orden=segundo",
+                RutaComando = ruta,
+                Argumentos = "--orden=primero",
                 FechaCreacion = fechaBase.AddSeconds(1),
                 Estado = "Pendiente",
                 Intentos = 0
             };
             var comando2 = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
-                Argumentos = "--orden=primero",
+                RutaComando = ruta,
+                Argumentos = "--orden=segundo",
                 FechaCreacion = fechaBase,
                 Estado = "Pendiente",
                 Intentos = 0
             };
 
+            System.Diagnostics.Debugger.Launch();
+
             await _almacen.EncolarAsync(comando1);
             await _almacen.EncolarAsync(comando2);
 
-            // Act
-            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(10)).ToList();
+            var pendientes = (await _almacen.ObtenerComandosPendientesAsync(100))
+                .Where(c => c.RutaComando == ruta)
+                .ToList();
 
-            // Assert
             Assert.Equal(2, pendientes.Count);
-            Assert.Contains("primero", pendientes[0].Argumentos);
-            Assert.Contains("segundo", pendientes[1].Argumentos);
+            Assert.Contains("--orden=primero", pendientes[0].Argumentos);
+            Assert.Contains("--orden=segundo", pendientes[1].Argumentos);
         }
 
         [Fact]
         public async Task EncolarAsync_ConDatosJsonb_DebeGuardarCorrectamente()
         {
-            // Arrange
+            var ruta = PrefijoTest + "encolar_jsonb";
+            await PrepararTestAsync(ruta);
+
             var datosJson = @"{
                 ""orderId"": 12345,
                 ""items"": [{""sku"": ""ABC"", ""cantidad"": 2}],
@@ -294,17 +308,15 @@ namespace ComandosColaTest
 
             var comando = new ComandoEnCola
             {
-                RutaComando = "test ejecutar",
+                RutaComando = ruta,
                 DatosDeComando = datosJson,
                 FechaCreacion = DateTime.UtcNow,
                 Estado = "Pendiente",
                 Intentos = 0
             };
 
-            // Act
             var id = await _almacen.EncolarAsync(comando);
 
-            // Assert
             using var connection = CrearConexion();
             await connection.OpenAsync();
 

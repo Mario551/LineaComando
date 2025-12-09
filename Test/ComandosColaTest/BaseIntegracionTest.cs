@@ -1,54 +1,43 @@
 using Dapper;
 using Npgsql;
-using PER.Comandos.LineaComandos.Cola.Esquema;
 
 namespace ComandosColaTest
 {
-    /// <summary>
-    /// Clase base para pruebas de integración con PostgreSQL.
-    /// Inicializa el esquema y proporciona métodos de limpieza.
-    /// </summary>
     public abstract class BaseIntegracionTest : IAsyncLifetime
     {
         protected readonly string ConnectionString;
-        protected readonly InicializadorEsquema InicializadorEsquema;
 
-        protected BaseIntegracionTest()
+        protected abstract string PrefijoTest { get; }
+
+        protected BaseIntegracionTest(DatabaseFixture fixture)
         {
-            ConnectionString = Environment.GetEnvironmentVariable("LINEA_COMANDOS_CONEXION_POSTGRESQL")
-                ?? throw new InvalidOperationException(
-                    "La variable de entorno LINEA_COMANDOS_CONEXION_POSTGRESQL no está configurada");
-
-            InicializadorEsquema = new InicializadorEsquema(ConnectionString);
+            ConnectionString = fixture.ConnectionString;
+            Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
 
         public virtual async Task InitializeAsync()
         {
-            await InicializadorEsquema.InicializarAsync();
-            await LimpiarDatosAsync();
+            await LimpiarDatosDelTestAsync();
         }
 
-        public virtual Task DisposeAsync()
+        public virtual async Task DisposeAsync()
         {
-            return Task.CompletedTask;
+            await LimpiarDatosDelTestAsync();
         }
 
-        /// <summary>
-        /// Limpia las tablas de prueba antes de cada test.
-        /// </summary>
-        protected async Task LimpiarDatosAsync()
+        private async Task LimpiarDatosDelTestAsync()
         {
             using var connection = new NpgsqlConnection(ConnectionString);
             await connection.OpenAsync();
 
-            // Orden de eliminación respetando foreign keys
-            await connection.ExecuteAsync("DELETE FROM cola_comandos;");
-            await connection.ExecuteAsync("DELETE FROM comandos_registrados;");
+            await connection.ExecuteAsync(
+                "DELETE FROM cola_comandos WHERE ruta_comando LIKE @Prefijo;",
+                new { Prefijo = PrefijoTest + "%" });
+            await connection.ExecuteAsync(
+                "DELETE FROM comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
+                new { Prefijo = PrefijoTest + "%" });
         }
 
-        /// <summary>
-        /// Crea una conexión nueva a la base de datos.
-        /// </summary>
         protected NpgsqlConnection CrearConexion()
         {
             return new NpgsqlConnection(ConnectionString);

@@ -34,15 +34,13 @@ namespace ComandosColaTest.Helpers
         {
             _logger = logger;
 
-            // Buscar parámetro --mensaje si existe
-            var paramMensaje = parametros.FirstOrDefault(p => p.Nombre == "mensaje");
+            var paramMensaje = parametros.FirstOrDefault(p => p.Nombre == "--mensaje");
             if (paramMensaje != null)
             {
                 _mensaje = paramMensaje.Valor?.ToString() ?? _mensaje;
             }
 
-            // Buscar parámetro --fallar si existe
-            var paramFallar = parametros.FirstOrDefault(p => p.Nombre == "fallar");
+            var paramFallar = parametros.FirstOrDefault(p => p.Nombre == "--fallar");
             if (paramFallar != null)
             {
                 _deberiaFallar = paramFallar.Valor?.ToString()?.ToLower() == "true";
@@ -94,8 +92,8 @@ namespace ComandosColaTest.Helpers
 
         public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
         {
-            var paramA = parametros.FirstOrDefault(p => p.Nombre == "a");
-            var paramB = parametros.FirstOrDefault(p => p.Nombre == "b");
+            var paramA = parametros.FirstOrDefault(p => p.Nombre == "--a");
+            var paramB = parametros.FirstOrDefault(p => p.Nombre == "--b");
 
             _a = int.Parse(paramA?.Valor?.ToString() ?? "0");
             _b = int.Parse(paramB?.Valor?.ToString() ?? "0");

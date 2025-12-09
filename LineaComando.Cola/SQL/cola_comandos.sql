@@ -37,8 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_cola_comandos_pendientes
     ON cola_comandos(id, fecha_creacion)
     WHERE estado = 'Pendiente' AND fecha_leido IS NULL;
 
--- Función para obtener comandos pendientes (inspirada en procedure_eventos_sin_procesar)
--- Marca los comandos como leídos y los retorna en una sola operación atómica
+-- Función para obtener comandos pendientes (solo lectura)
 CREATE OR REPLACE FUNCTION obtener_comandos_pendientes(
     p_tamanio_lote INTEGER DEFAULT 50,
     p_timeout_milisegundos INTEGER DEFAULT 300000
@@ -60,33 +59,50 @@ RETURNS TABLE (
 )
 AS $$
 DECLARE
-    v_ahora TIMESTAMP := NOW();
     v_timeout_timestamp TIMESTAMP;
 BEGIN
-    v_timeout_timestamp := v_ahora - (p_timeout_milisegundos || ' milliseconds')::INTERVAL;
+    v_timeout_timestamp := NOW() - (p_timeout_milisegundos || ' milliseconds')::INTERVAL;
 
-    -- Crear tabla temporal con los comandos a procesar
-    CREATE TEMP TABLE tmp_comandos_a_procesar ON COMMIT DROP AS
+    RETURN QUERY
     SELECT c.*
     FROM cola_comandos c
     WHERE (
-        -- Comandos nunca leídos
         (c.fecha_leido IS NULL AND c.estado = 'Pendiente')
         OR
-        -- Comandos que están en procesamiento pero han excedido el timeout
         (c.estado = 'Procesando' AND c.fecha_leido < v_timeout_timestamp)
     )
     ORDER BY c.id
     LIMIT p_tamanio_lote;
+END;
+$$ LANGUAGE plpgsql;
 
-    -- Marcar como leídos
+-- Función para marcar comandos como procesando
+CREATE OR REPLACE FUNCTION marcar_comandos_procesando(
+    p_ids BIGINT[]
+)
+RETURNS TABLE (
+    id BIGINT,
+    id_comando_registrado INTEGER,
+    ruta_comando VARCHAR(2048),
+    argumentos TEXT,
+    datos_comando JSONB,
+    fecha_creacion TIMESTAMP,
+    fecha_leido TIMESTAMP,
+    fecha_ejecucion TIMESTAMP,
+    estado VARCHAR(50),
+    mensaje_error TEXT,
+    salida TEXT,
+    duracion_ms BIGINT,
+    intentos INTEGER
+)
+AS $$
+BEGIN
     UPDATE cola_comandos c
-    SET fecha_leido = v_ahora,
+    SET fecha_leido = NOW(),
         estado = 'Procesando'
-    WHERE c.id IN (SELECT tmp.id FROM tmp_comandos_a_procesar tmp);
+    WHERE c.id = ANY(p_ids);
 
-    -- Retornar los comandos marcados
-    RETURN QUERY SELECT * FROM tmp_comandos_a_procesar;
+    RETURN QUERY SELECT c.* FROM cola_comandos c WHERE c.id = ANY(p_ids);
 END;
 $$ LANGUAGE plpgsql;
 
