@@ -166,6 +166,54 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
             await connection.ExecuteAsync(sql, new { Id = id });
         }
 
+        public async Task<int> RegistrarDisparadorAsync(DisparadorManejador disparador, CancellationToken token = default)
+        {
+            const string sql = @"
+                INSERT INTO disparadores_manejador (
+                    manejador_evento_id,
+                    modo_disparo,
+                    tipo_evento_id,
+                    expresion_cron,
+                    activo,
+                    prioridad,
+                    creado_en
+                )
+                VALUES (
+                    @ManejadorEventoId,
+                    @ModoDisparo,
+                    @TipoEventoId,
+                    @ExpresionCron,
+                    @Activo,
+                    @Prioridad,
+                    @CreadoEn
+                )
+                ON CONFLICT (manejador_evento_id, COALESCE(tipo_evento_id, 0))
+                DO UPDATE SET
+                    modo_disparo = EXCLUDED.modo_disparo,
+                    expresion_cron = EXCLUDED.expresion_cron,
+                    activo = EXCLUDED.activo,
+                    prioridad = EXCLUDED.prioridad
+                RETURNING id;";
+
+            using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(token);
+
+            var id = await connection.ExecuteScalarAsync<int>(
+                sql,
+                new
+                {
+                    disparador.ManejadorEventoId,
+                    disparador.ModoDisparo,
+                    disparador.TipoEventoId,
+                    disparador.ExpresionCron,
+                    disparador.Activo,
+                    disparador.Prioridad,
+                    disparador.CreadoEn
+                });
+
+            return id;
+        }
+
         public async Task<IEnumerable<ConfiguracionManejador>> ObtenerManejadoresParaEventoAsync(
             string tipoEvento,
             CancellationToken token = default)

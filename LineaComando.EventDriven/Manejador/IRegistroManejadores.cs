@@ -19,6 +19,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         Task DesactivarManejadorAsync(int id, CancellationToken token = default);
 
+        Task<int> RegistrarDisparadorAsync(DisparadorManejador disparador, CancellationToken token = default);
+
         Task<IEnumerable<ConfiguracionManejador>> ObtenerManejadoresParaEventoAsync(string tipoEvento, CancellationToken token = default);
 
         Task<IEnumerable<ConfiguracionManejador>> ObtenerManejadoresProgramadosAsync(CancellationToken token = default);
