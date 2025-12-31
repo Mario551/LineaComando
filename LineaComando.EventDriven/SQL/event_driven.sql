@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS disparadores_manejador (
     manejador_evento_id INTEGER NOT NULL,
     modo_disparo VARCHAR(50) NOT NULL DEFAULT 'Evento',
     tipo_evento_id INTEGER NULL,
-    expresion_cron VARCHAR(255) NULL,
+    expresion VARCHAR(255) NULL,
     activo BOOLEAN NOT NULL DEFAULT true,
     prioridad INTEGER NOT NULL DEFAULT 0,
     creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS disparadores_manejador (
     CONSTRAINT chk_disparador_valido
         CHECK (
             (modo_disparo = 'Evento' AND tipo_evento_id IS NOT NULL) OR
-            (modo_disparo = 'Programado' AND expresion_cron IS NOT NULL)
+            (modo_disparo = 'Programado' AND expresion IS NOT NULL)
         )
 );
 
@@ -93,7 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_disparadores_modo
     ON disparadores_manejador(modo_disparo, activo);
 
 CREATE INDEX IF NOT EXISTS idx_disparadores_programados
-    ON disparadores_manejador(modo_disparo, activo, expresion_cron)
+    ON disparadores_manejador(modo_disparo, activo, expresion)
     WHERE modo_disparo = 'Programado';
 
 -- Tabla: eventos_outbox

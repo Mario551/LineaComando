@@ -173,7 +173,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     manejador_evento_id,
                     modo_disparo,
                     tipo_evento_id,
-                    expresion_cron,
+                    expresion,
                     activo,
                     prioridad,
                     creado_en
@@ -182,7 +182,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     @ManejadorEventoId,
                     @ModoDisparo,
                     @TipoEventoId,
-                    @ExpresionCron,
+                    @Expresion,
                     @Activo,
                     @Prioridad,
                     @CreadoEn
@@ -190,7 +190,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 ON CONFLICT (manejador_evento_id, COALESCE(tipo_evento_id, 0))
                 DO UPDATE SET
                     modo_disparo = EXCLUDED.modo_disparo,
-                    expresion_cron = EXCLUDED.expresion_cron,
+                    expresion = EXCLUDED.expresion,
                     activo = EXCLUDED.activo,
                     prioridad = EXCLUDED.prioridad
                 RETURNING id;";
@@ -205,7 +205,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     disparador.ManejadorEventoId,
                     disparador.ModoDisparo,
                     disparador.TipoEventoId,
-                    disparador.ExpresionCron,
+                    disparador.Expresion,
                     disparador.Activo,
                     disparador.Prioridad,
                     disparador.CreadoEn
@@ -227,7 +227,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     m.argumentos_comando as ArgumentosComando,
                     d.modo_disparo as ModoDisparo,
                     te.codigo as CodigoTipoEvento,
-                    d.expresion_cron as ExpresionCron,
+                    d.expresion as Expresion,
                     d.activo as Activo,
                     d.prioridad as Prioridad,
                     d.creado_en as FechaCreacion
@@ -256,7 +256,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     m.ruta_comando as RutaComando,
                     m.argumentos_comando as ArgumentosComando,
                     d.modo_disparo as ModoDisparo,
-                    d.expresion_cron as ExpresionCron,
+                    d.expresion as Expresion,
                     d.activo as Activo,
                     d.prioridad as Prioridad,
                     d.creado_en as FechaCreacion
@@ -279,7 +279,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 UPDATE disparadores_manejador
                 SET
                     modo_disparo = @ModoDisparo,
-                    expresion_cron = @ExpresionCron,
+                    expresion = @ExpresionCron,
                     activo = @Activo,
                     prioridad = @Prioridad
                 WHERE id = @Id;";

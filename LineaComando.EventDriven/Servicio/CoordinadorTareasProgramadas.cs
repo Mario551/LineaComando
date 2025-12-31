@@ -7,7 +7,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
 {
     /// <summary>
     /// Coordinador de tareas programadas (scheduled jobs).
-    /// Lee configuración de handlers scheduled y encola comandos según cron.
+    /// Lee configuración de handlers scheduled y encola comandos según expresión de intervalo (dd:hh:mm:ss).
     /// </summary>
     public class CoordinadorTareasProgramadas
     {
@@ -48,17 +48,17 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
         }
 
         /// <summary>
-        /// Determina si una tarea debe ejecutarse basándose en su expresión cron.
+        /// Determina si una tarea debe ejecutarse basándose en su expresión de intervalo.
         /// </summary>
         protected virtual bool DebeEjecutarse(ConfiguracionManejador config)
         {
-            if (string.IsNullOrEmpty(config.ExpresionCron))
+            if (string.IsNullOrEmpty(config.Expresion))
                 return false;
 
             // Verificar última ejecución
             if (_ultimasEjecuciones.TryGetValue(config.Id, out var ultimaEjecucion))
             {
-                DateTime siguienteEjecucion = CalcularSiguienteEjecucion(config.ExpresionCron, ultimaEjecucion);
+                DateTime siguienteEjecucion = CalcularSiguienteEjecucion(config.Expresion, ultimaEjecucion);
                 return DateTime.UtcNow >= siguienteEjecucion;
             }
 
@@ -66,24 +66,49 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
         }
 
         /// <summary>
-        /// Calcula la siguiente ejecución basándose en la expresión cron.
-        /// Implementación simplificada - el usuario puede usar Quartz.NET para expresiones complejas.
+        /// Calcula la siguiente ejecución basándose en la expresión de intervalo.
+        /// Formato: dd:hh:mm:ss (días:horas:minutos:segundos)
+        /// Ejemplo: "00:01:30:00" = 1 hora y 30 minutos
         /// </summary>
-        protected virtual DateTime CalcularSiguienteEjecucion(string expresionCron, DateTime ultimaEjecucion)
+        protected virtual DateTime CalcularSiguienteEjecucion(string expresion, DateTime ultimaEjecucion)
         {
-            // Implementación simplificada para intervalos básicos
-            // Formato simplificado: "INTERVALO:MINUTOS" o cron estándar
-            if (expresionCron.StartsWith("INTERVALO:"))
+            if (TryParseExpresion(expresion, out var intervalo))
             {
-                if (int.TryParse(expresionCron.Replace("INTERVALO:", ""), out var minutos))
-                {
-                    return ultimaEjecucion.AddMinutes(minutos);
-                }
+                return ultimaEjecucion.Add(intervalo);
             }
 
-            // Para expresiones cron complejas, el usuario debería usar Quartz.NET
-            // Por defecto, ejecutar cada hora
+            // Por defecto, ejecutar cada hora si la expresión es inválida
+            _logger.LogWarning("Expresión de intervalo inválida: {Expresion}. Usando intervalo por defecto de 1 hora.", expresion);
             return ultimaEjecucion.AddHours(1);
+        }
+
+        /// <summary>
+        /// Parsea una expresión de intervalo en formato dd:hh:mm:ss
+        /// </summary>
+        protected virtual bool TryParseExpresion(string expresion, out TimeSpan intervalo)
+        {
+            intervalo = TimeSpan.Zero;
+
+            if (string.IsNullOrWhiteSpace(expresion))
+                return false;
+
+            var partes = expresion.Split(':');
+            if (partes.Length != 4)
+                return false;
+
+            if (!int.TryParse(partes[0], out var dias) ||
+                !int.TryParse(partes[1], out var horas) ||
+                !int.TryParse(partes[2], out var minutos) ||
+                !int.TryParse(partes[3], out var segundos))
+            {
+                return false;
+            }
+
+            if (dias < 0 || horas < 0 || horas > 23 || minutos < 0 || minutos > 59 || segundos < 0 || segundos > 59)
+                return false;
+
+            intervalo = new TimeSpan(dias, horas, minutos, segundos);
+            return intervalo > TimeSpan.Zero;
         }
 
         /// <summary>

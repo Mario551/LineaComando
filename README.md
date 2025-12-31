@@ -193,7 +193,7 @@ El sistema event-driven utiliza tres tablas relacionadas:
 | codigo           |       | codigo               |       | manejador_evento_id(FK)|---> manejadores_evento
 | nombre           |       | nombre               |       | tipo_evento_id (FK)    |---> tipos_evento
 | descripcion      |       | descripcion          |       | modo_disparo           |
-| activo           |       | ruta_comando         |       | expresion_cron         |
+| activo           |       | ruta_comando         |       | expresion              |
 | creado_en        |       | argumentos_comando   |       | activo                 |
 +------------------+       | activo               |       | prioridad              |
                            | creado_en            |       | creado_en              |
@@ -206,7 +206,7 @@ El sistema event-driven utiliza tres tablas relacionadas:
 
 **disparadores_manejador**: Es el PUENTE que conecta todo. Define CUANDO se dispara un manejador:
 - `modo_disparo = "Evento"`: Se dispara cuando ocurre un tipo de evento especifico (requiere `tipo_evento_id`)
-- `modo_disparo = "Programado"`: Se dispara segun una expresion cron (requiere `expresion_cron`)
+- `modo_disparo = "Programado"`: Se dispara segun una expresion de intervalo (requiere `expresion`)
 
 **Relacion**: Un tipo de evento puede tener multiples manejadores (1:N a traves de disparadores). Un manejador puede reaccionar a multiples tipos de evento (1:N). El disparador es la tabla intermedia que establece estas relaciones.
 
@@ -315,7 +315,7 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
 {
     ManejadorEventoId = manejadorId,
     ModoDisparo = "Programado",
-    ExpresionCron = "INTERVALO:60",
+    Expresion = "00:01:00:00",
     Activo = true,
     Prioridad = 1,
     CreadoEn = DateTime.UtcNow
@@ -324,15 +324,16 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
 
 ### Expresiones de Intervalo
 
-Formato simplificado: `INTERVALO:MINUTOS`
+Formato: `dd:hh:mm:ss` (dias:horas:minutos:segundos)
 
 | Expresion | Frecuencia |
 |-----------|------------|
-| `INTERVALO:1` | Cada minuto |
-| `INTERVALO:60` | Cada hora |
-| `INTERVALO:1440` | Cada dia |
-
-Para expresiones cron complejas, considera integrar Quartz.NET.
+| `00:00:01:00` | Cada minuto |
+| `00:00:30:00` | Cada 30 minutos |
+| `00:01:00:00` | Cada hora |
+| `00:06:00:00` | Cada 6 horas |
+| `01:00:00:00` | Cada dia |
+| `07:00:00:00` | Cada semana |
 
 ---
 

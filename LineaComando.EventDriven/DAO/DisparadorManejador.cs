@@ -29,7 +29,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.DAO
         /// <summary>
         /// Expresión cron (si ModoDisparo = "Programado").
         /// </summary>
-        public string? ExpresionCron { get; set; }
+        public string? Expresion { get; set; }
 
         /// <summary>
         /// Si este trigger está activo.

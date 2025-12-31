@@ -70,16 +70,16 @@ namespace EventDrivenTest
                 new { ManejadorId = manejadorId, TipoEventoId = tipoEventoId, Prioridad = prioridad });
         }
 
-        private async Task CrearDisparadorProgramadoAsync(int manejadorId, string expresionCron, int prioridad = 0)
+        private async Task CrearDisparadorProgramadoAsync(int manejadorId, string expresion, int prioridad = 0)
         {
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
                 @"INSERT INTO disparadores_manejador
-                  (manejador_evento_id, modo_disparo, expresion_cron, activo, prioridad, creado_en)
-                  VALUES (@ManejadorId, 'Programado', @ExpresionCron, true, @Prioridad, NOW());",
-                new { ManejadorId = manejadorId, ExpresionCron = expresionCron, Prioridad = prioridad });
+                  (manejador_evento_id, modo_disparo, expresion, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, 'Programado', @Expresion, true, @Prioridad, NOW());",
+                new { ManejadorId = manejadorId, Expresion = expresion, Prioridad = prioridad });
         }
 
         [Fact]
@@ -379,7 +379,7 @@ namespace EventDrivenTest
             };
 
             var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
-            await CrearDisparadorProgramadoAsync(manejadorId, "0 * * * *");
+            await CrearDisparadorProgramadoAsync(manejadorId, "00:01:00:00");
 
             var configuraciones = await _registroManejadores.ObtenerManejadoresProgramadosAsync();
 
@@ -387,7 +387,7 @@ namespace EventDrivenTest
 
             Assert.Single(configFiltradas);
             Assert.Equal("Programado", configFiltradas.First().ModoDisparo);
-            Assert.Equal("0 * * * *", configFiltradas.First().ExpresionCron);
+            Assert.Equal("00:01:00:00", configFiltradas.First().Expresion);
         }
 
         [Fact]

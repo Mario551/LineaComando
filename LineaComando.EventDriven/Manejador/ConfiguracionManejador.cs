@@ -45,7 +45,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
         /// <summary>
         /// Expresión cron (si ModoDisparo = "Programado").
         /// </summary>
-        public string? ExpresionCron { get; set; }
+        public string? Expresion { get; set; }
 
         /// <summary>
         /// Si esta configuración está activa.
