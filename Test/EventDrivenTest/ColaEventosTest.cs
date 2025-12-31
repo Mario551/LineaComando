@@ -4,15 +4,15 @@ using PER.Comandos.LineaComandos.EventDriven.Outbox;
 namespace EventDrivenTest
 {
     [Collection("DatabaseEventDriven")]
-    public class AlmacenOutboxTest : BaseIntegracionTestEventDriven
+    public class ColaEventosTest : BaseIntegracionTestEventDriven
     {
-        private readonly AlmacenOutbox _almacen;
+        private readonly ColaEventos _almacen;
 
         protected override string PrefijoTest => "almacen_outbox_";
 
-        public AlmacenOutboxTest(DatabaseFixtureEventDriven fixture) : base(fixture)
+        public ColaEventosTest(DatabaseFixtureEventDriven fixture) : base(fixture)
         {
-            _almacen = new AlmacenOutbox(ConnectionString);
+            _almacen = new ColaEventos(ConnectionString);
         }
 
         [Fact]
@@ -191,7 +191,7 @@ namespace EventDrivenTest
         [Fact]
         public void Constructor_ConnectionStringNulo_DebeLanzarExcepcion()
         {
-            Assert.Throws<ArgumentNullException>(() => new AlmacenOutbox(null!));
+            Assert.Throws<ArgumentNullException>(() => new ColaEventos(null!));
         }
     }
 }

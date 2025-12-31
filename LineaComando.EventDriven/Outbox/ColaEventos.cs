@@ -3,11 +3,11 @@ using Npgsql;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Outbox
 {
-    public class AlmacenOutbox : IAlmacenOutbox
+    public class ColaEventos : IColaEventos
     {
         private readonly string _connectionString;
 
-        public AlmacenOutbox(string connectionString)
+        public ColaEventos(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }

@@ -4,7 +4,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
     /// Responsabilidad: Persistir eventos (Outbox pattern).
     /// El usuario implementa con su BD preferida.
     /// </summary>
-    public interface IAlmacenOutbox
+    public interface IColaEventos
     {
         /// <summary>
         /// Guarda un evento en el outbox.

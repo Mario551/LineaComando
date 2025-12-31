@@ -11,13 +11,13 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
     /// </summary>
     public class ProcesadorEventos
     {
-        private readonly IAlmacenOutbox _almacenOutbox;
+        private readonly IColaEventos _almacenOutbox;
         private readonly IRegistroManejadores _registroManejadores;
         private readonly IAlmacenColaComandos _almacenColaComandos;
         private readonly ILogger _logger;
 
         public ProcesadorEventos(
-            IAlmacenOutbox almacenOutbox,
+            IColaEventos almacenOutbox,
             IRegistroManejadores registroManejadores,
             IAlmacenColaComandos almacenColaComandos,
             ILogger logger)

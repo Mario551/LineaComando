@@ -166,7 +166,7 @@ El `ServicioColaComandos` recogera automaticamente el comando y lo ejecutara.
 ### Flujo de Eventos
 
 ```
-[Tu Codigo] -> IAlmacenOutbox.GuardarEventoAsync() -> [Tabla outbox_eventos]
+[Tu Codigo] -> IColaEventos.GuardarEventoAsync() -> [Tabla outbox_eventos]
                                                               |
                                                               v
 [ServicioProcesadorEventos] <- ObtenerEventosPendientesAsync()
@@ -267,18 +267,18 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
 ```csharp
 public class OrdenServicio
 {
-    private readonly IAlmacenOutbox _almacenOutbox;
+    private readonly IColaEventos _colaEventos;
 
-    public OrdenServicio(IAlmacenOutbox almacenOutbox)
+    public OrdenServicio(IColaEventos colaEventos)
     {
-        _almacenOutbox = almacenOutbox;
+        _colaEventos = colaEventos;
     }
 
     public async Task CrearOrdenAsync(Orden orden)
     {
         // Guardar orden...
 
-        await _almacenOutbox.GuardarEventoAsync(new DatosEvento
+        await _colaEventos.GuardarEventoAsync(new DatosEvento
         {
             TipoEvento = "ORDEN_CREADA",
             AgregadoId = orden.Id,
@@ -366,7 +366,7 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
           |                                 |
           v                                 v
 +-------------------+            +-------------------+
-| IAlmacenColaComandos |        |   IAlmacenOutbox   |
+| IAlmacenColaComandos |        |    IColaEventos    |
 | (Encolar comandos)|            | (Publicar eventos)|
 +-------------------+            +-------------------+
           |                                 |

@@ -10,14 +10,14 @@ namespace EventDrivenTest
 {
     public class ProcesadorEventosTest
     {
-        private readonly Mock<IAlmacenOutbox> _mockAlmacenOutbox;
+        private readonly Mock<IColaEventos> _mockAlmacenOutbox;
         private readonly Mock<IRegistroManejadores> _mockRegistroManejadores;
         private readonly Mock<IAlmacenColaComandos> _mockAlmacenCola;
         private readonly ILogger _logger;
 
         public ProcesadorEventosTest()
         {
-            _mockAlmacenOutbox = new Mock<IAlmacenOutbox>();
+            _mockAlmacenOutbox = new Mock<IColaEventos>();
             _mockRegistroManejadores = new Mock<IRegistroManejadores>();
             _mockAlmacenCola = new Mock<IAlmacenColaComandos>();
             _logger = NullLogger.Instance;
