@@ -37,7 +37,7 @@ namespace EventDrivenTest
                 @"SELECT id as Id, codigo_tipo_evento as CodigoTipoEvento, agregado_id as AgregadoId,
                   datos_evento::text as DatosEvento, metadatos::text as Metadatos,
                   creado_en as CreadoEn, procesado_en as ProcesadoEn
-                  FROM eventos_outbox WHERE id = @Id",
+                  FROM per_eventos_outbox WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal(datosEvento.TipoEvento, evento.CodigoTipoEvento);
@@ -112,7 +112,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var procesadoEn = await connection.QuerySingleAsync<DateTime?>(
-                "SELECT procesado_en FROM eventos_outbox WHERE id = @Id",
+                "SELECT procesado_en FROM per_eventos_outbox WHERE id = @Id",
                 new { Id = eventoId });
 
             Assert.NotNull(procesadoEn);
@@ -138,7 +138,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var procesados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM eventos_outbox WHERE id = ANY(@Ids) AND procesado_en IS NOT NULL",
+                "SELECT COUNT(*) FROM per_eventos_outbox WHERE id = ANY(@Ids) AND procesado_en IS NOT NULL",
                 new { Ids = ids.ToArray() });
 
             Assert.Equal(3, procesados);

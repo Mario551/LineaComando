@@ -38,7 +38,7 @@ namespace EventDrivenTest
             var tipoDb = await connection.QuerySingleAsync<TipoEvento>(
                 @"SELECT id as Id, codigo as Codigo, nombre as Nombre,
                   descripcion as Descripcion, activo as Activo, creado_en as CreadoEn
-                  FROM tipos_evento WHERE id = @Id",
+                  FROM per_tipos_evento WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal(tipoEvento.Codigo, tipoDb.Codigo);

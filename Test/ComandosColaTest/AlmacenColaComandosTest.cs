@@ -56,7 +56,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-                "SELECT * FROM cola_comandos WHERE id = @Id",
+                "SELECT * FROM per_cola_comandos WHERE id = @Id",
                 new { Id = id });
 
             Assert.NotNull(comandoDb);
@@ -127,7 +127,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM cola_comandos WHERE id = @Id",
+                "SELECT * FROM per_cola_comandos WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal("Procesando", (string)comandoDb.estado);
@@ -186,7 +186,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM cola_comandos WHERE id = @Id",
+                "SELECT * FROM per_cola_comandos WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal("Completado", (string)comandoDb.estado);
@@ -221,7 +221,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM cola_comandos WHERE id = @Id",
+                "SELECT * FROM per_cola_comandos WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal("Fallido", (string)comandoDb.estado);
@@ -321,7 +321,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var datosDb = await connection.QuerySingleAsync<string>(
-                "SELECT datos_comando::text FROM cola_comandos WHERE id = @Id",
+                "SELECT datos_comando::text FROM per_cola_comandos WHERE id = @Id",
                 new { Id = id });
 
             Assert.Contains("12345", datosDb);

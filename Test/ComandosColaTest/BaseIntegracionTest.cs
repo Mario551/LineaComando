@@ -31,10 +31,10 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
-                "DELETE FROM cola_comandos WHERE ruta_comando LIKE @Prefijo;",
+                "DELETE FROM per_cola_comandos WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
             await connection.ExecuteAsync(
-                "DELETE FROM comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
+                "DELETE FROM per_comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
         }
 

@@ -16,7 +16,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
         public async Task<int> RegistrarTipoEventoAsync(TipoEvento tipoEvento, CancellationToken token = default)
         {
             const string sql = @"
-                INSERT INTO tipos_evento (
+                INSERT INTO per_tipos_evento (
                     codigo,
                     nombre,
                     descripcion,
@@ -64,7 +64,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     descripcion as Descripcion,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM tipos_evento
+                FROM per_tipos_evento
                 WHERE codigo = @Codigo;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -83,7 +83,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     descripcion as Descripcion,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM tipos_evento
+                FROM per_tipos_evento
                 WHERE id = @Id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -102,7 +102,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     descripcion as Descripcion,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM tipos_evento
+                FROM per_tipos_evento
                 WHERE activo = true
                 ORDER BY codigo;";
 
@@ -115,7 +115,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
         public async Task ActualizarTipoEventoAsync(TipoEvento tipoEvento, CancellationToken token = default)
         {
             const string sql = @"
-                UPDATE tipos_evento
+                UPDATE per_tipos_evento
                 SET
                     codigo = @Codigo,
                     nombre = @Nombre,
@@ -132,7 +132,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
         public async Task DesactivarTipoEventoAsync(int id, CancellationToken token = default)
         {
             const string sql = @"
-                UPDATE tipos_evento
+                UPDATE per_tipos_evento
                 SET activo = false
                 WHERE id = @Id;";
 

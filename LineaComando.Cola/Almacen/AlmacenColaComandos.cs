@@ -23,7 +23,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         public async Task<long> EncolarAsync(ComandoEnCola comando, CancellationToken token = default)
         {
             const string sql = @"
-                INSERT INTO cola_comandos (
+                INSERT INTO per_cola_comandos (
                     id_comando_registrado,
                     ruta_comando,
                     argumentos,
@@ -40,7 +40,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                     @FechaCreacion,
                     @Estado,
                     @Intentos
-                FROM comandos_registrados cr
+                FROM per_comandos_registrados cr
                 WHERE cr.ruta_comando = @RutaComando
                 RETURNING id;";
 
@@ -120,7 +120,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
             CancellationToken token = default)
         {
             const string sql = @"
-                UPDATE cola_comandos
+                UPDATE per_cola_comandos
                 SET fecha_ejecucion = @FechaEjecucion,
                     estado = @Estado,
                     mensaje_error = @MensajeError,

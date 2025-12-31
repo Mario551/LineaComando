@@ -31,27 +31,27 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
-                "DELETE FROM eventos_outbox WHERE codigo_tipo_evento LIKE @Prefijo;",
+                "DELETE FROM per_eventos_outbox WHERE codigo_tipo_evento LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM disparadores_manejador WHERE manejador_evento_id IN (SELECT id FROM manejadores_evento WHERE codigo LIKE @Prefijo);",
+                "DELETE FROM per_disparadores_manejador WHERE manejador_evento_id IN (SELECT id FROM per_manejadores_evento WHERE codigo LIKE @Prefijo);",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM manejadores_evento WHERE codigo LIKE @Prefijo;",
+                "DELETE FROM per_manejadores_evento WHERE codigo LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM tipos_evento WHERE codigo LIKE @Prefijo;",
+                "DELETE FROM per_tipos_evento WHERE codigo LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM cola_comandos WHERE ruta_comando LIKE @Prefijo;",
+                "DELETE FROM per_cola_comandos WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
+                "DELETE FROM per_comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
         }
 

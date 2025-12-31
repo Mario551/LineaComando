@@ -156,7 +156,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM cola_comandos WHERE id = @Id",
+                "SELECT * FROM per_cola_comandos WHERE id = @Id",
                 new { Id = comandoId });
 
             Assert.Equal("Completado", (string)comandoDb.estado);
@@ -201,7 +201,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM cola_comandos WHERE id = @Id",
+                "SELECT * FROM per_cola_comandos WHERE id = @Id",
                 new { Id = comandoId });
 
             Assert.Equal("Fallido", (string)comandoDb.estado);
@@ -254,7 +254,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var completados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
+                "SELECT COUNT(*) FROM per_cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.Equal(cantidadComandos, completados);
@@ -320,7 +320,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var completados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
+                "SELECT COUNT(*) FROM per_cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.Equal(cantidadComandos, completados);

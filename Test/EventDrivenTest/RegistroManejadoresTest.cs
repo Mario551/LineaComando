@@ -35,7 +35,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var id = await connection.ExecuteScalarAsync<int>(
-                @"INSERT INTO comandos_registrados (ruta_comando, descripcion, activo, creado_en)
+                @"INSERT INTO per_comandos_registrados (ruta_comando, descripcion, activo, creado_en)
                   VALUES (@RutaComando, @Descripcion, true, NOW())
                   ON CONFLICT (ruta_comando)
                   DO UPDATE SET descripcion = EXCLUDED.descripcion
@@ -64,7 +64,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
-                @"INSERT INTO disparadores_manejador
+                @"INSERT INTO per_disparadores_manejador
                   (manejador_evento_id, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
                   VALUES (@ManejadorId, 'Evento', @TipoEventoId, true, @Prioridad, NOW());",
                 new { ManejadorId = manejadorId, TipoEventoId = tipoEventoId, Prioridad = prioridad });
@@ -76,7 +76,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
-                @"INSERT INTO disparadores_manejador
+                @"INSERT INTO per_disparadores_manejador
                   (manejador_evento_id, modo_disparo, expresion, activo, prioridad, creado_en)
                   VALUES (@ManejadorId, 'Programado', @Expresion, true, @Prioridad, NOW());",
                 new { ManejadorId = manejadorId, Expresion = expresion, Prioridad = prioridad });

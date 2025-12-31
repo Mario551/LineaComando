@@ -67,8 +67,8 @@ Al llamar `Build()`, se registran automaticamente los siguientes `BackgroundServ
 
 | Servicio | Descripcion |
 |----------|-------------|
-| `ServicioColaComandos` | Escanea la tabla `cola_comandos`, obtiene comandos pendientes y los ejecuta en paralelo |
-| `ServicioProcesadorEventos` | Escanea la tabla `outbox_eventos`, lee eventos pendientes y encola comandos asociados a sus manejadores |
+| `ServicioColaComandos` | Escanea la tabla `per_cola_comandos`, obtiene comandos pendientes y los ejecuta en paralelo |
+| `ServicioProcesadorEventos` | Escanea la tabla `per_eventos_outbox`, lee eventos pendientes y encola comandos asociados a sus manejadores |
 | `ServicioTareasProgramadas` | Verifica manejadores con expresiones cron y encola comandos cuando corresponde |
 
 ---
@@ -166,7 +166,7 @@ El `ServicioColaComandos` recogera automaticamente el comando y lo ejecutara.
 ### Flujo de Eventos
 
 ```
-[Tu Codigo] -> IColaEventos.GuardarEventoAsync() -> [Tabla outbox_eventos]
+[Tu Codigo] -> IColaEventos.GuardarEventoAsync() -> [Tabla per_eventos_outbox]
                                                               |
                                                               v
 [ServicioProcesadorEventos] <- ObtenerEventosPendientesAsync()
@@ -187,11 +187,11 @@ El sistema event-driven utiliza tres tablas relacionadas:
 
 ```
 +------------------+       +----------------------+       +------------------------+
-|  tipos_evento    |       | manejadores_evento   |       | disparadores_manejador |
+|  per_tipos_evento    |       | per_manejadores_evento   |       | per_disparadores_manejador |
 +------------------+       +----------------------+       +------------------------+
 | id (PK)          |       | id (PK)              |       | id (PK)                |
-| codigo           |       | codigo               |       | manejador_evento_id(FK)|---> manejadores_evento
-| nombre           |       | nombre               |       | tipo_evento_id (FK)    |---> tipos_evento
+| codigo           |       | codigo               |       | manejador_evento_id(FK)|---> per_manejadores_evento
+| nombre           |       | nombre               |       | tipo_evento_id (FK)    |---> per_tipos_evento
 | descripcion      |       | descripcion          |       | modo_disparo           |
 | activo           |       | ruta_comando         |       | expresion              |
 | creado_en        |       | argumentos_comando   |       | activo                 |
@@ -200,11 +200,11 @@ El sistema event-driven utiliza tres tablas relacionadas:
                            +----------------------+       +------------------------+
 ```
 
-**tipos_evento**: Catalogo de eventos que pueden ocurrir en tu sistema. Define QUE cosas pueden pasar (ej: "ORDEN_CREADA", "PAGO_RECIBIDO", "USUARIO_REGISTRADO").
+**per_tipos_evento**: Catalogo de eventos que pueden ocurrir en tu sistema. Define QUE cosas pueden pasar (ej: "ORDEN_CREADA", "PAGO_RECIBIDO", "USUARIO_REGISTRADO").
 
-**manejadores_evento**: Define QUE COMANDO ejecutar como reaccion. Cada manejador tiene una `ruta_comando` que apunta a un comando registrado en la cola.
+**per_manejadores_evento**: Define QUE COMANDO ejecutar como reaccion. Cada manejador tiene una `ruta_comando` que apunta a un comando registrado en la cola.
 
-**disparadores_manejador**: Es el PUENTE que conecta todo. Define CUANDO se dispara un manejador:
+**per_disparadores_manejador**: Es el PUENTE que conecta todo. Define CUANDO se dispara un manejador:
 - `modo_disparo = "Evento"`: Se dispara cuando ocurre un tipo de evento especifico (requiere `tipo_evento_id`)
 - `modo_disparo = "Programado"`: Se dispara segun una expresion de intervalo (requiere `expresion`)
 
@@ -343,15 +343,15 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
 
 ### Tablas de Cola de Comandos
 
-- `comandos_registrados`: Catalogo de comandos disponibles
-- `cola_comandos`: Comandos encolados pendientes de ejecucion
+- `per_comandos_registrados`: Catalogo de comandos disponibles
+- `per_cola_comandos`: Comandos encolados pendientes de ejecucion
 
 ### Tablas de Event-Driven
 
-- `tipos_evento`: Catalogo de tipos de eventos
-- `manejadores_evento`: Manejadores que responden a eventos
-- `disparadores_manejador`: Configuracion de cuando se dispara cada manejador
-- `outbox_eventos`: Eventos publicados pendientes de procesar
+- `per_tipos_evento`: Catalogo de tipos de eventos
+- `per_manejadores_evento`: Manejadores que responden a eventos
+- `per_disparadores_manejador`: Configuracion de cuando se dispara cada manejador
+- `per_eventos_outbox`: Eventos publicados pendientes de procesar
 
 ---
 
@@ -372,7 +372,7 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
           |                                 |
           v                                 v
 +-------------------+            +-------------------+
-| cola_comandos     |            | outbox_eventos    |
+| per_cola_comandos     |            | per_eventos_outbox    |
 | (Tabla PostgreSQL)|            | (Tabla PostgreSQL)|
 +-------------------+            +-------------------+
           ^                                 |

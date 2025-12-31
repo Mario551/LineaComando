@@ -7,7 +7,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
     /// Servicio para inicializar el esquema de base de datos del sistema event-driven.
     /// Crea las tablas y funciones necesarias si no existen.
     /// IMPORTANTE: Requiere que el esquema de LineaComando.Cola esté inicializado primero
-    /// (tabla comandos_registrados).
+    /// (tabla per_comandos_registrados).
     /// </summary>
     public class InicializadorEsquemaEventDriven
     {
@@ -24,7 +24,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
         /// Crea las tablas, índices y funciones si no existen.
         /// </summary>
         /// <exception cref="InvalidOperationException">
-        /// Si la tabla comandos_registrados no existe (dependencia de LineaComando.Cola).
+        /// Si la tabla per_comandos_registrados no existe (dependencia de LineaComando.Cola).
         /// </exception>
         public async Task InicializarAsync(CancellationToken token = default)
         {
@@ -32,10 +32,10 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             await connection.OpenAsync(token);
 
             // Verificar dependencia de LineaComando.Cola
-            if (!await TablaExisteAsync(connection, "comandos_registrados"))
+            if (!await TablaExisteAsync(connection, "per_comandos_registrados"))
             {
                 throw new InvalidOperationException(
-                    "La tabla 'comandos_registrados' no existe. " +
+                    "La tabla 'per_comandos_registrados' no existe. " +
                     "Debe inicializar el esquema de LineaComando.Cola primero.");
             }
 
@@ -54,10 +54,10 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            var existeTiposEvento = await TablaExisteAsync(connection, "tipos_evento");
-            var existeManejadores = await TablaExisteAsync(connection, "manejadores_evento");
-            var existeDisparadores = await TablaExisteAsync(connection, "disparadores_manejador");
-            var existeOutbox = await TablaExisteAsync(connection, "eventos_outbox");
+            var existeTiposEvento = await TablaExisteAsync(connection, "per_tipos_evento");
+            var existeManejadores = await TablaExisteAsync(connection, "per_manejadores_evento");
+            var existeDisparadores = await TablaExisteAsync(connection, "per_disparadores_manejador");
+            var existeOutbox = await TablaExisteAsync(connection, "per_eventos_outbox");
 
             return existeTiposEvento && existeManejadores && existeDisparadores && existeOutbox;
         }
@@ -70,7 +70,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            return await TablaExisteAsync(connection, "comandos_registrados");
+            return await TablaExisteAsync(connection, "per_comandos_registrados");
         }
 
         private static async Task<bool> TablaExisteAsync(NpgsqlConnection connection, string nombreTabla)
@@ -88,7 +88,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
         private static async Task CrearTablaTiposEventoAsync(NpgsqlConnection connection)
         {
             const string sql = @"
-                CREATE TABLE IF NOT EXISTS tipos_evento (
+                CREATE TABLE IF NOT EXISTS per_tipos_evento (
                     id SERIAL PRIMARY KEY,
                     codigo VARCHAR(255) NOT NULL UNIQUE,
                     nombre VARCHAR(255) NOT NULL,
@@ -97,11 +97,11 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     creado_en TIMESTAMP NOT NULL DEFAULT NOW()
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_tipos_evento_codigo
-                    ON tipos_evento(codigo);
+                CREATE INDEX IF NOT EXISTS idx_per_tipos_evento_codigo
+                    ON per_tipos_evento(codigo);
 
-                CREATE INDEX IF NOT EXISTS idx_tipos_evento_activo
-                    ON tipos_evento(activo);";
+                CREATE INDEX IF NOT EXISTS idx_per_tipos_evento_activo
+                    ON per_tipos_evento(activo);";
 
             await connection.ExecuteAsync(sql);
         }
@@ -109,7 +109,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
         private static async Task CrearTablaManejadoresEventoAsync(NpgsqlConnection connection)
         {
             const string sql = @"
-                CREATE TABLE IF NOT EXISTS manejadores_evento (
+                CREATE TABLE IF NOT EXISTS per_manejadores_evento (
                     id SERIAL PRIMARY KEY,
                     codigo VARCHAR(255) NOT NULL UNIQUE,
                     nombre VARCHAR(255) NOT NULL,
@@ -122,18 +122,18 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
                     CONSTRAINT fk_manejador_comando
                         FOREIGN KEY (id_comando_registrado)
-                        REFERENCES comandos_registrados(id)
+                        REFERENCES per_comandos_registrados(id)
                         ON DELETE NO ACTION
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_manejadores_evento_codigo
-                    ON manejadores_evento(codigo);
+                CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_codigo
+                    ON per_manejadores_evento(codigo);
 
-                CREATE INDEX IF NOT EXISTS idx_manejadores_evento_activo
-                    ON manejadores_evento(activo);
+                CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_activo
+                    ON per_manejadores_evento(activo);
 
-                CREATE INDEX IF NOT EXISTS idx_manejadores_evento_comando
-                    ON manejadores_evento(id_comando_registrado);";
+                CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_comando
+                    ON per_manejadores_evento(id_comando_registrado);";
 
             await connection.ExecuteAsync(sql);
         }
@@ -141,7 +141,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
         private static async Task CrearTablaDisparadoresManejadorAsync(NpgsqlConnection connection)
         {
             const string sql = @"
-                CREATE TABLE IF NOT EXISTS disparadores_manejador (
+                CREATE TABLE IF NOT EXISTS per_disparadores_manejador (
                     id SERIAL PRIMARY KEY,
                     manejador_evento_id INTEGER NOT NULL,
                     modo_disparo VARCHAR(50) NOT NULL DEFAULT 'Evento',
@@ -153,12 +153,12 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
                     CONSTRAINT fk_disparador_manejador
                         FOREIGN KEY (manejador_evento_id)
-                        REFERENCES manejadores_evento(id)
+                        REFERENCES per_manejadores_evento(id)
                         ON DELETE CASCADE,
 
                     CONSTRAINT fk_disparador_tipo_evento
                         FOREIGN KEY (tipo_evento_id)
-                        REFERENCES tipos_evento(id)
+                        REFERENCES per_tipos_evento(id)
                         ON DELETE CASCADE,
 
                     CONSTRAINT chk_modo_disparo
@@ -171,18 +171,18 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                         )
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_disparadores_manejador_evento_id
-                    ON disparadores_manejador(manejador_evento_id);
+                CREATE INDEX IF NOT EXISTS idx_per_disparadores_manejador_evento_id
+                    ON per_disparadores_manejador(manejador_evento_id);
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_tipo_evento
-                    ON disparadores_manejador(tipo_evento_id)
+                    ON per_disparadores_manejador(tipo_evento_id)
                     WHERE tipo_evento_id IS NOT NULL;
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_modo
-                    ON disparadores_manejador(modo_disparo, activo);
+                    ON per_disparadores_manejador(modo_disparo, activo);
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_programados
-                    ON disparadores_manejador(modo_disparo, activo, expresion)
+                    ON per_disparadores_manejador(modo_disparo, activo, expresion)
                     WHERE modo_disparo = 'Programado';";
 
             await connection.ExecuteAsync(sql);
@@ -191,7 +191,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
         private static async Task CrearTablaEventosOutboxAsync(NpgsqlConnection connection)
         {
             const string sql = @"
-                CREATE TABLE IF NOT EXISTS eventos_outbox (
+                CREATE TABLE IF NOT EXISTS per_eventos_outbox (
                     id BIGSERIAL PRIMARY KEY,
                     codigo_tipo_evento VARCHAR(255) NOT NULL,
                     agregado_id BIGINT NULL,
@@ -201,18 +201,18 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     procesado_en TIMESTAMP NULL
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_eventos_outbox_tipo
-                    ON eventos_outbox(codigo_tipo_evento);
+                CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_tipo
+                    ON per_eventos_outbox(codigo_tipo_evento);
 
-                CREATE INDEX IF NOT EXISTS idx_eventos_outbox_procesado
-                    ON eventos_outbox(procesado_en)
+                CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_procesado
+                    ON per_eventos_outbox(procesado_en)
                     WHERE procesado_en IS NULL;
 
-                CREATE INDEX IF NOT EXISTS idx_eventos_outbox_creado
-                    ON eventos_outbox(creado_en);
+                CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_creado
+                    ON per_eventos_outbox(creado_en);
 
-                CREATE INDEX IF NOT EXISTS idx_eventos_outbox_pendientes
-                    ON eventos_outbox(codigo_tipo_evento, creado_en)
+                CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_pendientes
+                    ON per_eventos_outbox(codigo_tipo_evento, creado_en)
                     WHERE procesado_en IS NULL;";
 
             await connection.ExecuteAsync(sql);
@@ -244,7 +244,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                         e.metadatos,
                         e.creado_en,
                         e.procesado_en
-                    FROM eventos_outbox e
+                    FROM per_eventos_outbox e
                     WHERE e.procesado_en IS NULL
                     ORDER BY e.creado_en
                     LIMIT p_tamanio_lote;

@@ -28,7 +28,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                     esquema_parametros as EsquemaParametros,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM comandos_registrados
+                FROM per_comandos_registrados
                 WHERE activo = true
                 ORDER BY ruta_comando;";
 
@@ -73,7 +73,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             _comandosRegistrados[metadatos.RutaComando] = comandoCreador;
 
             const string sql = @"
-                INSERT INTO comandos_registrados (
+                INSERT INTO per_comandos_registrados (
                     ruta_comando,
                     descripcion,
                     esquema_parametros,
@@ -167,7 +167,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
         private async Task DesactivarComandosAsync(IEnumerable<string> rutas, CancellationToken token)
         {
             const string sql = @"
-                UPDATE comandos_registrados
+                UPDATE per_comandos_registrados
                 SET activo = false,
                     actualizado_en = NOW()
                 WHERE ruta_comando = ANY(@Rutas);";
