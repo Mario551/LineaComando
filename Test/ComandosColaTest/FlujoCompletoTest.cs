@@ -40,7 +40,7 @@ namespace ComandosColaTest
             ComandoEnCola comandoEnCola)
         {
             var lineaComando = ParsearLineaComando(comandoEnCola);
-            var comando = factoria.Crear(lineaComando, _configuracion, _logger);
+            var comando = factoria.Crear(lineaComando);
             var stream = new StreamEnMemoria<string, ResultadoComando>(comandoEnCola.DatosDeComando ?? string.Empty);
 
             await comando.EjecutarAsync(stream);

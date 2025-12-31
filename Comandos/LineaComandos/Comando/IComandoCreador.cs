@@ -8,6 +8,6 @@ namespace PER.Comandos.LineaComandos.Comando
     {
         IComandoCreador<TRead, TWrite> EmpezarCon(Func<CancellationToken, Task> comenzar);
         IComandoCreador<TRead, TWrite> FinalizarCon(Func<CancellationToken, Task> finalizar);
-        IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger);
+        IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros);
     }
 }

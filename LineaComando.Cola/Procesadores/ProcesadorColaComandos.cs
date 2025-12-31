@@ -99,7 +99,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                     comandoEnCola.Id, comandoEnCola.RutaComando, comandoEnCola.Argumentos);
 
                 var lineaComando = ParsearLineaComando(comandoEnCola);
-                var comando = _factoriaComandos.Crear(lineaComando, _configuracion, _logger);
+                var comando = _factoriaComandos.Crear(lineaComando);
                 var stream = new StreamEnMemoria<string, ResultadoComando>(comandoEnCola.DatosDeComando ?? string.Empty);
 
                 await comando.EjecutarAsync(stream, token);

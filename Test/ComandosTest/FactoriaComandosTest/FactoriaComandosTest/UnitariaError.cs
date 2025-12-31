@@ -1,8 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using Moq;
-using PER.Comandos.LineaComandos;
-using PER.Comandos.LineaComandos.Comando;
-using PER.Comandos.LineaComandos.Configuracion;
+﻿using PER.Comandos.LineaComandos;
 using PER.Comandos.LineaComandos.Excepcion;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 
@@ -23,10 +19,8 @@ namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
                 .Padre?.Add("comando2", new Nodo<string, string>(new ComandoPrueba2()));
 
             LineaComando lineaComando = new LineaComando(rutaInexistente);
-            var configuracionMock = new Mock<IConfiguracion>();
-            var loggerMock = new Mock<ILogger>();
 
-            Assert.Throws<NoEncontradoExcepcion>(() => factoria.Crear(lineaComando, configuracionMock.Object, loggerMock.Object));
+            Assert.Throws<NoEncontradoExcepcion>(() => factoria.Crear(lineaComando));
         }
     }
 }

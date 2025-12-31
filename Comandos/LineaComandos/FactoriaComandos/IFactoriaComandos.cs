@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using PER.Comandos.LineaComandos.Comando;
-using PER.Comandos.LineaComandos.Configuracion;
+﻿using PER.Comandos.LineaComandos.Comando;
 
 namespace PER.Comandos.LineaComandos.FactoriaComandos
 {
@@ -25,11 +23,8 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// Recibe una ruta de búsqueda en el arbol de comandos para la creación del comando. Ejemplo:
         ///     [módulo].[submodulo].[submodulo].[nombrecomando] --parametro1 --parametro2=valor
         /// </summary>
-        /// <param name="lineaComando">Ruta de búsqueda en el arbol. Cada sección es un item en la colección</param>
-        /// <param name="parametros">Parámetros de ejecución del comando</param>
-        /// <param name="configuracion">Configuración que se desea pasar al comando</param>
-        /// <param name="logger">Log del sistema</param>
-        /// <returns></returns>
-        IComando<TRead, TWrite> Crear(LineaComando lineaComando, IConfiguracion configuracion, ILogger logger);
+        /// <param name="lineaComando">Ruta de búsqueda en el arbol y parámetros de ejecución</param>
+        /// <returns>Comando creado y preparado</returns>
+        IComando<TRead, TWrite> Crear(LineaComando lineaComando);
     }
 }

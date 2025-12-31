@@ -8,7 +8,7 @@ namespace ComandosTest.FactoriaComandosTest.NodoTest
 {
     internal class ComandoPrueba : ComandoBase<string, string>
     {
-        public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public override void Preparar(ICollection<Parametro> parametros)
         { }
 
         public override async Task EjecutarAsync(IStream<string, string> stream, CancellationToken token = default)

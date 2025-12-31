@@ -1,8 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
-using Moq;
-using PER.Comandos.LineaComandos;
+﻿using PER.Comandos.LineaComandos;
 using PER.Comandos.LineaComandos.Comando;
-using PER.Comandos.LineaComandos.Configuracion;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 
 namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
@@ -32,13 +29,10 @@ namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
         {
             LineaComando lineaComando = new LineaComando(ruta);
 
-            var configuracionMock = new Mock<IConfiguracion>();
-            var loggerMock = new Mock<ILogger>();
-
             IComando<string, string>? comando = null;
             try
             {
-                comando = factoria.Crear(lineaComando, configuracionMock.Object, loggerMock.Object);
+                comando = factoria.Crear(lineaComando);
             }
             catch (Exception ex)
             {

@@ -49,9 +49,9 @@ namespace PER.Comandos.LineaComandos.Comando
         }
 
         /// <summary>
-        /// Prepara el comando con los parámetros, configuración y logger.
+        /// Prepara el comando con los parámetros.
         /// </summary>
-        public abstract void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger);
+        public abstract void Preparar(ICollection<Parametro> parametros);
 
         /// <summary>
         /// Ejecuta el comando de forma asíncrona.

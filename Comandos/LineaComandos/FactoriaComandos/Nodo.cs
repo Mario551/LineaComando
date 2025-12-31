@@ -12,7 +12,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         public Nodo<TRead, TWrite>? Padre { get; private set; }
 
         private IDictionary<string, Nodo<TRead, TWrite>> _nodos;
-        private Func<ICollection<Parametro>, IConfiguracion, ILogger, IComando<TRead, TWrite>>? _creador;
+        private Func<ICollection<Parametro>, IComando<TRead, TWrite>>? _creador;
         private ComandoBase<TRead, TWrite>? _comando = null;
         private Func<CancellationToken, Task>? _comenzar;
         private Func<CancellationToken, Task>? _finalizar;
@@ -23,7 +23,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
             Nombre = string.Empty;
         }
 
-        public Nodo(Func<ICollection<Parametro>, IConfiguracion, ILogger, IComando<TRead, TWrite>> creador) : this()
+        public Nodo(Func<ICollection<Parametro>, IComando<TRead, TWrite>> creador) : this()
         {
             _creador = creador;
         }
@@ -81,12 +81,10 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         /// </summary>
         /// <param name="lineaComando">Lista LIFO; tenga presente invertir su colección de ruta para inicializar la pila, porque la primera posición a buscar debe estar en la cima de la pila</param>
         /// <param name="parametros">Colección de parámetros que se utilizarán para inicializar el comando</param>
-        /// <param name="configuracion">Configuración que será pasada al comando</param>
-        /// <param name="logger">Objeto de logger</param>
         /// <returns>Comando encontrado al final de la ruta</returns>
         /// <exception cref="NoEncontradoExcepcion">La ruta no existe o no posee un comando al final de esta</exception>
         /// <exception cref="NullReferenceException">Se llegó al final de la ruta y no se encontró un creador de comando inicializado</exception>
-        public IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros)
         {
             IComando<TRead, TWrite>? comando = null;
 
@@ -107,11 +105,11 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
                     throw;
                 }
 
-                comando = nodo.Crear(lineaComando, parametros, configuracion, logger);
+                comando = nodo.Crear(lineaComando, parametros);
             }
             else if (_creador != null)
             {
-                comando = _creador(parametros, configuracion, logger);
+                comando = _creador(parametros);
                 if (_comenzar != null)
                     comando.EmpezarCon(_comenzar);
 
@@ -120,7 +118,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
             }
             else if (_comando != null)
             {
-                _comando.Preparar(parametros, configuracion, logger);
+                _comando.Preparar(parametros);
                 comando = _comando;
 
                 if (_comenzar != null)

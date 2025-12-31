@@ -19,21 +19,21 @@ namespace ComandosColaTest.Helpers
 
         public static int ContadorEjecuciones { get; private set; } = 0;
 
-        public ComandoPrueba()
+        public ComandoPrueba(ILogger? logger = null)
         {
+            _logger = logger;
         }
 
-        public ComandoPrueba(string mensaje, bool deberiaFallar = false, int tiempoEjecucionMs = 0)
+        public ComandoPrueba(string mensaje, bool deberiaFallar = false, int tiempoEjecucionMs = 0, ILogger? logger = null)
         {
             _mensaje = mensaje;
             _deberiaFallar = deberiaFallar;
             _tiempoEjecucionMs = tiempoEjecucionMs;
+            _logger = logger;
         }
 
-        public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public override void Preparar(ICollection<Parametro> parametros)
         {
-            _logger = logger;
-
             var paramMensaje = parametros.FirstOrDefault(p => p.Nombre == "--mensaje");
             if (paramMensaje != null)
             {
@@ -90,7 +90,7 @@ namespace ComandosColaTest.Helpers
         private int _a;
         private int _b;
 
-        public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public override void Preparar(ICollection<Parametro> parametros)
         {
             var paramA = parametros.FirstOrDefault(p => p.Nombre == "--a");
             var paramB = parametros.FirstOrDefault(p => p.Nombre == "--b");

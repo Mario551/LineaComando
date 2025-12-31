@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using Moq;
-using PER.Comandos.LineaComandos.Atributo;
-using PER.Comandos.LineaComandos.Configuracion;
+﻿using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.Excepcion;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 
@@ -18,12 +15,9 @@ namespace ComandosTest.FactoriaComandosTest.NodoTest
 
             Assert.Throws<NoEncontradoExcepcion>(() => nodo.Get("no_encontrado"));
 
-            var configuracionMock = new Mock<IConfiguracion>();
-            var loggerMock = new Mock<ILogger>();
-
             Stack<string> stack = new Stack<string>(ruta.Reverse());
 
-            PER.Comandos.LineaComandos.Excepcion.NoEncontradoExcepcion e = Assert.Throws<PER.Comandos.LineaComandos.Excepcion.NoEncontradoExcepcion>(() => nodo.Crear(stack, new List<Parametro> { new Parametro { Nombre = "--parametro1", Valor = "valor1" } }, configuracionMock.Object, loggerMock.Object));
+            PER.Comandos.LineaComandos.Excepcion.NoEncontradoExcepcion e = Assert.Throws<PER.Comandos.LineaComandos.Excepcion.NoEncontradoExcepcion>(() => nodo.Crear(stack, new List<Parametro> { new Parametro { Nombre = "--parametro1", Valor = "valor1" } }));
         }
 
         [Fact]
@@ -33,12 +27,9 @@ namespace ComandosTest.FactoriaComandosTest.NodoTest
             var nodo = new Nodo<string, string>();
             nodo.Add("nodo1").Add("nodo2").Add("nodo3").Add("comando");
 
-            var configuracionMock = new Mock<IConfiguracion>();
-            var loggerMock = new Mock<ILogger>();
-
             Stack<string> stack = new Stack<string>(ruta.Reverse());
 
-            Assert.Throws<NullReferenceException>(() => nodo.Crear(stack, new List<Parametro> { new Parametro { Nombre = "--parametro1", Valor = "valor1" } }, configuracionMock.Object, loggerMock.Object));
+            Assert.Throws<NullReferenceException>(() => nodo.Crear(stack, new List<Parametro> { new Parametro { Nombre = "--parametro1", Valor = "valor1" } }));
         }
     }
 }

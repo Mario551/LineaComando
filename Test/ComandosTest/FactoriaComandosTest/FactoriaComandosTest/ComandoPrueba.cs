@@ -8,7 +8,7 @@ namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
 {
     internal class ComandoPrueba1 : ComandoBase<string, string>
     {
-        public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public override void Preparar(ICollection<Parametro> parametros)
         { }
 
         public override async Task EjecutarAsync(IStream<string, string> stream, CancellationToken token = default)
@@ -23,7 +23,7 @@ namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
 
     internal class ComandoPrueba2 : ComandoBase<string, string>
     {
-        public override void Preparar(ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        public override void Preparar(ICollection<Parametro> parametros)
         { }
 
         public override async Task EjecutarAsync(IStream<string, string> stream, CancellationToken token = default)

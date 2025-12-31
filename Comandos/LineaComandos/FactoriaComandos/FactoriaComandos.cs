@@ -1,7 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
-using PER.Comandos.LineaComandos.Atributo;
+﻿using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.Comando;
-using PER.Comandos.LineaComandos.Configuracion;
 using PER.Comandos.LineaComandos.Excepcion;
 
 namespace PER.Comandos.LineaComandos.FactoriaComandos
@@ -31,13 +29,13 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
             return nodo;
         }
 
-        public IComando<TRead, TWrite> Crear(LineaComando lineaComando, IConfiguracion configuracion, ILogger logger)
+        public IComando<TRead, TWrite> Crear(LineaComando lineaComando)
         {
             var pila = new Stack<string>(lineaComando.Ruta.Reverse());
-            return Crear(pila, lineaComando.Parametros, configuracion, logger);
+            return Crear(pila, lineaComando.Parametros);
         }
 
-        private IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros, IConfiguracion configuracion, ILogger logger)
+        private IComando<TRead, TWrite> Crear(Stack<string> lineaComando, ICollection<Parametro> parametros)
         {
             if (lineaComando.Count == 0)
                 throw new ColeccionVaciaExcepcion("línea de comandos no definido");
@@ -57,7 +55,7 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
                 throw;
             }
 
-            return nodo.Crear(lineaComando, parametros, configuracion, logger);
+            return nodo.Crear(lineaComando, parametros);
         }
     }
 }
