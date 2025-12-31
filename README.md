@@ -186,18 +186,18 @@ El `ServicioColaComandos` recogera automaticamente el comando y lo ejecutara.
 El sistema event-driven utiliza tres tablas relacionadas:
 
 ```
-+------------------+       +----------------------+       +------------------------+
-|  per_tipos_evento    |       | per_manejadores_evento   |       | per_disparadores_manejador |
-+------------------+       +----------------------+       +------------------------+
-| id (PK)          |       | id (PK)              |       | id (PK)                |
-| codigo           |       | codigo               |       | manejador_evento_id(FK)|---> per_manejadores_evento
-| nombre           |       | nombre               |       | tipo_evento_id (FK)    |---> per_tipos_evento
-| descripcion      |       | descripcion          |       | modo_disparo           |
-| activo           |       | ruta_comando         |       | expresion              |
-| creado_en        |       | argumentos_comando   |       | activo                 |
-+------------------+       | activo               |       | prioridad              |
-                           | creado_en            |       | creado_en              |
-                           +----------------------+       +------------------------+
++------------------+       +-----------------------+       +----------------------------+
+|per_tipos_evento  |       | per_manejadores_evento|       | per_disparadores_manejador |
++------------------+       +-----------------------+       +----------------------------+
+| id (PK)          |       | id (PK)               |       | id (PK)                    |
+| codigo           |       | codigo                |       | manejador_evento_id(FK)    |---> per_manejadores_evento
+| nombre           |       | nombre                |       | tipo_evento_id (FK)        |---> per_tipos_evento
+| descripcion      |       | descripcion           |       | modo_disparo               |
+| activo           |       | ruta_comando          |       | expresion                  |
+| creado_en        |       | argumentos_comando    |       | activo                     |
++------------------+       | activo                |       | prioridad                  |
+                           | creado_en             |       | creado_en                  |
+                           +-----------------------+       +----------------------------+
 ```
 
 **per_tipos_evento**: Catalogo de eventos que pueden ocurrir en tu sistema. Define QUE cosas pueden pasar (ej: "ORDEN_CREADA", "PAGO_RECIBIDO", "USUARIO_REGISTRADO").
@@ -365,22 +365,22 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
           +----------------+----------------+
           |                                 |
           v                                 v
-+-------------------+            +-------------------+
-| IAlmacenColaComandos |        |    IColaEventos    |
-| (Encolar comandos)|            | (Publicar eventos)|
-+-------------------+            +-------------------+
++----------------------+         +-------------------+
+| IAlmacenColaComandos |         |    IColaEventos   |
+| (Encolar comandos)   |         | (Publicar eventos)|
++----------------------+         +-------------------+
           |                                 |
           v                                 v
 +-------------------+            +-------------------+
-| per_cola_comandos     |            | per_eventos_outbox    |
+| per_cola_comandos |            | per_eventos_outbox|
 | (Tabla PostgreSQL)|            | (Tabla PostgreSQL)|
 +-------------------+            +-------------------+
           ^                                 |
           |                                 v
-          |                      +----------------------+
-          |                      |ServicioProcesadorEventos|
-          |                      | (BackgroundService)  |
-          |                      +----------------------+
+          |                    +-------------------------+
+          |                    |ServicioProcesadorEventos|
+          |                    | (BackgroundService)     |
+          |                    +-------------------------+
           |                                 |
           |                 Encola comandos segun manejadores
           |                                 |
