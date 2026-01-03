@@ -355,6 +355,77 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
 
 ---
 
+## Comportamiento en Conflictos (Upsert)
+
+Las clases de registro utilizan `ON CONFLICT ... DO UPDATE` para manejar duplicados. Esta seccion documenta que campos actualiza el codigo automaticamente y cuales se preservan, permitiendo modificaciones manuales en base de datos sin que el codigo las sobrescriba.
+
+### per_comandos_registrados (RegistroComandos)
+
+Clave de conflicto: `ruta_comando`
+
+| Campo | Comportamiento |
+|-------|----------------|
+| `id` | Preservado (auto-generado) |
+| `ruta_comando` | Clave, no cambia |
+| `descripcion` | **Actualizado** por codigo |
+| `activo` | **Actualizado** a `true` al re-registrar |
+| `creado_en` | Preservado |
+| `actualizado_en` | **Actualizado** a `NOW()` |
+
+### per_tipos_evento (RegistroTiposEvento)
+
+Clave de conflicto: `codigo`
+
+| Campo | Comportamiento |
+|-------|----------------|
+| `id` | Preservado (auto-generado) |
+| `codigo` | Clave, no cambia |
+| `nombre` | **Actualizado** por codigo |
+| `descripcion` | **Actualizado** por codigo |
+| `activo` | **Actualizado** por codigo |
+| `creado_en` | Preservado |
+
+### per_manejadores_evento (RegistroManejadores)
+
+Clave de conflicto: `codigo`
+
+| Campo | Comportamiento |
+|-------|----------------|
+| `id` | Preservado (auto-generado) |
+| `codigo` | Clave, no cambia |
+| `nombre` | **Actualizado** por codigo |
+| `descripcion` | **Actualizado** por codigo |
+| `id_comando_registrado` | **Actualizado** por codigo |
+| `ruta_comando` | **Actualizado** por codigo |
+| `argumentos_comando` | **Preservado** - modificable manualmente |
+| `activo` | **Actualizado** por codigo |
+| `creado_en` | Preservado |
+
+### per_disparadores_manejador (RegistroManejadores)
+
+Clave de conflicto: `(manejador_evento_id, COALESCE(tipo_evento_id, 0))`
+
+| Campo | Comportamiento |
+|-------|----------------|
+| `id` | Preservado (auto-generado) |
+| `manejador_evento_id` | Parte de la clave, no cambia |
+| `tipo_evento_id` | Parte de la clave, no cambia |
+| `modo_disparo` | **Actualizado** por codigo |
+| `expresion` | **Preservado** - modificable manualmente |
+| `activo` | **Actualizado** por codigo |
+| `prioridad` | **Actualizado** por codigo |
+| `creado_en` | Preservado |
+
+### Campos Modificables Manualmente
+
+Los siguientes campos pueden ser modificados directamente en base de datos y el codigo **no los sobrescribira** al re-registrar:
+
+- `per_manejadores_evento.argumentos_comando`: Permite ajustar argumentos sin modificar codigo
+- `per_disparadores_manejador.expresion`: Permite cambiar expresiones de intervalo sin modificar codigo
+- Todos los campos `creado_en`: Se preservan como registro historico
+
+---
+
 ## Arquitectura
 
 ```

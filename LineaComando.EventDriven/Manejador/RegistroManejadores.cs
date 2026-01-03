@@ -42,7 +42,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     descripcion = EXCLUDED.descripcion,
                     id_comando_registrado = EXCLUDED.id_comando_registrado,
                     ruta_comando = EXCLUDED.ruta_comando,
-                    argumentos_comando = EXCLUDED.argumentos_comando,
                     activo = EXCLUDED.activo
                 RETURNING id;";
 
@@ -190,7 +189,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 ON CONFLICT (manejador_evento_id, COALESCE(tipo_evento_id, 0))
                 DO UPDATE SET
                     modo_disparo = EXCLUDED.modo_disparo,
-                    expresion = EXCLUDED.expresion,
                     activo = EXCLUDED.activo,
                     prioridad = EXCLUDED.prioridad
                 RETURNING id;";

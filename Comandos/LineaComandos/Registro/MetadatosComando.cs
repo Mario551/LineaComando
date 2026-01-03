@@ -21,11 +21,6 @@ namespace PER.Comandos.LineaComandos.Registro
         public string? Descripcion { get; set; }
 
         /// <summary>
-        /// Esquema de parámetros esperados (JSON).
-        /// </summary>
-        public string? EsquemaParametros { get; set; }
-
-        /// <summary>
         /// Si el comando está disponible.
         /// </summary>
         public bool Activo { get; set; } = true;

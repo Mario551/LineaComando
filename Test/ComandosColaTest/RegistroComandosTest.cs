@@ -26,8 +26,7 @@ namespace ComandosColaTest
             var metadatos = new MetadatosComando
             {
                 RutaComando = ruta,
-                Descripcion = "Comando de prueba",
-                EsquemaParametros = "{\"parametros\": []}"
+                Descripcion = "Comando de prueba"
             };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
 
@@ -156,35 +155,5 @@ namespace ComandosColaTest
             Assert.Equal(3, comandos.Count());
         }
 
-        [Fact]
-        public async Task RegistrarComandoAsync_ConEsquemaParametros_DebeGuardarJsonb()
-        {
-            var ruta = PrefijoTest + "con_esquema";
-            var esquema = @"{
-                ""parametros"": [
-                    {""nombre"": ""orderId"", ""tipo"": ""int"", ""requerido"": true},
-                    {""nombre"": ""monto"", ""tipo"": ""decimal"", ""requerido"": true}
-                ]
-            }";
-            var metadatos = new MetadatosComando
-            {
-                RutaComando = ruta,
-                Descripcion = "Procesa un pago",
-                EsquemaParametros = esquema
-            };
-            var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
-
-            await _registro.RegistrarComandoAsync(metadatos, nodo);
-
-            using var connection = CrearConexion();
-            await connection.OpenAsync();
-
-            var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT esquema_parametros::text as esquema FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = ruta });
-
-            Assert.NotNull(comandoDb.esquema);
-            Assert.Contains("orderId", (string)comandoDb.esquema);
-        }
     }
 }

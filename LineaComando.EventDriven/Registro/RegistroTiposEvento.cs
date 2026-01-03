@@ -7,14 +7,20 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
     public class RegistroTiposEvento : IRegistroTiposEvento
     {
         private readonly string _connectionString;
+        private Dictionary<string, TipoEvento> _tiposEventosRegistrados;
+
+        public IDictionary<string, TipoEvento> TiposEventosRegistrados => _tiposEventosRegistrados;
 
         public RegistroTiposEvento(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _tiposEventosRegistrados = new Dictionary<string, TipoEvento>();
         }
 
         public async Task<int> RegistrarTipoEventoAsync(TipoEvento tipoEvento, CancellationToken token = default)
         {
+            _tiposEventosRegistrados[tipoEvento.Codigo] = tipoEvento;
+
             const string sql = @"
                 INSERT INTO per_tipos_evento (
                     codigo,
@@ -40,7 +46,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            var id = await connection.ExecuteScalarAsync<int>(
+            int id = await connection.ExecuteScalarAsync<int>(
                 sql,
                 new
                 {
@@ -51,6 +57,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     tipoEvento.CreadoEn
                 });
 
+            tipoEvento.Id = id;
             return id;
         }
 

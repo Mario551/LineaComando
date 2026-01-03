@@ -12,9 +12,13 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
         private readonly string _connectionString;
         private readonly Dictionary<string, IComandoCreador<TRead, TWrite>> _comandosRegistrados;
 
+        private Dictionary<string, MetadatosComando> _metadatosComandosRegistrados;
+        public IDictionary<string, MetadatosComando> ComandosRegistrados => _metadatosComandosRegistrados;
+
         public RegistroComandos(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _metadatosComandosRegistrados = new Dictionary<string, MetadatosComando>();
             _comandosRegistrados = new Dictionary<string, IComandoCreador<TRead, TWrite>>();
         }
 
@@ -25,7 +29,6 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                     id as Id,
                     ruta_comando as RutaComando,
                     descripcion as Descripcion,
-                    esquema_parametros as EsquemaParametros,
                     activo as Activo,
                     creado_en as CreadoEn
                 FROM per_comandos_registrados
@@ -71,19 +74,18 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             CancellationToken token = default)
         {
             _comandosRegistrados[metadatos.RutaComando] = comandoCreador;
+            _metadatosComandosRegistrados[metadatos.RutaComando] = metadatos;
 
             const string sql = @"
                 INSERT INTO per_comandos_registrados (
                     ruta_comando,
                     descripcion,
-                    esquema_parametros,
                     activo,
                     creado_en
                 )
                 VALUES (
                     @RutaComando,
                     @Descripcion,
-                    @EsquemaParametros::jsonb,
                     true,
                     NOW()
                 )
@@ -91,8 +93,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                 DO UPDATE SET
                     activo = true,
                     actualizado_en = NOW(),
-                    descripcion = EXCLUDED.descripcion,
-                    esquema_parametros = EXCLUDED.esquema_parametros
+                    descripcion = EXCLUDED.descripcion
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -103,8 +104,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                 new
                 {
                     metadatos.RutaComando,
-                    metadatos.Descripcion,
-                    metadatos.EsquemaParametros
+                    metadatos.Descripcion
                 });
 
             metadatos.Id = id;
@@ -185,7 +185,6 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                 Id = dao.Id,
                 RutaComando = dao.RutaComando,
                 Descripcion = dao.Descripcion,
-                EsquemaParametros = dao.EsquemaParametros,
                 Activo = dao.Activo,
                 CreadoEn = dao.CreadoEn
             };

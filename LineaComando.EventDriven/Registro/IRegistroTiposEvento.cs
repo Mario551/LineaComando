@@ -4,6 +4,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
 {
     public interface IRegistroTiposEvento
     {
+        IDictionary<string, TipoEvento> TiposEventosRegistrados { get ;}
+
         Task<int> RegistrarTipoEventoAsync(TipoEvento tipoEvento, CancellationToken token = default);
 
         Task<TipoEvento?> ObtenerTipoEventoPorCodigoAsync(string codigo, CancellationToken token = default);

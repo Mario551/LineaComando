@@ -129,8 +129,7 @@ namespace ComandosColaTest
             var metadatos = new MetadatosComando
             {
                 RutaComando = ruta,
-                Descripcion = "Suma dos numeros",
-                EsquemaParametros = "{\"parametros\": [{\"nombre\": \"a\"}, {\"nombre\": \"b\"}]}"
+                Descripcion = "Suma dos numeros"
             };
             var comandoSuma = new ComandoSuma();
             var nodo = new Nodo<string, ResultadoComando>(comandoSuma);

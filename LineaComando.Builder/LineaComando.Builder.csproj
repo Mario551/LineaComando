@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>LineaComando.Builder</PackageId>
-    <Version>3.0.2</Version>
+    <Version>3.0.6</Version>
     <Authors>Mario Fernando</Authors>
     <Company></Company>
     <PackageProjectUrl>https://github.com/Mario551/LineaComando</PackageProjectUrl>
@@ -17,8 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
-      <ProjectReference Include="..\LineaComando.Cola\LineaComando.Cola.csproj" />
-      <ProjectReference Include="..\LineaComando.EventDriven\LineaComando.EventDriven.csproj" />
+    <ProjectReference Include="..\LineaComando.Cola\LineaComando.Cola.csproj" >
+        <PrivateAssets>none</PrivateAssets>
+    </ProjectReference >
+    <ProjectReference Include="..\LineaComando.EventDriven\LineaComando.EventDriven.csproj" >
+        <PrivateAssets>none</PrivateAssets>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>
