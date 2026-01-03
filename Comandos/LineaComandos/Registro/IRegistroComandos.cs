@@ -8,6 +8,8 @@ namespace PER.Comandos.LineaComandos.Registro
     /// </summary>
     public interface IRegistroComandos<TRead, TWrite>
     {
+        IDictionary<string, MetadatosComando> ComandosRegistrados { get; }
+
         /// <summary>
         /// Obtiene todos los comandos registrados activos.
         /// </summary>
