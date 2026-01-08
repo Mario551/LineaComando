@@ -48,7 +48,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            var id = await connection.ExecuteScalarAsync<int>(
+            int id = await connection.ExecuteScalarAsync<int>(
                 sql,
                 new
                 {
@@ -61,7 +61,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     manejador.Activo,
                     manejador.CreadoEn
                 });
-
+            
+            manejador.Id = id;
             return id;
         }
 
@@ -167,31 +168,62 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<int> RegistrarDisparadorAsync(DisparadorManejador disparador, CancellationToken token = default)
         {
-            const string sql = @"
-                INSERT INTO per_disparadores_manejador (
-                    manejador_evento_id,
-                    modo_disparo,
-                    tipo_evento_id,
-                    expresion,
-                    activo,
-                    prioridad,
-                    creado_en
-                )
-                VALUES (
-                    @ManejadorEventoId,
-                    @ModoDisparo,
-                    @TipoEventoId,
-                    @Expresion,
-                    @Activo,
-                    @Prioridad,
-                    @CreadoEn
-                )
-                ON CONFLICT (manejador_evento_id, COALESCE(tipo_evento_id, 0))
-                DO UPDATE SET
-                    modo_disparo = EXCLUDED.modo_disparo,
-                    activo = EXCLUDED.activo,
-                    prioridad = EXCLUDED.prioridad
-                RETURNING id;";
+            string sql = "";
+            if (disparador.ModoDisparo == "Evento")
+            {
+                sql = @"
+                    INSERT INTO per_disparadores_manejador (
+                        manejador_evento_id,
+                        modo_disparo,
+                        tipo_evento_id,
+                        expresion,
+                        activo,
+                        prioridad,
+                        creado_en
+                    )
+                    VALUES (
+                        @ManejadorEventoId,
+                        @ModoDisparo,
+                        @TipoEventoId,
+                        @Expresion,
+                        @Activo,
+                        @Prioridad,
+                        @CreadoEn
+                    )
+                    ON CONFLICT (manejador_evento_id, COALESCE(tipo_evento_id, -1))
+                    DO UPDATE SET
+                        activo = EXCLUDED.activo,
+                        prioridad = EXCLUDED.prioridad
+                    RETURNING id;";
+            }
+            else //Programado
+            {
+
+                sql = @"
+                    INSERT INTO per_disparadores_manejador (
+                        manejador_evento_id,
+                        modo_disparo,
+                        tipo_evento_id,
+                        expresion,
+                        activo,
+                        prioridad,
+                        creado_en
+                    )
+                    VALUES (
+                        @ManejadorEventoId,
+                        @ModoDisparo,
+                        @TipoEventoId,
+                        @Expresion,
+                        @Activo,
+                        @Prioridad,
+                        @CreadoEn
+                    )
+                    ON CONFLICT (manejador_evento_id, COALESCE(expresion, ''))
+                    DO UPDATE SET
+                        activo = EXCLUDED.activo,
+                        prioridad = EXCLUDED.prioridad
+                    RETURNING id;";
+            }
 
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);

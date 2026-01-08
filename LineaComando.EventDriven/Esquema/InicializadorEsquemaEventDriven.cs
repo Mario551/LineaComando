@@ -183,7 +183,13 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_programados
                     ON per_disparadores_manejador(modo_disparo, activo, expresion)
-                    WHERE modo_disparo = 'Programado';";
+                    WHERE modo_disparo = 'Programado';
+                    
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_manejador_tipo 
+                    ON per_disparadores_manejador (manejador_evento_id, COALESCE(tipo_evento_id, -1));
+                    
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_manejador_expr
+                    ON per_disparadores_manejador (manejador_evento_id, COALESCE(expresion, ''));";
 
             await connection.ExecuteAsync(sql);
         }

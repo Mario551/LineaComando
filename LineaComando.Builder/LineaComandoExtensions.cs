@@ -23,11 +23,14 @@ namespace PER.Comandos.LineaComandos.Builder
         {
             var builder = services.GetRequiredService<LineaComandoBuilder>();
 
+            var inicializadorCola = new InicializadorEsquema(builder.ConnectionString);
+            await inicializadorCola.InicializarAsync(token);
+
+            var inicializadorEventDriven = new InicializadorEsquemaEventDriven(builder.ConnectionString);
+            await inicializadorEventDriven.InicializarAsync(token);
+
             if (builder.UsarCola)
             {
-                var inicializadorCola = new InicializadorEsquema(builder.ConnectionString);
-                await inicializadorCola.InicializarAsync(token);
-
                 if (builder.ConfigurarComandos != null)
                 {
                     var registroComandos = services.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
@@ -37,9 +40,6 @@ namespace PER.Comandos.LineaComandos.Builder
 
             if (builder.UsarEventDriven)
             {
-                var inicializadorEventDriven = new InicializadorEsquemaEventDriven(builder.ConnectionString);
-                await inicializadorEventDriven.InicializarAsync(token);
-
                 if (builder.ConfigurarEventos != null)
                 {
                     var registroTiposEvento = services.GetRequiredService<IRegistroTiposEvento>();

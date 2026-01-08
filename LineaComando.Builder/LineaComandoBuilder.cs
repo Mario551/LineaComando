@@ -72,6 +72,9 @@ namespace PER.Comandos.LineaComandos.Builder
             {
                 _services.AddTransient<IAlmacenColaComandos>(sp =>
                     new AlmacenColaComandos(_connectionString));
+
+                _services.AddTransient<IRegistroManejadores>(sp =>
+                    new RegistroManejadores(_connectionString));
             }
 
             if (UsarCola)
@@ -95,9 +98,6 @@ namespace PER.Comandos.LineaComandos.Builder
             {
                 _services.AddTransient<IColaEventos>(sp =>
                     new ColaEventos(_connectionString));
-
-                _services.AddTransient<IRegistroManejadores>(sp =>
-                    new RegistroManejadores(_connectionString));
 
                 _services.AddSingleton<IRegistroTiposEvento>(sp =>
                     new RegistroTiposEvento(_connectionString));
