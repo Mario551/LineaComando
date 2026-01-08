@@ -17,7 +17,6 @@ namespace ComandosColaTest
         private readonly RegistroComandos<string, ResultadoComando> _registro;
         private readonly AlmacenColaComandos _almacen;
         private readonly ILogger _logger;
-        private readonly ConfiguracionPrueba _configuracion;
 
         protected override string PrefijoTest => "flujo_completo_";
 
@@ -26,7 +25,6 @@ namespace ComandosColaTest
             _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
             _almacen = new AlmacenColaComandos(ConnectionString);
             _logger = NullLogger.Instance;
-            _configuracion = new ConfiguracionPrueba();
         }
 
         public override async Task InitializeAsync()

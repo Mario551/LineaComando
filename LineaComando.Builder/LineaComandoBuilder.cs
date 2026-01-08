@@ -1,7 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Procesadores;
+using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.EventDriven.Manejador;
+using PER.Comandos.LineaComandos.EventDriven.Outbox;
 using PER.Comandos.LineaComandos.EventDriven.Registro;
+using PER.Comandos.LineaComandos.EventDriven.Servicio;
+using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Registro;
 
 namespace PER.Comandos.LineaComandos.Builder
@@ -61,13 +68,43 @@ namespace PER.Comandos.LineaComandos.Builder
         {
             _services.AddSingleton(this);
 
+            if (UsarCola || UsarEventDriven)
+            {
+                _services.AddTransient<IAlmacenColaComandos>(sp =>
+                    new AlmacenColaComandos(_connectionString));
+            }
+
             if (UsarCola)
             {
+                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp =>
+                    new RegistroComandos<string, ResultadoComando>(_connectionString));
+
+                _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>();
+
+                _services.AddSingleton(sp =>
+                    new ProcesadorColaComandos(
+                        sp.GetRequiredService<IServiceScopeFactory>(),
+                        MaxParalelismoCola,
+                        TiempoRefrescoCola,
+                        sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
+
                 _services.AddHostedService<ServicioColaComandos>();
             }
 
             if (UsarEventDriven)
             {
+                _services.AddTransient<IColaEventos>(sp =>
+                    new ColaEventos(_connectionString));
+
+                _services.AddTransient<IRegistroManejadores>(sp =>
+                    new RegistroManejadores(_connectionString));
+
+                _services.AddSingleton<IRegistroTiposEvento>(sp =>
+                    new RegistroTiposEvento(_connectionString));
+
+                _services.AddScoped<ProcesadorEventos>();
+                _services.AddSingleton<CoordinadorTareasProgramadas>();
+
                 _services.AddHostedService<ServicioProcesadorEventos>();
                 _services.AddHostedService<ServicioTareasProgramadas>();
             }

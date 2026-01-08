@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Dapper;
 using Npgsql;
 using PER.Comandos.LineaComandos.EventDriven.DAO;
@@ -7,19 +8,19 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
     public class RegistroTiposEvento : IRegistroTiposEvento
     {
         private readonly string _connectionString;
-        private Dictionary<string, TipoEvento> _tiposEventosRegistrados;
+        private ConcurrentDictionary<string, TipoEvento> _tiposEventosRegistrados;
 
         public IDictionary<string, TipoEvento> TiposEventosRegistrados => _tiposEventosRegistrados;
 
         public RegistroTiposEvento(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-            _tiposEventosRegistrados = new Dictionary<string, TipoEvento>();
+            _tiposEventosRegistrados = new ConcurrentDictionary<string, TipoEvento>();
         }
 
         public async Task<int> RegistrarTipoEventoAsync(TipoEvento tipoEvento, CancellationToken token = default)
         {
-            _tiposEventosRegistrados[tipoEvento.Codigo] = tipoEvento;
+            _tiposEventosRegistrados.TryAdd(tipoEvento.Codigo, tipoEvento);
 
             const string sql = @"
                 INSERT INTO per_tipos_evento (

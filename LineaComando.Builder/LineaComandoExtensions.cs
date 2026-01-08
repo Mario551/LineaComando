@@ -18,10 +18,10 @@ namespace PER.Comandos.LineaComandos.Builder
         }
 
         public static async Task InicializarLineaComandoAsync(
-            this IHost host,
+            this IServiceProvider services,
             CancellationToken token = default)
         {
-            var builder = host.Services.GetRequiredService<LineaComandoBuilder>();
+            var builder = services.GetRequiredService<LineaComandoBuilder>();
 
             if (builder.UsarCola)
             {
@@ -30,8 +30,8 @@ namespace PER.Comandos.LineaComandos.Builder
 
                 if (builder.ConfigurarComandos != null)
                 {
-                    var registroComandos = host.Services.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
-                    await builder.ConfigurarComandos(host.Services, registroComandos, token);
+                    var registroComandos = services.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
+                    await builder.ConfigurarComandos(services, registroComandos, token);
                 }
             }
 
@@ -42,8 +42,8 @@ namespace PER.Comandos.LineaComandos.Builder
 
                 if (builder.ConfigurarEventos != null)
                 {
-                    var registroTiposEvento = host.Services.GetRequiredService<IRegistroTiposEvento>();
-                    await builder.ConfigurarEventos!(host.Services, registroTiposEvento, token);
+                    var registroTiposEvento = services.GetRequiredService<IRegistroTiposEvento>();
+                    await builder.ConfigurarEventos!(services, registroTiposEvento, token);
                 }
             }
         }

@@ -4,6 +4,7 @@ using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.DAO;
+using System.Collections.Concurrent;
 
 namespace PER.Comandos.LineaComandos.Cola.Registro
 {
@@ -12,13 +13,13 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
         private readonly string _connectionString;
         private readonly Dictionary<string, IComandoCreador<TRead, TWrite>> _comandosRegistrados;
 
-        private Dictionary<string, MetadatosComando> _metadatosComandosRegistrados;
+        private ConcurrentDictionary<string, MetadatosComando> _metadatosComandosRegistrados;
         public IDictionary<string, MetadatosComando> ComandosRegistrados => _metadatosComandosRegistrados;
 
         public RegistroComandos(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-            _metadatosComandosRegistrados = new Dictionary<string, MetadatosComando>();
+            _metadatosComandosRegistrados = new ConcurrentDictionary<string, MetadatosComando>();
             _comandosRegistrados = new Dictionary<string, IComandoCreador<TRead, TWrite>>();
         }
 
@@ -74,7 +75,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             CancellationToken token = default)
         {
             _comandosRegistrados[metadatos.RutaComando] = comandoCreador;
-            _metadatosComandosRegistrados[metadatos.RutaComando] = metadatos;
+            _metadatosComandosRegistrados.TryAdd(metadatos.RutaComando, metadatos);
 
             const string sql = @"
                 INSERT INTO per_comandos_registrados (

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
@@ -11,19 +12,16 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
     /// </summary>
     public class CoordinadorTareasProgramadas
     {
-        private readonly IRegistroManejadores _registroManejadores;
-        private readonly IAlmacenColaComandos _almacenColaComandos;
-        private readonly ILogger _logger;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ILogger<CoordinadorTareasProgramadas> _logger;
         private readonly Dictionary<int, DateTime> _ultimasEjecuciones = new();
         private readonly ConcurrentBag<Task> _concurrencyBag = new();
 
         public CoordinadorTareasProgramadas(
-            IRegistroManejadores registroManejadores,
-            IAlmacenColaComandos almacenColaComandos,
-            ILogger logger)
+            IServiceScopeFactory serviceScopeFactory,
+            ILogger<CoordinadorTareasProgramadas> logger)
         {
-            _registroManejadores = registroManejadores ?? throw new ArgumentNullException(nameof(registroManejadores));
-            _almacenColaComandos = almacenColaComandos ?? throw new ArgumentNullException(nameof(almacenColaComandos));
+            _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -32,7 +30,10 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
         /// </summary>
         public virtual async Task EjecutarTareasProgramadasAsync(CancellationToken token = default)
         {
-            var manejadoresProgramados = await _registroManejadores.ObtenerManejadoresProgramadosAsync(token);
+            using IServiceScope scope = _serviceScopeFactory.CreateScope();
+            IRegistroManejadores registroManejadores = scope.ServiceProvider.GetRequiredService<IRegistroManejadores>();
+
+            var manejadoresProgramados = await registroManejadores.ObtenerManejadoresProgramadosAsync(token);
 
             foreach (ConfiguracionManejador config in manejadoresProgramados.Where(m => m.Activo))
             {
@@ -42,7 +43,11 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 if (DebeEjecutarse(config))
                 {
                     _concurrencyBag.Add(EjecutarTareaAsync(config, token)
-                        .ContinueWith(t => _concurrencyBag.TryTake(out t)));
+                        .ContinueWith(t =>
+                        {
+                            Task? retTaks = t;
+                            _concurrencyBag.TryTake(out retTaks);
+                        }));
                 }
             }
         }
@@ -120,6 +125,9 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
             {
                 _logger.LogInformation("Encolando comando para tarea programada {ManejadorId}", config.IDManejador);
 
+                using IServiceScope scope = _serviceScopeFactory.CreateScope();
+                IAlmacenColaComandos almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
+
                 var comandoEnCola = new ComandoEnCola
                 {
                     RutaComando = config.RutaComando,
@@ -130,7 +138,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                     Intentos = 0
                 };
 
-                await _almacenColaComandos.EncolarAsync(comandoEnCola, token);
+                await almacenColaComandos.EncolarAsync(comandoEnCola, token);
 
                 _ultimasEjecuciones[config.Id] = DateTime.UtcNow;
 

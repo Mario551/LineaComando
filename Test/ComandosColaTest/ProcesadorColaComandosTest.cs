@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ComandosColaTest.Helpers;
@@ -14,18 +15,14 @@ namespace ComandosColaTest
     public class ProcesadorColaComandosTest : BaseIntegracionTest
     {
         private readonly RegistroComandos<string, ResultadoComando> _registro;
-        private readonly AlmacenColaComandos _almacen;
-        private readonly ILogger _logger;
-        private readonly ConfiguracionPrueba _configuracion;
+        private readonly ILogger<ProcesadorColaComandos> _logger;
 
         protected override string PrefijoTest => "procesador_cola_";
 
         public ProcesadorColaComandosTest(DatabaseFixture fixture) : base(fixture)
         {
             _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
-            _almacen = new AlmacenColaComandos(ConnectionString);
-            _logger = NullLogger.Instance;
-            _configuracion = new ConfiguracionPrueba();
+            _logger = NullLogger<ProcesadorColaComandos>.Instance;
         }
 
         public override async Task InitializeAsync()
@@ -34,19 +31,28 @@ namespace ComandosColaTest
             ComandoPrueba.ResetearContador();
         }
 
+        private IServiceScopeFactory CrearServiceScopeFactory(FactoriaComandos<string, ResultadoComando> factoria)
+        {
+            var services = new ServiceCollection();
+            services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandos(ConnectionString));
+            services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria);
+
+            var provider = services.BuildServiceProvider();
+            return provider.GetRequiredService<IServiceScopeFactory>();
+        }
+
         [Fact]
         public void Constructor_MaxParalelismoMenorOIgualACero_DebeLanzarExcepcion()
         {
             var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var scopeFactory = CrearServiceScopeFactory(factoria);
 
             var excepcion = Assert.Throws<ArgumentException>(() =>
                 new ProcesadorColaComandos(
-                    _almacen,
-                    factoria,
-                    _configuracion,
-                    _logger,
-                    maxParalelismo: 0,
-                    tiempoRefresco: TimeSpan.FromSeconds(1)));
+                    scopeFactory,
+                    0,
+                    TimeSpan.FromSeconds(1),
+                    _logger));
 
             Assert.Contains("máximo paralelismo", excepcion.Message.ToLower());
         }
@@ -55,58 +61,39 @@ namespace ComandosColaTest
         public void Constructor_TiempoRefrescoMenorOIgualACero_DebeLanzarExcepcion()
         {
             var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var scopeFactory = CrearServiceScopeFactory(factoria);
 
             var excepcion = Assert.Throws<ArgumentException>(() =>
                 new ProcesadorColaComandos(
-                    _almacen,
-                    factoria,
-                    _configuracion,
-                    _logger,
-                    maxParalelismo: 1,
-                    tiempoRefresco: TimeSpan.Zero));
+                    scopeFactory,
+                    1,
+                    TimeSpan.Zero,
+                    _logger));
 
             Assert.Contains("tiempo de refresco", excepcion.Message.ToLower());
         }
 
         [Fact]
-        public void Constructor_AlmacenNulo_DebeLanzarExcepcion()
-        {
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
-
-            Assert.Throws<ArgumentNullException>(() =>
-                new ProcesadorColaComandos(
-                    null!,
-                    factoria,
-                    _configuracion,
-                    _logger,
-                    maxParalelismo: 1,
-                    tiempoRefresco: TimeSpan.FromSeconds(1)));
-        }
-
-        [Fact]
-        public void Constructor_FactoriaNula_DebeLanzarExcepcion()
+        public void Constructor_ScopeFactoryNulo_DebeLanzarExcepcion()
         {
             Assert.Throws<ArgumentNullException>(() =>
                 new ProcesadorColaComandos(
-                    _almacen,
                     null!,
-                    _configuracion,
-                    _logger,
-                    maxParalelismo: 1,
-                    tiempoRefresco: TimeSpan.FromSeconds(1)));
+                    1,
+                    TimeSpan.FromSeconds(1),
+                    _logger));
         }
 
         [Fact]
         public async Task StartAsync_ConCancelacion_DebeTerminarCorrectamente()
         {
             var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
-                _almacen,
-                factoria,
-                _configuracion,
-                _logger,
-                maxParalelismo: 1,
-                tiempoRefresco: TimeSpan.FromMilliseconds(50));
+                scopeFactory,
+                1,
+                TimeSpan.FromMilliseconds(50),
+                _logger);
 
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromMilliseconds(200));
@@ -125,6 +112,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
+            var almacen = new AlmacenColaComandos(ConnectionString);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
@@ -133,17 +121,16 @@ namespace ComandosColaTest
                 Intentos = 0
             };
 
-            var comandoId = await _almacen.EncolarAsync(comandoEnCola);
+            var comandoId = await almacen.EncolarAsync(comandoEnCola);
 
             var contadorAntes = ComandoPrueba.ContadorEjecuciones;
 
+            var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
-                _almacen,
-                factoria,
-                _configuracion,
-                _logger,
-                maxParalelismo: 1,
-                tiempoRefresco: TimeSpan.FromMilliseconds(50));
+                scopeFactory,
+                1,
+                TimeSpan.FromMilliseconds(50),
+                _logger);
 
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromMilliseconds(500));
@@ -174,6 +161,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
+            var almacen = new AlmacenColaComandos(ConnectionString);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
@@ -182,15 +170,14 @@ namespace ComandosColaTest
                 Intentos = 0
             };
 
-            var comandoId = await _almacen.EncolarAsync(comandoEnCola);
+            var comandoId = await almacen.EncolarAsync(comandoEnCola);
 
+            var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
-                _almacen,
-                factoria,
-                _configuracion,
-                _logger,
-                maxParalelismo: 1,
-                tiempoRefresco: TimeSpan.FromMilliseconds(50));
+                scopeFactory,
+                1,
+                TimeSpan.FromMilliseconds(50),
+                _logger);
 
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromMilliseconds(500));
@@ -219,7 +206,8 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var cantidadComandos = 5;
+            var almacen = new AlmacenColaComandos(ConnectionString);
+            int cantidadComandos = 5;
             for (int i = 0; i < cantidadComandos; i++)
             {
                 var comandoEnCola = new ComandoEnCola
@@ -230,18 +218,17 @@ namespace ComandosColaTest
                     Estado = "Pendiente",
                     Intentos = 0
                 };
-                await _almacen.EncolarAsync(comandoEnCola);
+                await almacen.EncolarAsync(comandoEnCola);
             }
 
             var contadorAntes = ComandoPrueba.ContadorEjecuciones;
 
+            var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
-                _almacen,
-                factoria,
-                _configuracion,
-                _logger,
-                maxParalelismo: 2,
-                tiempoRefresco: TimeSpan.FromMilliseconds(50));
+                scopeFactory,
+                2,
+                TimeSpan.FromMilliseconds(50),
+                _logger);
 
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(2));
@@ -265,6 +252,7 @@ namespace ComandosColaTest
         {
             var ruta = PrefijoTest + "comando no registrado";
 
+            var almacen = new AlmacenColaComandos(ConnectionString);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
@@ -274,7 +262,7 @@ namespace ComandosColaTest
             };
 
             var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => _almacen.EncolarAsync(comandoEnCola));
+                () => almacen.EncolarAsync(comandoEnCola));
 
             Assert.Contains("no está registrado", excepcion.Message);
         }
@@ -290,7 +278,8 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var cantidadComandos = 4;
+            var almacen = new AlmacenColaComandos(ConnectionString);
+            int cantidadComandos = 4;
             for (int i = 0; i < cantidadComandos; i++)
             {
                 var comandoEnCola = new ComandoEnCola
@@ -300,16 +289,15 @@ namespace ComandosColaTest
                     Estado = "Pendiente",
                     Intentos = 0
                 };
-                await _almacen.EncolarAsync(comandoEnCola);
+                await almacen.EncolarAsync(comandoEnCola);
             }
 
+            var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
-                _almacen,
-                factoria,
-                _configuracion,
-                _logger,
-                maxParalelismo: 2,
-                tiempoRefresco: TimeSpan.FromMilliseconds(50));
+                scopeFactory,
+                2,
+                TimeSpan.FromMilliseconds(50),
+                _logger);
 
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(3));

@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using PER.Comandos.LineaComandos.EventDriven.Servicio;
 
@@ -5,12 +7,12 @@ namespace PER.Comandos.LineaComandos.Builder
 {
     public class ServicioProcesadorEventos : BackgroundService
     {
-        private readonly ProcesadorEventos _procesador;
+        private IServiceScopeFactory _scopeFactory;
         private readonly TimeSpan _tiempoRefresco;
 
-        public ServicioProcesadorEventos(ProcesadorEventos procesador, LineaComandoBuilder builder)
+        public ServicioProcesadorEventos(IServiceScopeFactory scopeFactory, LineaComandoBuilder builder)
         {
-            _procesador = procesador ?? throw new ArgumentNullException(nameof(procesador));
+            _scopeFactory = scopeFactory;
             _tiempoRefresco = builder.TiempoRefrescoEventos;
         }
 
@@ -18,9 +20,13 @@ namespace PER.Comandos.LineaComandos.Builder
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                using var scope = _scopeFactory.CreateScope();
+
+                ProcesadorEventos procesador = scope.ServiceProvider.GetRequiredService<ProcesadorEventos>();
+
                 try
                 {
-                    await _procesador.ProcesarLoteAsync(50, stoppingToken);
+                    await procesador.ProcesarLoteAsync(500, stoppingToken);
                     await Task.Delay(_tiempoRefresco, stoppingToken);
                 }
                 catch (OperationCanceledException)

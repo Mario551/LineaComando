@@ -1,30 +1,26 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Stream;
-using PER.Comandos.LineaComandos.Configuracion;
 
 namespace PER.Comandos.LineaComandos.Cola.Procesadores
 {
     public class ProcesadorColaComandos
     {
-        private readonly IAlmacenColaComandos _almacenColaComandos;
-        private readonly IFactoriaComandos<string, ResultadoComando> _factoriaComandos;
-        private readonly IConfiguracion _configuracion;
-        private readonly ILogger _logger;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ILogger<ProcesadorColaComandos> _logger;
         private readonly int _maxParalelismo;
         private readonly TimeSpan _tiempoRefresco;
         private readonly ConcurrentBag<Task> _tareasEnEjecucion;
 
         public ProcesadorColaComandos(
-            IAlmacenColaComandos almacenColaComandos,
-            IFactoriaComandos<string, ResultadoComando> factoriaComandos,
-            IConfiguracion configuracion,
-            ILogger logger,
+            IServiceScopeFactory serviceScopeFactory,
             int maxParalelismo,
-            TimeSpan tiempoRefresco)
+            TimeSpan tiempoRefresco,
+            ILogger<ProcesadorColaComandos> logger)
         {
             if (maxParalelismo <= 0)
                 throw new ArgumentException("El máximo paralelismo debe ser mayor a cero", nameof(maxParalelismo));
@@ -32,9 +28,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
             if (tiempoRefresco.TotalMilliseconds <= 0)
                 throw new ArgumentException("El tiempo de refresco debe ser mayor a cero", nameof(tiempoRefresco));
 
-            _almacenColaComandos = almacenColaComandos ?? throw new ArgumentNullException(nameof(almacenColaComandos));
-            _factoriaComandos = factoriaComandos ?? throw new ArgumentNullException(nameof(factoriaComandos));
-            _configuracion = configuracion ?? throw new ArgumentNullException(nameof(configuracion));
+            _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _maxParalelismo = maxParalelismo;
             _tiempoRefresco = tiempoRefresco;
@@ -49,21 +43,25 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
             {
                 try
                 {
-                    var comandosPendientes = await _almacenColaComandos.ObtenerComandosPendientesAsync(50, token);
+                    LimpiarTareasCompletadas();
 
-                    foreach (var comando in comandosPendientes)
+                    int slotsDisponibles = _maxParalelismo - _tareasEnEjecucion.Count;
+
+                    if (slotsDisponibles > 0)
                     {
-                        if (token.IsCancellationRequested)
-                            break;
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
 
-                        while (_tareasEnEjecucion.Count >= _maxParalelismo)
+                        var comandosPendientes = await almacenColaComandos.ObtenerComandosPendientesAsync(slotsDisponibles, token);
+
+                        foreach (var comando in comandosPendientes)
                         {
-                            await Task.WhenAny(_tareasEnEjecucion);
-                            LimpiarTareasCompletadas();
-                        }
+                            if (token.IsCancellationRequested)
+                                break;
 
-                        Task tarea = ProcesarComandoAsync(comando, token);
-                        _tareasEnEjecucion.Add(tarea);
+                            Task tarea = ProcesarComandoAsync(comando, token);
+                            _tareasEnEjecucion.Add(tarea);
+                        }
                     }
 
                     await Task.Delay(_tiempoRefresco, token);
@@ -90,6 +88,10 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
         private async Task ProcesarComandoAsync(ComandoEnCola comandoEnCola, CancellationToken token)
         {
+            using var scope = _serviceScopeFactory.CreateScope();
+            var almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
+            var factoriaComandos = scope.ServiceProvider.GetRequiredService<IFactoriaComandos<string, ResultadoComando>>();
+
             var stopwatch = Stopwatch.StartNew();
             ResultadoComando resultado;
 
@@ -99,7 +101,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                     comandoEnCola.Id, comandoEnCola.RutaComando, comandoEnCola.Argumentos);
 
                 var lineaComando = ParsearLineaComando(comandoEnCola);
-                var comando = _factoriaComandos.Crear(lineaComando);
+                var comando = factoriaComandos.Crear(lineaComando);
                 var stream = new StreamEnMemoria<string, ResultadoComando>(comandoEnCola.DatosDeComando ?? string.Empty);
 
                 await comando.EjecutarAsync(stream, token);
@@ -125,7 +127,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
             try
             {
-                await _almacenColaComandos.MarcarComoProcesadoAsync(comandoEnCola.Id, resultado, token);
+                await almacenColaComandos.MarcarComoProcesadoAsync(comandoEnCola.Id, resultado, token);
             }
             catch (Exception ex)
             {
