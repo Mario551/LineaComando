@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
@@ -54,6 +55,9 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
                         var comandosPendientes = await almacenColaComandos.ObtenerComandosPendientesAsync(slotsDisponibles, token);
 
+                        long[] ids = comandosPendientes.Select(c => c.Id).ToArray();
+                        await almacenColaComandos.ActualizarFechaLeidoAsync(ids, token);
+
                         foreach (var comando in comandosPendientes)
                         {
                             if (token.IsCancellationRequested)
@@ -95,12 +99,14 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
             var stopwatch = Stopwatch.StartNew();
             ResultadoComando resultado;
 
+            LineaComando? lineaComando = null;
+
             try
             {
                 _logger.LogInformation("Procesando comando {ComandoId}: {RutaComando} {Argumentos}",
                     comandoEnCola.Id, comandoEnCola.RutaComando, comandoEnCola.Argumentos);
 
-                var lineaComando = ParsearLineaComando(comandoEnCola);
+                lineaComando = ParsearLineaComando(comandoEnCola);
                 var comando = factoriaComandos.Crear(lineaComando);
                 var stream = new StreamEnMemoria<string, ResultadoComando>(comandoEnCola.DatosDeComando ?? string.Empty);
 

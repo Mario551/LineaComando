@@ -42,6 +42,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             await CrearTablaTiposEventoAsync(connection);
             await CrearTablaManejadoresEventoAsync(connection);
             await CrearTablaDisparadoresManejadorAsync(connection);
+            await MigrarTablaDisparadoresAsync(connection);
             await CrearTablaEventosOutboxAsync(connection);
             await CrearFuncionObtenerEventosPendientesAsync(connection);
         }
@@ -94,7 +95,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     nombre VARCHAR(255) NOT NULL,
                     descripcion TEXT NULL,
                     activo BOOLEAN NOT NULL DEFAULT true,
-                    creado_en TIMESTAMP NOT NULL DEFAULT NOW()
+                    creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_tipos_evento_codigo
@@ -118,7 +119,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     ruta_comando VARCHAR(2048) NOT NULL,
                     argumentos_comando TEXT NULL,
                     activo BOOLEAN NOT NULL DEFAULT true,
-                    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+                    creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
 
                     CONSTRAINT fk_manejador_comando
                         FOREIGN KEY (id_comando_registrado)
@@ -149,7 +150,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     expresion VARCHAR(255) NULL,
                     activo BOOLEAN NOT NULL DEFAULT true,
                     prioridad INTEGER NOT NULL DEFAULT 0,
-                    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+                    creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                    ultima_ejecucion TIMESTAMP WITHOUT TIME ZONE NULL,
 
                     CONSTRAINT fk_disparador_manejador
                         FOREIGN KEY (manejador_evento_id)
@@ -194,6 +196,29 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             await connection.ExecuteAsync(sql);
         }
 
+
+        private static async Task MigrarTablaDisparadoresAsync(NpgsqlConnection connection)
+        {
+            const string sqlVerificar = @"
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                    AND table_name = 'per_disparadores_manejador'
+                    AND column_name = 'ultima_ejecucion'
+                );";
+
+            bool columnaExiste = await connection.ExecuteScalarAsync<bool>(sqlVerificar);
+
+            if (!columnaExiste)
+            {
+                const string sqlAgregar = @"
+                    ALTER TABLE per_disparadores_manejador
+                    ADD COLUMN ultima_ejecucion TIMESTAMP WITHOUT TIME ZONE NULL;";
+
+                await connection.ExecuteAsync(sqlAgregar);
+            }
+        }
+
         private static async Task CrearTablaEventosOutboxAsync(NpgsqlConnection connection)
         {
             const string sql = @"
@@ -203,8 +228,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     agregado_id BIGINT NULL,
                     datos_evento JSONB NOT NULL,
                     metadatos JSONB NULL,
-                    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
-                    procesado_en TIMESTAMP NULL
+                    creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                    procesado_en TIMESTAMP WITHOUT TIME ZONE NULL
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_tipo
@@ -236,8 +261,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     agregado_id BIGINT,
                     datos_evento JSONB,
                     metadatos JSONB,
-                    creado_en TIMESTAMP,
-                    procesado_en TIMESTAMP
+                    creado_en TIMESTAMP WITHOUT TIME ZONE,
+                    procesado_en TIMESTAMP WITHOUT TIME ZONE
                 )
                 AS $$
                 BEGIN

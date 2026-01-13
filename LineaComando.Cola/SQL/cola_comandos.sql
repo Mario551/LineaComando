@@ -106,6 +106,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Procedimiento para actualizar fecha de lectura de comandos
+CREATE OR REPLACE PROCEDURE actualizar_fecha_leido(
+    p_ids BIGINT[]
+)
+AS $$
+BEGIN
+    UPDATE per_cola_comandos
+    SET fecha_leido = NOW()
+    WHERE id = ANY(p_ids)
+    AND fecha_leido IS NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Tabla: per_comandos_registrados
 -- Almacena el catálogo de comandos disponibles en el sistema
 CREATE TABLE IF NOT EXISTS per_comandos_registrados (

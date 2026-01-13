@@ -10,6 +10,7 @@ using PER.Comandos.LineaComandos.EventDriven.Registro;
 using PER.Comandos.LineaComandos.EventDriven.Servicio;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Registro;
+using PER.Comandos.LineaComandos.Stream;
 
 namespace PER.Comandos.LineaComandos.Builder
 {
@@ -75,6 +76,9 @@ namespace PER.Comandos.LineaComandos.Builder
 
                 _services.AddTransient<IRegistroManejadores>(sp =>
                     new RegistroManejadores(_connectionString));
+
+                _services.AddSingleton<CoordinadorTareasProgramadas>();
+                _services.AddHostedService<ServicioTareasProgramadas>();
             }
 
             if (UsarCola)
@@ -82,7 +86,14 @@ namespace PER.Comandos.LineaComandos.Builder
                 _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp =>
                     new RegistroComandos<string, ResultadoComando>(_connectionString));
 
-                _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>();
+                _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
+                {
+                    var registro = c.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
+                    var factoria = new FactoriaComandos<string, ResultadoComando>();
+                    registro.ConstruirFactoriaAsync(factoria).GetAwaiter();
+
+                    return factoria;
+                });
 
                 _services.AddSingleton(sp =>
                     new ProcesadorColaComandos(
@@ -103,10 +114,7 @@ namespace PER.Comandos.LineaComandos.Builder
                     new RegistroTiposEvento(_connectionString));
 
                 _services.AddScoped<ProcesadorEventos>();
-                _services.AddSingleton<CoordinadorTareasProgramadas>();
-
                 _services.AddHostedService<ServicioProcesadorEventos>();
-                _services.AddHostedService<ServicioTareasProgramadas>();
             }
         }
     }

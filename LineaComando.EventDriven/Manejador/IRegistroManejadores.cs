@@ -26,5 +26,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
         Task<IEnumerable<ConfiguracionManejador>> ObtenerManejadoresProgramadosAsync(CancellationToken token = default);
 
         Task ActualizarConfiguracionAsync(ConfiguracionManejador configuracion, CancellationToken token = default);
+
+    Task ActualizarUltimaEjecucionAsync(int disparadorId, DateTime ultimaEjecucion, CancellationToken token = default);
     }
 }

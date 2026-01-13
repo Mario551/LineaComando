@@ -145,6 +145,19 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                 });
         }
 
+        public async Task ActualizarFechaLeidoAsync(long[] ids, CancellationToken token = default)
+        {
+            if (ids.Length == 0)
+                return;
+
+            const string sql = "CALL actualizar_fecha_leido(@Ids);";
+
+            using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(token);
+
+            await connection.ExecuteAsync(sql, new { Ids = ids });
+        }
+
         /// <summary>
         /// Mapea un DAO de base de datos a un objeto de dominio ComandoEnCola.
         /// </summary>

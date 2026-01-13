@@ -14,7 +14,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<CoordinadorTareasProgramadas> _logger;
-        private readonly Dictionary<int, DateTime> _ultimasEjecuciones = new();
         private readonly ConcurrentBag<Task> _concurrencyBag = new();
 
         public CoordinadorTareasProgramadas(
@@ -60,10 +59,9 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
             if (string.IsNullOrEmpty(config.Expresion))
                 return false;
 
-            // Verificar última ejecución
-            if (_ultimasEjecuciones.TryGetValue(config.Id, out var ultimaEjecucion))
+            if (config.UltimaEjecucion.HasValue)
             {
-                DateTime siguienteEjecucion = CalcularSiguienteEjecucion(config.Expresion, ultimaEjecucion);
+                DateTime siguienteEjecucion = CalcularSiguienteEjecucion(config.Expresion, config.UltimaEjecucion.Value);
                 return DateTime.UtcNow >= siguienteEjecucion;
             }
 
@@ -127,12 +125,13 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
 
                 using IServiceScope scope = _serviceScopeFactory.CreateScope();
                 IAlmacenColaComandos almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
+                IRegistroManejadores registroManejadores = scope.ServiceProvider.GetRequiredService<IRegistroManejadores>();
 
                 var comandoEnCola = new ComandoEnCola
                 {
                     RutaComando = config.RutaComando,
                     Argumentos = config.ArgumentosComando ?? string.Empty,
-                    DatosDeComando = string.Empty,
+                    DatosDeComando = "{}",
                     FechaCreacion = DateTime.UtcNow,
                     Estado = "Pendiente",
                     Intentos = 0
@@ -140,7 +139,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
 
                 await almacenColaComandos.EncolarAsync(comandoEnCola, token);
 
-                _ultimasEjecuciones[config.Id] = DateTime.UtcNow;
+                DateTime ahora = DateTime.UtcNow;
+                await registroManejadores.ActualizarUltimaEjecucionAsync(config.Id, ahora, token);
 
                 _logger.LogInformation("Comando encolado: {RutaComando} para tarea programada {ManejadorId}",
                     config.RutaComando, config.IDManejador);

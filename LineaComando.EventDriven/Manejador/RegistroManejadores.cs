@@ -289,7 +289,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     d.expresion as Expresion,
                     d.activo as Activo,
                     d.prioridad as Prioridad,
-                    d.creado_en as FechaCreacion
+                    d.creado_en as FechaCreacion,
+                    d.ultima_ejecucion as UltimaEjecucion
                 FROM per_disparadores_manejador d
                 INNER JOIN per_manejadores_evento m ON d.manejador_evento_id = m.id
                 WHERE d.modo_disparo = 'Programado'
@@ -318,6 +319,20 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
             await connection.OpenAsync(token);
 
             await connection.ExecuteAsync(sql, configuracion);
+        }
+
+
+        public async Task ActualizarUltimaEjecucionAsync(int disparadorId, DateTime ultimaEjecucion, CancellationToken token = default)
+        {
+            const string sql = @"
+                UPDATE per_disparadores_manejador
+                SET ultima_ejecucion = @UltimaEjecucion
+                WHERE id = @Id;";
+
+            using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(token);
+
+            await connection.ExecuteAsync(sql, new { Id = disparadorId, UltimaEjecucion = ultimaEjecucion });
         }
     }
 }

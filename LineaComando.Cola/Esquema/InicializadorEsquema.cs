@@ -30,6 +30,7 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
             await CrearTablaColaComandosAsync(connection);
             await CrearFuncionObtenerComandosPendientesAsync(connection);
             await CrearFuncionMarcarComandosProcesandoAsync(connection);
+            await CrearProcedimientoActualizarFechaLeidoAsync(connection);
         }
 
         /// <summary>
@@ -67,8 +68,8 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     descripcion TEXT NULL,
                     esquema_parametros JSONB NULL,
                     activo BOOLEAN NOT NULL DEFAULT true,
-                    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
-                    actualizado_en TIMESTAMP NULL
+                    creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                    actualizado_en TIMESTAMP WITHOUT TIME ZONE NULL
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_comandos_registrados_ruta
@@ -89,9 +90,9 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     ruta_comando VARCHAR(2048) NOT NULL,
                     argumentos TEXT NULL,
                     datos_comando JSONB NULL,
-                    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
-                    fecha_leido TIMESTAMP NULL,
-                    fecha_ejecucion TIMESTAMP NULL,
+                    fecha_creacion TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                    fecha_leido TIMESTAMP WITHOUT TIME ZONE NULL,
+                    fecha_ejecucion TIMESTAMP WITHOUT TIME ZONE NULL,
                     estado VARCHAR(50) NOT NULL DEFAULT 'Pendiente',
                     mensaje_error TEXT NULL,
                     salida TEXT NULL,
@@ -134,9 +135,9 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     ruta_comando VARCHAR(2048),
                     argumentos TEXT,
                     datos_comando JSONB,
-                    fecha_creacion TIMESTAMP,
-                    fecha_leido TIMESTAMP,
-                    fecha_ejecucion TIMESTAMP,
+                    fecha_creacion TIMESTAMP WITHOUT TIME ZONE,
+                    fecha_leido TIMESTAMP WITHOUT TIME ZONE,
+                    fecha_ejecucion TIMESTAMP WITHOUT TIME ZONE,
                     estado VARCHAR(50),
                     mensaje_error TEXT,
                     salida TEXT,
@@ -145,7 +146,7 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                 )
                 AS $$
                 DECLARE
-                    v_timeout_timestamp TIMESTAMP;
+                    v_timeout_timestamp TIMESTAMP WITHOUT TIME ZONE;
                 BEGIN
                     v_timeout_timestamp := NOW() - (p_timeout_milisegundos || ' milliseconds')::INTERVAL;
 
@@ -177,9 +178,9 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     ruta_comando VARCHAR(2048),
                     argumentos TEXT,
                     datos_comando JSONB,
-                    fecha_creacion TIMESTAMP,
-                    fecha_leido TIMESTAMP,
-                    fecha_ejecucion TIMESTAMP,
+                    fecha_creacion TIMESTAMP WITHOUT TIME ZONE,
+                    fecha_leido TIMESTAMP WITHOUT TIME ZONE,
+                    fecha_ejecucion TIMESTAMP WITHOUT TIME ZONE,
                     estado VARCHAR(50),
                     mensaje_error TEXT,
                     salida TEXT,
@@ -194,6 +195,24 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     WHERE c.id = ANY(p_ids);
 
                     RETURN QUERY SELECT c.* FROM per_cola_comandos c WHERE c.id = ANY(p_ids);
+                END;
+                $$ LANGUAGE plpgsql;";
+
+            await connection.ExecuteAsync(sql);
+        }
+
+        private static async Task CrearProcedimientoActualizarFechaLeidoAsync(NpgsqlConnection connection)
+        {
+            const string sql = @"
+                CREATE OR REPLACE PROCEDURE actualizar_fecha_leido(
+                    p_ids BIGINT[]
+                )
+                AS $$
+                BEGIN
+                    UPDATE per_cola_comandos
+                    SET fecha_leido = NOW()
+                    WHERE id = ANY(p_ids)
+                    AND fecha_leido IS NULL;
                 END;
                 $$ LANGUAGE plpgsql;";
 

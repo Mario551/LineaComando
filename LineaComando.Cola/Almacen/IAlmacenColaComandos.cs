@@ -24,5 +24,10 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// Marca un comando como procesado con su resultado; éxito o error
         /// </summary>
         Task MarcarComoProcesadoAsync(long comandoId, ResultadoComando resultado, CancellationToken token = default);
+
+        /// <summary>
+        /// Actualiza la fecha de lectura de los comandos especificados.
+        /// </summary>
+        Task ActualizarFechaLeidoAsync(long[] ids, CancellationToken token = default);
     }
 }
