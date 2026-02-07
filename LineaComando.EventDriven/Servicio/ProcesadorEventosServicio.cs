@@ -14,13 +14,13 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
         private readonly IColaEventos _almacenOutbox;
         private readonly IRegistroManejadores _registroManejadores;
         private readonly IAlmacenColaComandos _almacenColaComandos;
-        private readonly ILogger _logger;
+        private readonly ILogger<ProcesadorEventos> _logger;
 
         public ProcesadorEventos(
             IColaEventos almacenOutbox,
             IRegistroManejadores registroManejadores,
             IAlmacenColaComandos almacenColaComandos,
-            ILogger logger)
+            ILogger<ProcesadorEventos> logger)
         {
             _almacenOutbox = almacenOutbox ?? throw new ArgumentNullException(nameof(almacenOutbox));
             _registroManejadores = registroManejadores ?? throw new ArgumentNullException(nameof(registroManejadores));

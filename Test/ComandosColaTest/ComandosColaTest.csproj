@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\LineaComando.Cola\LineaComando.Cola.csproj" />
+    <ProjectReference Include="..\..\LineaComando.EventDriven\LineaComando.EventDriven.csproj" />
   </ItemGroup>
 
 </Project>

@@ -144,6 +144,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             const string sql = @"
                 CREATE TABLE IF NOT EXISTS per_disparadores_manejador (
                     id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL UNIQUE,
                     manejador_evento_id INTEGER NOT NULL,
                     modo_disparo VARCHAR(50) NOT NULL DEFAULT 'Evento',
                     tipo_evento_id INTEGER NULL,
@@ -185,13 +186,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_programados
                     ON per_disparadores_manejador(modo_disparo, activo, expresion)
-                    WHERE modo_disparo = 'Programado';
-                    
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_manejador_tipo 
-                    ON per_disparadores_manejador (manejador_evento_id, COALESCE(tipo_evento_id, -1));
-                    
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_manejador_expr
-                    ON per_disparadores_manejador (manejador_evento_id, COALESCE(expresion, ''));";
+                    WHERE modo_disparo = 'Programado';";
 
             await connection.ExecuteAsync(sql);
         }

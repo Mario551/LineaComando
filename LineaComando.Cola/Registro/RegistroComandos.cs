@@ -92,9 +92,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                 )
                 ON CONFLICT (ruta_comando)
                 DO UPDATE SET
-                    activo = true,
-                    actualizado_en = NOW(),
-                    descripcion = EXCLUDED.descripcion
+                    id = per_comandos_registrados.id
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);

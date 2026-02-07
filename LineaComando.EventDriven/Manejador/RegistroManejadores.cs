@@ -38,11 +38,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 )
                 ON CONFLICT (codigo)
                 DO UPDATE SET
-                    nombre = EXCLUDED.nombre,
-                    descripcion = EXCLUDED.descripcion,
-                    id_comando_registrado = EXCLUDED.id_comando_registrado,
-                    ruta_comando = EXCLUDED.ruta_comando,
-                    activo = EXCLUDED.activo
+                    id = per_manejadores_evento.id
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -168,71 +164,41 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<int> RegistrarDisparadorAsync(DisparadorManejador disparador, CancellationToken token = default)
         {
-            string sql = "";
-            if (disparador.ModoDisparo == "Evento")
-            {
-                sql = @"
-                    INSERT INTO per_disparadores_manejador (
-                        manejador_evento_id,
-                        modo_disparo,
-                        tipo_evento_id,
-                        expresion,
-                        activo,
-                        prioridad,
-                        creado_en
-                    )
-                    VALUES (
-                        @ManejadorEventoId,
-                        @ModoDisparo,
-                        @TipoEventoId,
-                        @Expresion,
-                        @Activo,
-                        @Prioridad,
-                        @CreadoEn
-                    )
-                    ON CONFLICT (manejador_evento_id, COALESCE(tipo_evento_id, -1))
-                    DO UPDATE SET
-                        activo = EXCLUDED.activo,
-                        prioridad = EXCLUDED.prioridad
-                    RETURNING id;";
-            }
-            else //Programado
-            {
-
-                sql = @"
-                    INSERT INTO per_disparadores_manejador (
-                        manejador_evento_id,
-                        modo_disparo,
-                        tipo_evento_id,
-                        expresion,
-                        activo,
-                        prioridad,
-                        creado_en
-                    )
-                    VALUES (
-                        @ManejadorEventoId,
-                        @ModoDisparo,
-                        @TipoEventoId,
-                        @Expresion,
-                        @Activo,
-                        @Prioridad,
-                        @CreadoEn
-                    )
-                    ON CONFLICT (manejador_evento_id, COALESCE(expresion, ''))
-                    DO UPDATE SET
-                        activo = EXCLUDED.activo,
-                        prioridad = EXCLUDED.prioridad
-                    RETURNING id;";
-            }
+            const string sql = @"
+                INSERT INTO per_disparadores_manejador (
+                    manejador_evento_id,
+                    nombre,
+                    modo_disparo,
+                    tipo_evento_id,
+                    expresion,
+                    activo,
+                    prioridad,
+                    creado_en
+                )
+                VALUES (
+                    @ManejadorEventoId,
+                    @Nombre,
+                    @ModoDisparo,
+                    @TipoEventoId,
+                    @Expresion,
+                    @Activo,
+                    @Prioridad,
+                    @CreadoEn
+                )
+                ON CONFLICT (nombre)
+                DO UPDATE SET
+                    id = per_disparadores_manejador.id
+                RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            var id = await connection.ExecuteScalarAsync<int>(
+            int id = await connection.ExecuteScalarAsync<int>(
                 sql,
                 new
                 {
                     disparador.ManejadorEventoId,
+                    disparador.Nombre,
                     disparador.ModoDisparo,
                     disparador.TipoEventoId,
                     disparador.Expresion,

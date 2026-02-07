@@ -39,9 +39,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                 )
                 ON CONFLICT (codigo)
                 DO UPDATE SET
-                    nombre = EXCLUDED.nombre,
-                    descripcion = EXCLUDED.descripcion,
-                    activo = EXCLUDED.activo
+                    id = per_tipos_evento.id
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);

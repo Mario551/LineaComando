@@ -38,7 +38,7 @@ namespace EventDrivenTest
                 @"INSERT INTO per_comandos_registrados (ruta_comando, descripcion, activo, creado_en)
                   VALUES (@RutaComando, @Descripcion, true, NOW())
                   ON CONFLICT (ruta_comando)
-                  DO UPDATE SET descripcion = EXCLUDED.descripcion
+                  DO UPDATE SET id = per_comandos_registrados.id
                   RETURNING id;",
                 metadatos);
 
@@ -58,28 +58,32 @@ namespace EventDrivenTest
             return await _registroTipos.RegistrarTipoEventoAsync(tipo);
         }
 
-        private async Task CrearDisparadorAsync(int manejadorId, int tipoEventoId, int prioridad = 0)
+        private async Task CrearDisparadorAsync(int manejadorId, int tipoEventoId, int prioridad = 0, string? nombre = null)
         {
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
+            string nombreDisparador = nombre ?? $"{PrefijoTest}disparador_{Guid.NewGuid()}";
+
             await connection.ExecuteAsync(
                 @"INSERT INTO per_disparadores_manejador
-                  (manejador_evento_id, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
-                  VALUES (@ManejadorId, 'Evento', @TipoEventoId, true, @Prioridad, NOW());",
-                new { ManejadorId = manejadorId, TipoEventoId = tipoEventoId, Prioridad = prioridad });
+                  (manejador_evento_id, nombre, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, @Nombre, 'Evento', @TipoEventoId, true, @Prioridad, NOW());",
+                new { ManejadorId = manejadorId, Nombre = nombreDisparador, TipoEventoId = tipoEventoId, Prioridad = prioridad });
         }
 
-        private async Task CrearDisparadorProgramadoAsync(int manejadorId, string expresion, int prioridad = 0)
+        private async Task CrearDisparadorProgramadoAsync(int manejadorId, string expresion, int prioridad = 0, string? nombre = null)
         {
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
+            string nombreDisparador = nombre ?? $"{PrefijoTest}programado_{Guid.NewGuid()}";
+
             await connection.ExecuteAsync(
                 @"INSERT INTO per_disparadores_manejador
-                  (manejador_evento_id, modo_disparo, expresion, activo, prioridad, creado_en)
-                  VALUES (@ManejadorId, 'Programado', @Expresion, true, @Prioridad, NOW());",
-                new { ManejadorId = manejadorId, Expresion = expresion, Prioridad = prioridad });
+                  (manejador_evento_id, nombre, modo_disparo, expresion, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, @Nombre, 'Programado', @Expresion, true, @Prioridad, NOW());",
+                new { ManejadorId = manejadorId, Nombre = nombreDisparador, Expresion = expresion, Prioridad = prioridad });
         }
 
         [Fact]
@@ -113,7 +117,7 @@ namespace EventDrivenTest
         }
 
         [Fact]
-        public async Task RegistrarManejadorAsync_CodigoDuplicado_DebeActualizar()
+        public async Task RegistrarManejadorAsync_CodigoDuplicado_DebeRetornarIdExistente()
         {
             var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_upsert");
 
@@ -139,8 +143,8 @@ namespace EventDrivenTest
             var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(id1);
 
             Assert.NotNull(manejadorDb);
-            Assert.Equal("Nombre Actualizado", manejadorDb.Nombre);
-            Assert.Equal("Nueva descripcion", manejadorDb.Descripcion);
+            Assert.Equal("Nombre Original", manejadorDb.Nombre);
+            Assert.Null(manejadorDb.Descripcion);
         }
 
         [Fact]
@@ -412,6 +416,116 @@ namespace EventDrivenTest
             var configuraciones = await _registroManejadores.ObtenerManejadoresParaEventoAsync(PrefijoTest + "tipo_inactivo_test");
 
             Assert.Empty(configuraciones);
+        }
+
+        [Fact]
+        public async Task RegistrarDisparadorAsync_DebeInsertarYConsultarDisparador()
+        {
+            int comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_disparador");
+            int tipoEventoId = await CrearTipoEventoAsync(PrefijoTest + "tipo_disparador");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_disparador",
+                Nombre = "Manejador Disparador",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_disparador",
+                Activo = true,
+                CreadoEn = DateTime.UtcNow
+            };
+
+            int manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            var disparador = new DisparadorManejador
+            {
+                ManejadorEventoId = manejadorId,
+                Nombre = PrefijoTest + "disparador_unico",
+                ModoDisparo = "Evento",
+                TipoEventoId = tipoEventoId,
+                Activo = true,
+                Prioridad = 1,
+                CreadoEn = DateTime.UtcNow
+            };
+
+            int disparadorId = await _registroManejadores.RegistrarDisparadorAsync(disparador);
+
+            Assert.True(disparadorId > 0);
+
+            DisparadorManejador? disparadorDb = await ObtenerDisparadorPorIdAsync(disparadorId);
+
+            Assert.NotNull(disparadorDb);
+            Assert.Equal(disparador.Nombre, disparadorDb.Nombre);
+            Assert.Equal(disparador.ManejadorEventoId, disparadorDb.ManejadorEventoId);
+        }
+
+        [Fact]
+        public async Task RegistrarDisparadorAsync_NombreDuplicado_DebeRetornarIdExistente()
+        {
+            int comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_upsert");
+            int tipoEventoId = await CrearTipoEventoAsync(PrefijoTest + "tipo_upsert");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_upsert_disparador",
+                Nombre = "Manejador Upsert Disparador",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_upsert",
+                Activo = true,
+                CreadoEn = DateTime.UtcNow
+            };
+
+            int manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            var disparador1 = new DisparadorManejador
+            {
+                ManejadorEventoId = manejadorId,
+                Nombre = PrefijoTest + "disparador_upsert_nombre",
+                ModoDisparo = "Evento",
+                TipoEventoId = tipoEventoId,
+                Activo = true,
+                Prioridad = 5,
+                CreadoEn = DateTime.UtcNow
+            };
+
+            int id1 = await _registroManejadores.RegistrarDisparadorAsync(disparador1);
+
+            Assert.True(id1 > 0);
+
+            var disparador2 = new DisparadorManejador
+            {
+                ManejadorEventoId = manejadorId,
+                Nombre = PrefijoTest + "disparador_upsert_nombre",
+                ModoDisparo = "Evento",
+                TipoEventoId = tipoEventoId,
+                Activo = true,
+                Prioridad = 10,
+                CreadoEn = DateTime.UtcNow
+            };
+
+            int id2 = await _registroManejadores.RegistrarDisparadorAsync(disparador2);
+
+            Assert.Equal(id1, id2);
+        }
+
+        private async Task<DisparadorManejador?> ObtenerDisparadorPorIdAsync(int id)
+        {
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            return await connection.QueryFirstOrDefaultAsync<DisparadorManejador>(
+                @"SELECT 
+                    id as Id,
+                    manejador_evento_id as ManejadorEventoId,
+                    nombre as Nombre,
+                    modo_disparo as ModoDisparo,
+                    tipo_evento_id as TipoEventoId,
+                    expresion as Expresion,
+                    activo as Activo,
+                    prioridad as Prioridad,
+                    creado_en as CreadoEn
+                  FROM per_disparadores_manejador
+                  WHERE id = @Id;",
+                new { Id = id });
         }
 
         [Fact]

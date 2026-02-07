@@ -196,8 +196,9 @@ El sistema event-driven utiliza tres tablas relacionadas:
 | activo           |       | ruta_comando          |       | expresion                  |
 | creado_en        |       | argumentos_comando    |       | activo                     |
 +------------------+       | activo                |       | prioridad                  |
-                           | creado_en             |       | creado_en                  |
-                           +-----------------------+       +----------------------------+
+                           | creado_en             |       | ultima_ejecucion           |
+                           +-----------------------+       | creado_en                  |
+                                                           +----------------------------+
 ```
 
 **per_tipos_evento**: Catalogo de eventos que pueden ocurrir en tu sistema. Define QUE cosas pueden pasar (ej: "ORDEN_CREADA", "PAGO_RECIBIDO", "USUARIO_REGISTRADO").
@@ -254,6 +255,7 @@ var tipoEvento = await registroTipos.ObtenerTipoEventoPorCodigoAsync("ORDEN_CREA
 await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
 {
     ManejadorEventoId = manejadorId,
+    Nombre = "Disparador Orden Creada",
     TipoEventoId = tipoEvento.Id,
     ModoDisparo = "Evento",
     Activo = true,
@@ -297,6 +299,8 @@ El `ServicioProcesadorEventos` detectara el evento y encolara el comando `notifi
 
 Las tareas programadas permiten ejecutar comandos en intervalos definidos.
 
+El sistema rastrea la ultima ejecucion de cada tarea mediante el campo `ultima_ejecucion` en `per_disparadores_manejador`. Al evaluar si una tarea debe ejecutarse, calcula la proxima ejecucion sumando el intervalo a `ultima_ejecucion`. Si no existe una ejecucion previa, la tarea se ejecuta inmediatamente.
+
 ### Registrar una Tarea Programada
 
 ```csharp
@@ -314,6 +318,7 @@ var manejadorId = await registroManejadores.RegistrarManejadorAsync(new Manejado
 await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
 {
     ManejadorEventoId = manejadorId,
+    Nombre = "Disparador Limpieza Logs",
     ModoDisparo = "Programado",
     Expresion = "00:01:00:00",
     Activo = true,
@@ -355,74 +360,29 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
 
 ---
 
-## Comportamiento en Conflictos (Upsert)
+## Comportamiento en Conflictos (Insert-Only)
 
-Las clases de registro utilizan `ON CONFLICT ... DO UPDATE` para manejar duplicados. Esta seccion documenta que campos actualiza el codigo automaticamente y cuales se preservan, permitiendo modificaciones manuales en base de datos sin que el codigo las sobrescriba.
+Las clases de registro utilizan una estrategia **insert-only**. Esto significa que:
 
-### per_comandos_registrados (RegistroComandos)
+- Si el registro **no existe**: Se inserta con los valores proporcionados por el codigo
+- Si el registro **ya existe**: Se retorna el ID existente **sin modificar ningun campo**
 
-Clave de conflicto: `ruta_comando`
+### Prioridad a la Base de Datos
 
-| Campo | Comportamiento |
-|-------|----------------|
-| `id` | Preservado (auto-generado) |
-| `ruta_comando` | Clave, no cambia |
-| `descripcion` | **Actualizado** por codigo |
-| `activo` | **Actualizado** a `true` al re-registrar |
-| `creado_en` | Preservado |
-| `actualizado_en` | **Actualizado** a `NOW()` |
+**La base de datos tiene prioridad sobre el codigo.** Una vez que un registro existe, sus valores no se sobrescriben automaticamente. Esto permite:
 
-### per_tipos_evento (RegistroTiposEvento)
+- Modificar configuraciones directamente en base de datos sin que el codigo las restaure
+- Mantener consistencia entre lo definido en BD y el comportamiento real del sistema
+- Evitar confusiones sobre que valores estan activos
 
-Clave de conflicto: `codigo`
+### Tablas Afectadas
 
-| Campo | Comportamiento |
-|-------|----------------|
-| `id` | Preservado (auto-generado) |
-| `codigo` | Clave, no cambia |
-| `nombre` | **Actualizado** por codigo |
-| `descripcion` | **Actualizado** por codigo |
-| `activo` | **Actualizado** por codigo |
-| `creado_en` | Preservado |
-
-### per_manejadores_evento (RegistroManejadores)
-
-Clave de conflicto: `codigo`
-
-| Campo | Comportamiento |
-|-------|----------------|
-| `id` | Preservado (auto-generado) |
-| `codigo` | Clave, no cambia |
-| `nombre` | **Actualizado** por codigo |
-| `descripcion` | **Actualizado** por codigo |
-| `id_comando_registrado` | **Actualizado** por codigo |
-| `ruta_comando` | **Actualizado** por codigo |
-| `argumentos_comando` | **Preservado** - modificable manualmente |
-| `activo` | **Actualizado** por codigo |
-| `creado_en` | Preservado |
-
-### per_disparadores_manejador (RegistroManejadores)
-
-Clave de conflicto: `(manejador_evento_id, COALESCE(tipo_evento_id, 0))`
-
-| Campo | Comportamiento |
-|-------|----------------|
-| `id` | Preservado (auto-generado) |
-| `manejador_evento_id` | Parte de la clave, no cambia |
-| `tipo_evento_id` | Parte de la clave, no cambia |
-| `modo_disparo` | **Actualizado** por codigo |
-| `expresion` | **Preservado** - modificable manualmente |
-| `activo` | **Actualizado** por codigo |
-| `prioridad` | **Actualizado** por codigo |
-| `creado_en` | Preservado |
-
-### Campos Modificables Manualmente
-
-Los siguientes campos pueden ser modificados directamente en base de datos y el codigo **no los sobrescribira** al re-registrar:
-
-- `per_manejadores_evento.argumentos_comando`: Permite ajustar argumentos sin modificar codigo
-- `per_disparadores_manejador.expresion`: Permite cambiar expresiones de intervalo sin modificar codigo
-- Todos los campos `creado_en`: Se preservan como registro historico
+| Tabla | Clave Unica | Comportamiento en Conflicto |
+|-------|-------------|----------------------------|
+| `per_comandos_registrados` | `ruta_comando` | No actualiza nada, retorna ID existente |
+| `per_tipos_evento` | `codigo` | No actualiza nada, retorna ID existente |
+| `per_manejadores_evento` | `codigo` | No actualiza nada, retorna ID existente |
+| `per_disparadores_manejador` | `nombre` | No actualiza nada, retorna ID existente |
 
 ---
 

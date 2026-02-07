@@ -1,4 +1,5 @@
 using PER.Comandos.LineaComandos.Cola.Esquema;
+using PER.Comandos.LineaComandos.EventDriven.Esquema;
 
 namespace ComandosColaTest;
 
@@ -15,8 +16,11 @@ public class DatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var inicializador = new InicializadorEsquema(ConnectionString);
-        await inicializador.InicializarAsync();
+        var inicializadorCola = new InicializadorEsquema(ConnectionString);
+        await inicializadorCola.InicializarAsync();
+
+        var inicializadorEventDriven = new InicializadorEsquemaEventDriven(ConnectionString);
+        await inicializadorEventDriven.InicializarAsync();
     }
 
     public Task DisposeAsync()

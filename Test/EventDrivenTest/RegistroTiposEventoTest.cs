@@ -48,7 +48,7 @@ namespace EventDrivenTest
         }
 
         [Fact]
-        public async Task RegistrarTipoEventoAsync_CodigoDuplicado_DebeActualizar()
+        public async Task RegistrarTipoEventoAsync_CodigoDuplicado_DebeRetornarIdExistente()
         {
             var tipoEvento = new TipoEvento
             {
@@ -71,8 +71,8 @@ namespace EventDrivenTest
             var tipoDb = await _registro.ObtenerTipoEventoPorIdAsync(id1);
 
             Assert.NotNull(tipoDb);
-            Assert.Equal("Nombre Actualizado", tipoDb.Nombre);
-            Assert.Equal("Descripcion Actualizada", tipoDb.Descripcion);
+            Assert.Equal("Nombre Original", tipoDb.Nombre);
+            Assert.Equal("Descripcion Original", tipoDb.Descripcion);
         }
 
         [Fact]
