@@ -390,7 +390,7 @@ Las clases de registro utilizan una estrategia **insert-only**. Esto significa q
 
 ```
                     +-------------------+
-                    |   Tu Aplicacion   |
+                    |   Tu Aplicación   |
                     +-------------------+
                            |
           +----------------+----------------+

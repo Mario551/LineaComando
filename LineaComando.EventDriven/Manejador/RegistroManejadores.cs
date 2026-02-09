@@ -167,7 +167,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
             const string sql = @"
                 INSERT INTO per_disparadores_manejador (
                     manejador_evento_id,
-                    nombre,
+                    codigo,
                     modo_disparo,
                     tipo_evento_id,
                     expresion,
@@ -177,7 +177,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 )
                 VALUES (
                     @ManejadorEventoId,
-                    @Nombre,
+                    @Codigo,
                     @ModoDisparo,
                     @TipoEventoId,
                     @Expresion,
@@ -185,7 +185,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     @Prioridad,
                     @CreadoEn
                 )
-                ON CONFLICT (nombre)
+                ON CONFLICT (codigo)
                 DO UPDATE SET
                     id = per_disparadores_manejador.id
                 RETURNING id;";
@@ -198,7 +198,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 new
                 {
                     disparador.ManejadorEventoId,
-                    disparador.Nombre,
+                    disparador.Codigo,
                     disparador.ModoDisparo,
                     disparador.TipoEventoId,
                     disparador.Expresion,

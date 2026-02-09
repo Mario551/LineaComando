@@ -144,7 +144,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             const string sql = @"
                 CREATE TABLE IF NOT EXISTS per_disparadores_manejador (
                     id SERIAL PRIMARY KEY,
-                    nombre TEXT NOT NULL UNIQUE,
+                    codigo TEXT NOT NULL UNIQUE,
                     manejador_evento_id INTEGER NOT NULL,
                     modo_disparo VARCHAR(50) NOT NULL DEFAULT 'Evento',
                     tipo_evento_id INTEGER NULL,

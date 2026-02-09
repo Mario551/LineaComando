@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_comando
 CREATE TABLE IF NOT EXISTS per_disparadores_manejador (
     id SERIAL PRIMARY KEY,
     manejador_evento_id INTEGER NOT NULL,
-    nombre VARCHAR(255) NOT NULL UNIQUE,
+    codigo VARCHAR(255) NOT NULL UNIQUE,
     modo_disparo VARCHAR(50) NOT NULL DEFAULT 'Evento',
     tipo_evento_id INTEGER NULL,
     expresion VARCHAR(255) NULL,

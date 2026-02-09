@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventDrivenTest", "..\Test\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LineaComando.Builder", "..\LineaComando.Builder\LineaComando.Builder.csproj", "{B387DAB3-D0E6-487A-A889-3A411748826F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuilderTest", "..\Test\BuilderTest\BuilderTest.csproj", "{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{B387DAB3-D0E6-487A-A889-3A411748826F}.Release|x64.Build.0 = Release|Any CPU
 		{B387DAB3-D0E6-487A-A889-3A411748826F}.Release|x86.ActiveCfg = Release|Any CPU
 		{B387DAB3-D0E6-487A-A889-3A411748826F}.Release|x86.Build.0 = Release|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Debug|x64.Build.0 = Debug|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Debug|x86.Build.0 = Debug|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Release|x64.ActiveCfg = Release|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Release|x64.Build.0 = Release|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Release|x86.ActiveCfg = Release|Any CPU
+		{88A807DB-95C2-4C99-9CC1-4DA01BBD1703}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

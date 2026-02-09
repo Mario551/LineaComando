@@ -67,9 +67,9 @@ namespace EventDrivenTest
 
             await connection.ExecuteAsync(
                 @"INSERT INTO per_disparadores_manejador
-                  (manejador_evento_id, nombre, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
-                  VALUES (@ManejadorId, @Nombre, 'Evento', @TipoEventoId, true, @Prioridad, NOW());",
-                new { ManejadorId = manejadorId, Nombre = nombreDisparador, TipoEventoId = tipoEventoId, Prioridad = prioridad });
+                  (manejador_evento_id, codigo, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, @Codigo, 'Evento', @TipoEventoId, true, @Prioridad, NOW());",
+                new { ManejadorId = manejadorId, Codigo = nombreDisparador, TipoEventoId = tipoEventoId, Prioridad = prioridad });
         }
 
         private async Task CrearDisparadorProgramadoAsync(int manejadorId, string expresion, int prioridad = 0, string? nombre = null)
@@ -81,9 +81,9 @@ namespace EventDrivenTest
 
             await connection.ExecuteAsync(
                 @"INSERT INTO per_disparadores_manejador
-                  (manejador_evento_id, nombre, modo_disparo, expresion, activo, prioridad, creado_en)
-                  VALUES (@ManejadorId, @Nombre, 'Programado', @Expresion, true, @Prioridad, NOW());",
-                new { ManejadorId = manejadorId, Nombre = nombreDisparador, Expresion = expresion, Prioridad = prioridad });
+                  (manejador_evento_id, codigo, modo_disparo, expresion, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, @Codigo, 'Programado', @Expresion, true, @Prioridad, NOW());",
+                new { ManejadorId = manejadorId, Codigo = nombreDisparador, Expresion = expresion, Prioridad = prioridad });
         }
 
         [Fact]
@@ -439,7 +439,7 @@ namespace EventDrivenTest
             var disparador = new DisparadorManejador
             {
                 ManejadorEventoId = manejadorId,
-                Nombre = PrefijoTest + "disparador_unico",
+                Codigo = PrefijoTest + "disparador_unico",
                 ModoDisparo = "Evento",
                 TipoEventoId = tipoEventoId,
                 Activo = true,
@@ -454,7 +454,7 @@ namespace EventDrivenTest
             DisparadorManejador? disparadorDb = await ObtenerDisparadorPorIdAsync(disparadorId);
 
             Assert.NotNull(disparadorDb);
-            Assert.Equal(disparador.Nombre, disparadorDb.Nombre);
+            Assert.Equal(disparador.Codigo, disparadorDb.Codigo);
             Assert.Equal(disparador.ManejadorEventoId, disparadorDb.ManejadorEventoId);
         }
 
@@ -479,7 +479,7 @@ namespace EventDrivenTest
             var disparador1 = new DisparadorManejador
             {
                 ManejadorEventoId = manejadorId,
-                Nombre = PrefijoTest + "disparador_upsert_nombre",
+                Codigo = PrefijoTest + "disparador_upsert_nombre",
                 ModoDisparo = "Evento",
                 TipoEventoId = tipoEventoId,
                 Activo = true,
@@ -494,7 +494,7 @@ namespace EventDrivenTest
             var disparador2 = new DisparadorManejador
             {
                 ManejadorEventoId = manejadorId,
-                Nombre = PrefijoTest + "disparador_upsert_nombre",
+                Codigo = PrefijoTest + "disparador_upsert_nombre",
                 ModoDisparo = "Evento",
                 TipoEventoId = tipoEventoId,
                 Activo = true,
@@ -516,7 +516,7 @@ namespace EventDrivenTest
                 @"SELECT 
                     id as Id,
                     manejador_evento_id as ManejadorEventoId,
-                    nombre as Nombre,
+                    codigo as Codigo,
                     modo_disparo as ModoDisparo,
                     tipo_evento_id as TipoEventoId,
                     expresion as Expresion,
