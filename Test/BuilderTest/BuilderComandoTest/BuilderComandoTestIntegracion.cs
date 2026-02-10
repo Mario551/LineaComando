@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.Extensions.DependencyInjection;
 using PER.Comandos.LineaComandos.BuilderComando;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Registro;
@@ -14,11 +15,14 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
 {
     protected override string PrefijoTest => "builder_cmd_";
 
-    private readonly IRegistroComandos<string, ResultadoComando> _registroComandos;
+    private readonly ServiceProvider _serviceProvider;
 
     public BuilderComandoTestIntegracion(DatabaseFixture fixture) : base(fixture)
     {
-        _registroComandos = new RegistroComandos<string, ResultadoComando>(ConnectionString);
+        var services = new ServiceCollection();
+        services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(
+            new RegistroComandos<string, ResultadoComando>(ConnectionString));
+        _serviceProvider = services.BuildServiceProvider();
     }
 
     [Fact]
@@ -27,7 +31,7 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
         string rutaComando = PrefijoTest + "test_registro";
         string descripcion = "Comando de prueba para BuilderComando";
 
-        var builderComando = new BuilderComando(_registroComandos);
+        var builderComando = new BuilderComando(_serviceProvider);
         builderComando
             .Argumentos(rutaComando, descripcion)
             .Accion<string, ResultadoComando>((parametros) => new ComandoPrueba());
@@ -45,5 +49,16 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
         Assert.Equal(rutaComando, (string)comandoDb.ruta_comando);
         Assert.Equal(descripcion, (string)comandoDb.descripcion);
         Assert.True((bool)comandoDb.activo);
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_SinArgumentosYAccion_DebeLanzarExcepcion()
+    {
+        var builderComando = new BuilderComando(_serviceProvider);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await builderComando.RegistrarAsync();
+        });
     }
 }

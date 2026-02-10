@@ -1,13 +1,19 @@
+using PER.Comandos.LineaComandos.BuilderTipoEvento;
+
 namespace PER.Comandos.LineaComandos.BuilderDisparador;
 
-class BuilderDisparador : IBuilderDisparadorComando
+public class BuilderDisparador : IBuilderDisparadorComando
 {
-    public IBuilderDisparadorComando Clear()
+    public BuilderDisparador()
+    {
+    }
+
+    public IBuilderDisparadorComando New()
     {
         throw new NotImplementedException();
     }
 
-    public IBuilderDisparadorComando Argumentos(string codigo, int prioridad, BuilderEvento.IEventoBD eventoBD)
+    public IBuilderDisparadorComando Argumentos(string codigo, int prioridad, ITipoEvento evento)
     {
         throw new NotImplementedException();
     }

@@ -1,1 +1,0 @@
-namespace PER.Comandos.LineaComandos.BuilderEvento;

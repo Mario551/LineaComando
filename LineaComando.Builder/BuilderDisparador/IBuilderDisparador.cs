@@ -1,11 +1,11 @@
-using PER.Comandos.LineaComandos.BuilderEvento;
+using PER.Comandos.LineaComandos.BuilderTipoEvento;
 
 namespace PER.Comandos.LineaComandos.BuilderDisparador;
 
 public interface IBuilderDisparadorComando
 {
-    IBuilderDisparadorComando Clear();
-    IBuilderDisparadorComando Argumentos(string codigo, int prioridad, IEventoBD eventoBD);
+    IBuilderDisparadorComando New();
+    IBuilderDisparadorComando Argumentos(string codigo, int prioridad, ITipoEvento eventoBD);
     IBuilderDisparadorComando Argumentos(string codigo, int prioridad, string expresion);
     Task RegistrarAsync();
 }

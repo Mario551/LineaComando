@@ -26,7 +26,7 @@ public abstract class BaseIntegracionTestBuilder : IAsyncLifetime
         await LimpiarDatosDelTestAsync();
     }
 
-    private async Task LimpiarDatosDelTestAsync()
+    protected virtual async Task LimpiarDatosDelTestAsync()
     {
         using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();

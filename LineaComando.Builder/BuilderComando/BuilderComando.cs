@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.BuilderManejador;
 using PER.Comandos.LineaComandos.Cola.Almacen;
@@ -13,18 +14,21 @@ public class BuilderComando : IBuilderComando
     private string _rutaComando = string.Empty;
     private string? _descripcion;
     private Func<ICollection<Parametro>, IComando<string, ResultadoComando>>? _accion;
+    private bool _argumentosInicializados;
+    private bool _accionInicializada;
 
-    private readonly IRegistroComandos<string, ResultadoComando> _registroComandos;
+    private readonly IServiceProvider _serviceProvider;
 
-    public BuilderComando(IRegistroComandos<string, ResultadoComando> registroComandos)
+    public BuilderComando(IServiceProvider serviceProvider)
     {
-        _registroComandos = registroComandos;
+        _serviceProvider = serviceProvider;
     }
 
     public IBuilderComando Argumentos(string rutaComando, string? descripcion)
     {
         _rutaComando = rutaComando;
         _descripcion = descripcion;
+        _argumentosInicializados = true;
         return this;
     }
 
@@ -32,11 +36,18 @@ public class BuilderComando : IBuilderComando
     {
         _accion = (parametros) => accion(parametros) as IComando<string, ResultadoComando>
             ?? throw new InvalidCastException("El comando debe implementar IComando<string, ResultadoComando>");
+        _accionInicializada = true;
         return this;
     }
 
     public async Task<IBuilderManejador> RegistrarAsync()
     {
+        if (!_argumentosInicializados)
+            throw new InvalidOperationException("Debe llamar a Argumentos() antes de RegistrarAsync()");
+
+        if (!_accionInicializada)
+            throw new InvalidOperationException("Debe llamar a Accion() antes de RegistrarAsync()");
+
         var metadatos = new MetadatosComando
         {
             RutaComando = _rutaComando,
@@ -45,8 +56,10 @@ public class BuilderComando : IBuilderComando
 
         var nodo = new Nodo<string, ResultadoComando>(_accion!);
 
-        await _registroComandos.RegistrarComandoAsync(metadatos, nodo);
+        var registroComandos = _serviceProvider.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
 
-        return new BuilderManejador.BuilderManejador(0);
+        await registroComandos.RegistrarComandoAsync(metadatos, nodo);
+
+        return new BuilderManejador.BuilderManejador(metadatos, _serviceProvider);
     }
 }
