@@ -52,7 +52,7 @@ namespace EventDrivenTest
                 Codigo = codigo,
                 Nombre = $"Tipo {codigo}",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             return await _registroTipos.RegistrarTipoEventoAsync(tipo);
@@ -100,7 +100,7 @@ namespace EventDrivenTest
                 RutaComando = PrefijoTest + "comando_test",
                 ArgumentosComando = "--param=valor",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -128,7 +128,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_upsert",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id1 = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -159,7 +159,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_buscar_id",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -191,7 +191,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_buscar_codigo",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -222,7 +222,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_activos",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var manejadorInactivo = new ManejadorEvento
@@ -232,7 +232,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_activos",
                 Activo = false,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             await _registroManejadores.RegistrarManejadorAsync(manejadorActivo);
@@ -258,7 +258,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_actualizar",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -288,7 +288,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_desactivar",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -314,7 +314,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_evento",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -341,7 +341,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_prioridad",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var manejador2 = new ManejadorEvento
@@ -351,7 +351,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_prioridad",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id1 = await _registroManejadores.RegistrarManejadorAsync(manejador1);
@@ -379,7 +379,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_programado",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -407,7 +407,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_inactivo",
                 Activo = false,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -431,7 +431,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_disparador",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             int manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -444,7 +444,7 @@ namespace EventDrivenTest
                 TipoEventoId = tipoEventoId,
                 Activo = true,
                 Prioridad = 1,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             int disparadorId = await _registroManejadores.RegistrarDisparadorAsync(disparador);
@@ -471,7 +471,7 @@ namespace EventDrivenTest
                 IdComandoRegistrado = comandoId,
                 RutaComando = PrefijoTest + "comando_upsert",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             int manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
@@ -484,7 +484,7 @@ namespace EventDrivenTest
                 TipoEventoId = tipoEventoId,
                 Activo = true,
                 Prioridad = 5,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             int id1 = await _registroManejadores.RegistrarDisparadorAsync(disparador1);
@@ -499,7 +499,7 @@ namespace EventDrivenTest
                 TipoEventoId = tipoEventoId,
                 Activo = true,
                 Prioridad = 10,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             int id2 = await _registroManejadores.RegistrarDisparadorAsync(disparador2);

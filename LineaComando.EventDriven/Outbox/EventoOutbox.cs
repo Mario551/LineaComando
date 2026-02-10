@@ -33,7 +33,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// <summary>
         /// Cuándo ocurrió el evento.
         /// </summary>
-        public DateTime CreadoEn { get; set; } = DateTime.UtcNow;
+        public DateTime CreadoEn { get; set; } = DateTime.Now;
 
         /// <summary>
         /// Cuándo se terminó de procesar (NULL = pendiente).

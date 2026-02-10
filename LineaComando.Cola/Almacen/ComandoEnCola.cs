@@ -28,7 +28,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// <summary>
         /// Cuándo se encoló el comando.
         /// </summary>
-        public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+        public DateTime FechaCreacion { get; set; } = DateTime.Now;
 
         /// <summary>
         /// Cuándo se procesó (NULL = pendiente).

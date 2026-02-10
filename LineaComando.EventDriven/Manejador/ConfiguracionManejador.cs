@@ -60,7 +60,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
         /// <summary>
         /// Fecha de creación.
         /// </summary>
-        public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+        public DateTime FechaCreacion { get; set; } = DateTime.Now;
 
     /// <summary>
     /// Fecha de la última ejecución del disparador programado.

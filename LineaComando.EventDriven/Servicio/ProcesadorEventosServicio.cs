@@ -108,7 +108,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 RutaComando = config.RutaComando,
                 Argumentos = config.ArgumentosComando ?? string.Empty,
                 DatosDeComando = evento.DatosEvento,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };

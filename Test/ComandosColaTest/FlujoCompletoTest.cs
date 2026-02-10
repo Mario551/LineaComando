@@ -84,7 +84,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--orderId=123",
                 DatosDeComando = "{\"orderId\": 123, \"total\": 500}",
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -141,7 +141,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 Argumentos = "--a=15 --b=27",
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -193,7 +193,7 @@ namespace ComandosColaTest
                 {
                     RutaComando = ruta,
                     Argumentos = $"--index={i}",
-                    FechaCreacion = DateTime.UtcNow.AddMilliseconds(i * 10),
+                    FechaCreacion = DateTime.Now.AddMilliseconds(i * 10),
                     Estado = "Pendiente",
                     Intentos = 0
                 };
@@ -246,7 +246,7 @@ namespace ComandosColaTest
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -291,7 +291,7 @@ namespace ComandosColaTest
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -384,7 +384,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 DatosDeComando = datosJson,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };

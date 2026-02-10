@@ -43,7 +43,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--mensaje=hola",
                 DatosDeComando = "{\"key\": \"value\"}",
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -75,7 +75,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 Argumentos = "--id=1",
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -83,7 +83,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 Argumentos = "--id=2",
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -111,7 +111,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 Argumentos = "--test=true",
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -143,7 +143,7 @@ namespace ComandosColaTest
             var comando = new ComandoEnCola
             {
                 RutaComando = ruta,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -170,7 +170,7 @@ namespace ComandosColaTest
             var comando = new ComandoEnCola
             {
                 RutaComando = ruta,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -205,7 +205,7 @@ namespace ComandosColaTest
             var comando = new ComandoEnCola
             {
                 RutaComando = ruta,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };
@@ -241,7 +241,7 @@ namespace ComandosColaTest
                 {
                     RutaComando = ruta,
                     Argumentos = $"--index={i}",
-                    FechaCreacion = DateTime.UtcNow,
+                    FechaCreacion = DateTime.Now,
                     Estado = "Pendiente",
                     Intentos = 0
                 };
@@ -261,7 +261,7 @@ namespace ComandosColaTest
             var ruta = PrefijoTest + "ordenar_fecha";
             await PrepararTestAsync(ruta);
 
-            var fechaBase = DateTime.UtcNow;
+            var fechaBase = DateTime.Now;
 
             var comando1 = new ComandoEnCola
             {
@@ -310,7 +310,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 DatosDeComando = datosJson,
-                FechaCreacion = DateTime.UtcNow,
+                FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
                 Intentos = 0
             };

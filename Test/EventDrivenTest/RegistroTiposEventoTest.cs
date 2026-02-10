@@ -25,7 +25,7 @@ namespace EventDrivenTest
                 Nombre = "Pedido Creado",
                 Descripcion = "Se dispara cuando se crea un nuevo pedido",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registro.RegistrarTipoEventoAsync(tipoEvento);
@@ -56,7 +56,7 @@ namespace EventDrivenTest
                 Nombre = "Nombre Original",
                 Descripcion = "Descripcion Original",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id1 = await _registro.RegistrarTipoEventoAsync(tipoEvento);
@@ -83,7 +83,7 @@ namespace EventDrivenTest
                 Codigo = PrefijoTest + "buscar_codigo",
                 Nombre = "Buscar Por Codigo",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             await _registro.RegistrarTipoEventoAsync(tipoEvento);
@@ -111,7 +111,7 @@ namespace EventDrivenTest
                 Codigo = PrefijoTest + "buscar_id",
                 Nombre = "Buscar Por Id",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registro.RegistrarTipoEventoAsync(tipoEvento);
@@ -139,7 +139,7 @@ namespace EventDrivenTest
                 Codigo = PrefijoTest + "tipo_activo",
                 Nombre = "Tipo Activo",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var tipoInactivo = new TipoEvento
@@ -147,7 +147,7 @@ namespace EventDrivenTest
                 Codigo = PrefijoTest + "tipo_inactivo",
                 Nombre = "Tipo Inactivo",
                 Activo = false,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             await _registro.RegistrarTipoEventoAsync(tipoActivo);
@@ -170,7 +170,7 @@ namespace EventDrivenTest
                 Nombre = "Nombre Original",
                 Descripcion = "Descripcion Original",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registro.RegistrarTipoEventoAsync(tipoEvento);
@@ -196,7 +196,7 @@ namespace EventDrivenTest
                 Codigo = PrefijoTest + "tipo_desactivar",
                 Nombre = "Tipo a Desactivar",
                 Activo = true,
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var id = await _registro.RegistrarTipoEventoAsync(tipoEvento);
@@ -214,9 +214,9 @@ namespace EventDrivenTest
         {
             var tipos = new[]
             {
-                new TipoEvento { Codigo = PrefijoTest + "z_ultimo", Nombre = "Z", Activo = true, CreadoEn = DateTime.UtcNow },
-                new TipoEvento { Codigo = PrefijoTest + "a_primero", Nombre = "A", Activo = true, CreadoEn = DateTime.UtcNow },
-                new TipoEvento { Codigo = PrefijoTest + "m_medio", Nombre = "M", Activo = true, CreadoEn = DateTime.UtcNow }
+                new TipoEvento { Codigo = PrefijoTest + "z_ultimo", Nombre = "Z", Activo = true, CreadoEn = DateTime.Now },
+                new TipoEvento { Codigo = PrefijoTest + "a_primero", Nombre = "A", Activo = true, CreadoEn = DateTime.Now },
+                new TipoEvento { Codigo = PrefijoTest + "m_medio", Nombre = "M", Activo = true, CreadoEn = DateTime.Now }
             };
 
             foreach (var tipo in tipos)

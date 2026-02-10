@@ -62,7 +62,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
             if (config.UltimaEjecucion.HasValue)
             {
                 DateTime siguienteEjecucion = CalcularSiguienteEjecucion(config.Expresion, config.UltimaEjecucion.Value);
-                return DateTime.UtcNow >= siguienteEjecucion;
+                return DateTime.Now >= siguienteEjecucion;
             }
 
             return true;
@@ -132,14 +132,14 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                     RutaComando = config.RutaComando,
                     Argumentos = config.ArgumentosComando ?? string.Empty,
                     DatosDeComando = "{}",
-                    FechaCreacion = DateTime.UtcNow,
+                    FechaCreacion = DateTime.Now,
                     Estado = "Pendiente",
                     Intentos = 0
                 };
 
                 await almacenColaComandos.EncolarAsync(comandoEnCola, token);
 
-                DateTime ahora = DateTime.UtcNow;
+                DateTime ahora = DateTime.Now;
                 await registroManejadores.ActualizarUltimaEjecucionAsync(config.Id, ahora, token);
 
                 _logger.LogInformation("Comando encolado: {RutaComando} para tarea programada {ManejadorId}",

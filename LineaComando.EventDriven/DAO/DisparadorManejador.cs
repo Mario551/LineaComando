@@ -18,7 +18,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.DAO
         public string? Expresion { get; set; }
         public bool Activo { get; set; } = true;
         public int Prioridad { get; set; }
-        public DateTime CreadoEn { get; set; } = DateTime.UtcNow;
+        public DateTime CreadoEn { get; set; } = DateTime.Now;
         public ManejadorEvento? ManejadorEvento { get; set; }
         public TipoEvento? TipoEvento { get; set; }
     }

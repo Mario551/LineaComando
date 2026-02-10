@@ -28,9 +28,7 @@ public class BuilderTipoEvento : IBuilderTipoEvento
     public async Task<ITipoEvento> RegistrarAsync()
     {
         if (!_argumentosInicializados)
-        {
             throw new InvalidOperationException("Debe llamar a Argumentos() antes de RegistrarAsync()");
-        }
 
         var registroTiposEvento = _service.GetService(typeof(IRegistroTiposEvento)) as IRegistroTiposEvento
             ?? throw new InvalidOperationException("IRegistroTiposEvento no está registrado en el ServiceProvider");
@@ -41,7 +39,7 @@ public class BuilderTipoEvento : IBuilderTipoEvento
             Nombre = _nombre,
             Descripcion = _descripcion,
             Activo = true,
-            CreadoEn = DateTime.UtcNow
+            CreadoEn = DateTime.Now
         };
 
         await registroTiposEvento.RegistrarTipoEventoAsync(tipoEvento);

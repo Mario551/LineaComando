@@ -137,7 +137,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                 new
                 {
                     ComandoId = comandoId,
-                    FechaEjecucion = DateTime.UtcNow,
+                    FechaEjecucion = DateTime.Now,
                     Estado = resultado.Exitoso ? "Completado" : "Fallido",
                     resultado.MensajeError,
                     resultado.Salida,

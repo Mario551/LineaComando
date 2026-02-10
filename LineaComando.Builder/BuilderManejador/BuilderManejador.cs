@@ -51,7 +51,7 @@ public class BuilderManejador : IBuilderManejador
             RutaComando = _metadatosComando.RutaComando,
             ArgumentosComando = _argumentosComando,
             Activo = true,
-            CreadoEn = DateTime.UtcNow
+            CreadoEn = DateTime.Now
         };
 
         await registroManejadores.RegistrarManejadorAsync(manejador);

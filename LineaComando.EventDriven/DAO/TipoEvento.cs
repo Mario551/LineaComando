@@ -34,7 +34,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.DAO
         /// <summary>
         /// Fecha de creación.
         /// </summary>
-        public DateTime CreadoEn { get; set; } = DateTime.UtcNow;
+        public DateTime CreadoEn { get; set; } = DateTime.Now;
 
         /// <summary>
         /// Triggers asociados a este tipo de evento.

@@ -28,6 +28,6 @@ namespace PER.Comandos.LineaComandos.Registro
         /// <summary>
         /// Fecha de creación.
         /// </summary>
-        public DateTime CreadoEn { get; set; } = DateTime.UtcNow;
+        public DateTime CreadoEn { get; set; } = DateTime.Now;
     }
 }

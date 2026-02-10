@@ -103,7 +103,7 @@ namespace EventDrivenTest
                 Id = 1,
                 CodigoTipoEvento = "pedido_creado",
                 DatosEvento = "{\"pedidoId\": 123}",
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var configuracion = new ConfiguracionManejador
@@ -161,7 +161,7 @@ namespace EventDrivenTest
                 Id = 1,
                 CodigoTipoEvento = "evento_sin_handlers",
                 DatosEvento = "{}",
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             _mockAlmacenOutbox
@@ -197,7 +197,7 @@ namespace EventDrivenTest
                 Id = 1,
                 CodigoTipoEvento = "pedido_creado",
                 DatosEvento = "{\"pedidoId\": 123}",
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var configuraciones = new[]
@@ -248,8 +248,8 @@ namespace EventDrivenTest
         {
             var eventos = new[]
             {
-                new EventoOutbox { Id = 1, CodigoTipoEvento = "evento1", DatosEvento = "{}", CreadoEn = DateTime.UtcNow },
-                new EventoOutbox { Id = 2, CodigoTipoEvento = "evento2", DatosEvento = "{}", CreadoEn = DateTime.UtcNow }
+                new EventoOutbox { Id = 1, CodigoTipoEvento = "evento1", DatosEvento = "{}", CreadoEn = DateTime.Now },
+                new EventoOutbox { Id = 2, CodigoTipoEvento = "evento2", DatosEvento = "{}", CreadoEn = DateTime.Now }
             };
 
             using var cts = new CancellationTokenSource();
@@ -301,9 +301,9 @@ namespace EventDrivenTest
         {
             var eventos = new[]
             {
-                new EventoOutbox { Id = 1, CodigoTipoEvento = "tipo1", DatosEvento = "{}", CreadoEn = DateTime.UtcNow },
-                new EventoOutbox { Id = 2, CodigoTipoEvento = "tipo2", DatosEvento = "{}", CreadoEn = DateTime.UtcNow },
-                new EventoOutbox { Id = 3, CodigoTipoEvento = "tipo3", DatosEvento = "{}", CreadoEn = DateTime.UtcNow }
+                new EventoOutbox { Id = 1, CodigoTipoEvento = "tipo1", DatosEvento = "{}", CreadoEn = DateTime.Now },
+                new EventoOutbox { Id = 2, CodigoTipoEvento = "tipo2", DatosEvento = "{}", CreadoEn = DateTime.Now },
+                new EventoOutbox { Id = 3, CodigoTipoEvento = "tipo3", DatosEvento = "{}", CreadoEn = DateTime.Now }
             };
 
             _mockAlmacenOutbox
@@ -335,7 +335,7 @@ namespace EventDrivenTest
                 Id = 1,
                 CodigoTipoEvento = "evento_handler_inactivo",
                 DatosEvento = "{}",
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var configuracion = new ConfiguracionManejador
@@ -375,7 +375,7 @@ namespace EventDrivenTest
                 Id = 1,
                 CodigoTipoEvento = "evento_error",
                 DatosEvento = "{}",
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var configuracion = new ConfiguracionManejador
@@ -415,7 +415,7 @@ namespace EventDrivenTest
                 Id = 1,
                 CodigoTipoEvento = "evento_prioridad",
                 DatosEvento = "{}",
-                CreadoEn = DateTime.UtcNow
+                CreadoEn = DateTime.Now
             };
 
             var configuraciones = new[]

@@ -222,7 +222,7 @@ await registroTipos.RegistrarTipoEventoAsync(new TipoEvento
     Nombre = "Orden Creada",
     Descripcion = "Se emite cuando se crea una nueva orden",
     Activo = true,
-    CreadoEn = DateTime.UtcNow
+    CreadoEn = DateTime.Now
 });
 ```
 
@@ -241,7 +241,7 @@ var manejadorId = await registroManejadores.RegistrarManejadorAsync(new Manejado
     RutaComando = "notificacion enviar",
     ArgumentosComando = "--tipo=email",
     Activo = true,
-    CreadoEn = DateTime.UtcNow
+    CreadoEn = DateTime.Now
 });
 ```
 
@@ -260,7 +260,7 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
     ModoDisparo = "Evento",
     Activo = true,
     Prioridad = 1,
-    CreadoEn = DateTime.UtcNow
+    CreadoEn = DateTime.Now
 });
 ```
 
@@ -312,7 +312,7 @@ var manejadorId = await registroManejadores.RegistrarManejadorAsync(new Manejado
     Nombre = "Limpieza de logs",
     RutaComando = "sistema limpiar-logs",
     Activo = true,
-    CreadoEn = DateTime.UtcNow
+    CreadoEn = DateTime.Now
 });
 
 await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
@@ -323,7 +323,7 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
     Expresion = "00:01:00:00",
     Activo = true,
     Prioridad = 1,
-    CreadoEn = DateTime.UtcNow
+    CreadoEn = DateTime.Now
 });
 ```
 
