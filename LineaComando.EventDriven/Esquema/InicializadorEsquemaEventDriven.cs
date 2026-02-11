@@ -42,6 +42,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             await CrearTablaTiposEventoAsync(connection);
             await CrearTablaManejadoresEventoAsync(connection);
             await CrearTablaDisparadoresManejadorAsync(connection);
+            await MigrarTablaDisparadoresCodigoAsync(connection);
             await MigrarTablaDisparadoresAsync(connection);
             await CrearTablaEventosOutboxAsync(connection);
             await CrearFuncionObtenerEventosPendientesAsync(connection);
@@ -191,6 +192,28 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             await connection.ExecuteAsync(sql);
         }
 
+
+        private static async Task MigrarTablaDisparadoresCodigoAsync(NpgsqlConnection connection)
+        {
+            const string sqlVerificar = @"
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                    AND table_name = 'per_disparadores_manejador'
+                    AND column_name = 'codigo'
+                );";
+
+            bool columnaExiste = await connection.ExecuteScalarAsync<bool>(sqlVerificar);
+
+            if (!columnaExiste)
+            {
+                const string sqlAgregar = @"
+                    ALTER TABLE per_disparadores_manejador
+                    ADD COLUMN codigo TEXT NOT NULL UNIQUE;";
+
+                await connection.ExecuteAsync(sqlAgregar);
+            }
+        }
 
         private static async Task MigrarTablaDisparadoresAsync(NpgsqlConnection connection)
         {

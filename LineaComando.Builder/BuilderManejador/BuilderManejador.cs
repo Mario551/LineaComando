@@ -56,6 +56,6 @@ public class BuilderManejador : IBuilderManejador
 
         await registroManejadores.RegistrarManejadorAsync(manejador);
 
-        return new BuilderDisparador.BuilderDisparador();
+        return new BuilderDisparador.BuilderDisparador(manejador.Id, _service);
     }
 }

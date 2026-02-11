@@ -168,6 +168,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 INSERT INTO per_disparadores_manejador (
                     manejador_evento_id,
                     codigo,
+                    nombre,
                     modo_disparo,
                     tipo_evento_id,
                     expresion,
@@ -178,6 +179,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 VALUES (
                     @ManejadorEventoId,
                     @Codigo,
+                    @Nombre,
                     @ModoDisparo,
                     @TipoEventoId,
                     @Expresion,
@@ -199,6 +201,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 {
                     disparador.ManejadorEventoId,
                     disparador.Codigo,
+                    disparador.Nombre,
                     disparador.ModoDisparo,
                     disparador.TipoEventoId,
                     disparador.Expresion,
