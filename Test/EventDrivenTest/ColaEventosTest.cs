@@ -22,8 +22,7 @@ namespace EventDrivenTest
             {
                 TipoEvento = PrefijoTest + "pedido_creado",
                 AgregadoId = 123,
-                Datos = "{\"pedidoId\": 123, \"total\": 500}",
-                Metadatos = "{\"correlationId\": \"abc-123\"}"
+                Datos = "{\"pedidoId\": 123, \"total\": 500}"
             };
 
             var id = await _almacen.GuardarEventoAsync(datosEvento);
@@ -35,7 +34,7 @@ namespace EventDrivenTest
 
             var evento = await connection.QuerySingleAsync<EventoOutbox>(
                 @"SELECT id as Id, codigo_tipo_evento as CodigoTipoEvento, agregado_id as AgregadoId,
-                  datos_evento::text as DatosEvento, metadatos::text as Metadatos,
+                  datos_evento::text as DatosEvento,
                   creado_en as CreadoEn, procesado_en as ProcesadoEn
                   FROM per_eventos_outbox WHERE id = @Id",
                 new { Id = id });

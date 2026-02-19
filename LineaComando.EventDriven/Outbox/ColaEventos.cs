@@ -19,14 +19,12 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
                     codigo_tipo_evento,
                     agregado_id,
                     datos_evento,
-                    metadatos,
                     creado_en
                 )
                 VALUES (
                     @TipoEvento,
                     @AgregadoId,
                     @Datos::jsonb,
-                    @Metadatos::jsonb,
                     NOW()
                 )
                 RETURNING id;";
@@ -47,7 +45,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
                     codigo_tipo_evento as CodigoTipoEvento,
                     agregado_id as AgregadoId,
                     datos_evento::text as DatosEvento,
-                    metadatos::text as Metadatos,
                     creado_en as CreadoEn,
                     procesado_en as ProcesadoEn
                 FROM per_eventos_outbox

@@ -245,7 +245,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     codigo_tipo_evento VARCHAR(255) NOT NULL,
                     agregado_id BIGINT NULL,
                     datos_evento JSONB NOT NULL,
-                    metadatos JSONB NULL,
                     creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
                     procesado_en TIMESTAMP WITHOUT TIME ZONE NULL
                 );
@@ -269,7 +268,10 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
         private static async Task CrearFuncionObtenerEventosPendientesAsync(NpgsqlConnection connection)
         {
-            const string sql = @"
+            const string dropSql = @"
+                DROP FUNCTION IF EXISTS obtener_eventos_pendientes(INTEGER);";
+
+            const string createSql = @"
                 CREATE OR REPLACE FUNCTION obtener_eventos_pendientes(
                     p_tamanio_lote INTEGER DEFAULT 50
                 )
@@ -278,7 +280,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                     codigo_tipo_evento VARCHAR(255),
                     agregado_id BIGINT,
                     datos_evento JSONB,
-                    metadatos JSONB,
                     creado_en TIMESTAMP WITHOUT TIME ZONE,
                     procesado_en TIMESTAMP WITHOUT TIME ZONE
                 )
@@ -290,7 +291,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                         e.codigo_tipo_evento,
                         e.agregado_id,
                         e.datos_evento,
-                        e.metadatos,
                         e.creado_en,
                         e.procesado_en
                     FROM per_eventos_outbox e
@@ -300,7 +300,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                 END;
                 $$ LANGUAGE plpgsql;";
 
-            await connection.ExecuteAsync(sql);
+            await connection.ExecuteAsync(dropSql);
+            await connection.ExecuteAsync(createSql);
         }
     }
 }

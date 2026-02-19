@@ -19,10 +19,5 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         /// Datos completos del evento (serializados).
         /// </summary>
         public string Datos { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Metadatos adicionales (correlación, usuario, etc).
-        /// </summary>
-        public string? Metadatos { get; set; }
     }
 }

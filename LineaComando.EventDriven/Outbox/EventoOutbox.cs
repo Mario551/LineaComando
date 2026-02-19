@@ -26,11 +26,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         public string DatosEvento { get; set; } = string.Empty;
 
         /// <summary>
-        /// Metadatos adicionales.
-        /// </summary>
-        public string? Metadatos { get; set; }
-
-        /// <summary>
         /// Cuándo ocurrió el evento.
         /// </summary>
         public DateTime CreadoEn { get; set; } = DateTime.Now;
