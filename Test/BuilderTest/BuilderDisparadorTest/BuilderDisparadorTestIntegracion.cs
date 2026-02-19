@@ -51,7 +51,7 @@ public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
         var builderDisparador = new BuilderDisparador(manejadorId, _serviceProvider);
         builderDisparador
             .New()
-            .Argumentos(codigoDisparador, "Disparador Test Evento", prioridad, tipoEvento);
+            .Argumentos(codigoDisparador, prioridad, tipoEvento);
 
         await builderDisparador.RegistrarAsync();
 
@@ -89,7 +89,7 @@ public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
         var builderDisparador = new BuilderDisparador(manejadorId, _serviceProvider);
         builderDisparador
             .New()
-            .Argumentos(codigoDisparador, "Disparador Test Programado", prioridad, expresionCron);
+            .Argumentos(codigoDisparador, prioridad, expresionCron);
 
         await builderDisparador.RegistrarAsync();
 
@@ -130,7 +130,7 @@ public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
         var builderComando = new BuilderComando(_serviceProvider);
         builderComando
             .Argumentos(rutaComando, "Comando de prueba para disparador")
-            .Accion<string, ResultadoComando>((parametros) => new ComandoPrueba());
+            .Accion((parametros) => new ComandoPrueba());
 
         await builderComando.RegistrarAsync();
 

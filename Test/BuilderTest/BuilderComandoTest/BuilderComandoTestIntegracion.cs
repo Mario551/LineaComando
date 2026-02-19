@@ -26,7 +26,7 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
     }
 
     [Fact]
-    public async Task RegistrarAsync_DebeInsertarComandoEnBaseDeDatos()
+    public async Task RegistrarAsync_DebeInsertarComandoEnBaseDeDatos_AccionFunc()
     {
         string rutaComando = PrefijoTest + "test_registro";
         string descripcion = "Comando de prueba para BuilderComando";
@@ -34,7 +34,33 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
         var builderComando = new BuilderComando(_serviceProvider);
         builderComando
             .Argumentos(rutaComando, descripcion)
-            .Accion<string, ResultadoComando>((parametros) => new ComandoPrueba());
+            .Accion((parametros) => new ComandoPrueba());
+
+        await builderComando.RegistrarAsync();
+
+        using var connection = CrearConexion();
+        await connection.OpenAsync();
+
+        var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
+            "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+            new { Ruta = rutaComando });
+
+        Assert.NotNull(comandoDb);
+        Assert.Equal(rutaComando, (string)comandoDb.ruta_comando);
+        Assert.Equal(descripcion, (string)comandoDb.descripcion);
+        Assert.True((bool)comandoDb.activo);
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_DebeInsertarComandoEnBaseDeDatos_AccionComandoBase()
+    {
+        string rutaComando = PrefijoTest + "test_registro";
+        string descripcion = "Comando de prueba para BuilderComando";
+
+        var builderComando = new BuilderComando(_serviceProvider);
+        builderComando
+            .Argumentos(rutaComando, descripcion)
+            .Accion(new ComandoPrueba());
 
         await builderComando.RegistrarAsync();
 

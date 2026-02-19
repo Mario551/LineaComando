@@ -1,18 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Comandos\Comandos.csproj">
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
-    <ProjectReference Include="..\LineaComando.Builder\LineaComando.Builder.csproj">
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
-    <ProjectReference Include="..\LineaComando.EventDriven\LineaComando.EventDriven.csproj">
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
-    <ProjectReference Include="..\LineaComando.Cola\LineaComando.Cola.csproj">
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
+    <ProjectReference Include="..\Comandos\Comandos.csproj" />
+    <ProjectReference Include="..\LineaComando.Builder\LineaComando.Builder.csproj" />
+    <ProjectReference Include="..\LineaComando.EventDriven\LineaComando.EventDriven.csproj" />
+    <ProjectReference Include="..\LineaComando.Cola\LineaComando.Cola.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

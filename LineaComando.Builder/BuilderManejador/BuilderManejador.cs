@@ -34,7 +34,7 @@ public class BuilderManejador : IBuilderManejador
         return this;
     }
 
-    public async Task<IBuilderDisparadorComando> RegistrarAsync()
+    public async Task<IBuilderDisparador> RegistrarAsync()
     {
         if (!_argumentosInicializados)
             throw new InvalidOperationException("Debe llamar a Argumentos() antes de RegistrarAsync()");

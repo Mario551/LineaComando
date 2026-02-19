@@ -4,12 +4,11 @@ using PER.Comandos.LineaComandos.EventDriven.Manejador;
 
 namespace PER.Comandos.LineaComandos.BuilderDisparador;
 
-public class BuilderDisparador : IBuilderDisparadorComando
+public class BuilderDisparador : IBuilderDisparador
 {
     private int _idManejador;
     private readonly IServiceProvider _service;
     private string _codigo = string.Empty;
-    private string _nombre = string.Empty;
     private int _prioridad;
     private ITipoEvento? _tipoEvento;
     private string? _expresion;
@@ -22,15 +21,14 @@ public class BuilderDisparador : IBuilderDisparadorComando
         _service = service;
     }
 
-    public IBuilderDisparadorComando New()
+    public IBuilderDisparador New()
     {
         return this;
     }
 
-    public IBuilderDisparadorComando Argumentos(string codigo, string nombre, int prioridad, ITipoEvento evento)
+    public IBuilderDisparador Argumentos(string codigo, int prioridad, ITipoEvento evento)
     {
         _codigo = codigo;
-        _nombre = nombre;
         _prioridad = prioridad;
         _tipoEvento = evento;
         _expresion = null;
@@ -39,10 +37,9 @@ public class BuilderDisparador : IBuilderDisparadorComando
         return this;
     }
 
-    public IBuilderDisparadorComando Argumentos(string codigo, string nombre, int prioridad, string expresion)
+    public IBuilderDisparador Argumentos(string codigo, int prioridad, string expresion)
     {
         _codigo = codigo;
-        _nombre = nombre;
         _prioridad = prioridad;
         _expresion = expresion;
         _tipoEvento = null;
@@ -63,7 +60,6 @@ public class BuilderDisparador : IBuilderDisparadorComando
         {
             ManejadorEventoId = _idManejador,
             Codigo = _codigo,
-            Nombre = _nombre,
             ModoDisparo = _esModoEvento ? "Evento" : "Programado",
             TipoEventoId = _tipoEvento?.ID,
             Expresion = _expresion,

@@ -13,7 +13,8 @@ public class BuilderComando : IBuilderComando
 {
     private string _rutaComando = string.Empty;
     private string? _descripcion;
-    private Func<ICollection<Parametro>, IComando<string, ResultadoComando>>? _accion;
+    private Func<ICollection<Parametro>, IComando<string, ResultadoComando>>? _accionFunc;
+    private ComandoBase<string, ResultadoComando>? _accionComandoBase;
     private bool _argumentosInicializados;
     private bool _accionInicializada;
 
@@ -24,6 +25,8 @@ public class BuilderComando : IBuilderComando
         _serviceProvider = serviceProvider;
     }
 
+    public IBuilderComando New() => new BuilderComando(_serviceProvider);
+
     public IBuilderComando Argumentos(string rutaComando, string? descripcion)
     {
         _rutaComando = rutaComando;
@@ -32,10 +35,18 @@ public class BuilderComando : IBuilderComando
         return this;
     }
 
-    public IBuilderComando Accion<TRead, TWrite>(Func<ICollection<Parametro>, IComando<TRead, TWrite>> accion)
+    public IBuilderComando Accion(Func<ICollection<Parametro>, IComando<string, ResultadoComando>> accion)
     {
-        _accion = (parametros) => accion(parametros) as IComando<string, ResultadoComando>
+        _accionFunc = (parametros) => accion(parametros) as IComando<string, ResultadoComando>
             ?? throw new InvalidCastException("El comando debe implementar IComando<string, ResultadoComando>");
+
+        _accionInicializada = true;
+        return this;
+    }
+
+    public IBuilderComando Accion(ComandoBase<string, ResultadoComando> accion)
+    {
+        _accionComandoBase = accion;
         _accionInicializada = true;
         return this;
     }
@@ -54,7 +65,11 @@ public class BuilderComando : IBuilderComando
             Descripcion = _descripcion
         };
 
-        var nodo = new Nodo<string, ResultadoComando>(_accion!);
+        Nodo<string, ResultadoComando> nodo;
+        if (_accionFunc != null) 
+            nodo = new Nodo<string, ResultadoComando>(_accionFunc!);
+        else 
+            nodo = new Nodo<string, ResultadoComando>(_accionComandoBase!);
 
         var registroComandos = _serviceProvider.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
 

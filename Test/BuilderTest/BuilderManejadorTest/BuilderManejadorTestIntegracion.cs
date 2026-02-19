@@ -73,7 +73,7 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
         var builderComando = new BuilderComando(_serviceProvider);
         builderComando
             .Argumentos(rutaComando, "Comando de prueba para manejador")
-            .Accion<string, ResultadoComando>((parametros) => new ComandoPrueba());
+            .Accion((parametros) => new ComandoPrueba());
 
         var builderManejador = await builderComando.RegistrarAsync();
         

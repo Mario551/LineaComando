@@ -6,5 +6,5 @@ public interface IBuilderManejador
 {
     IBuilderManejador New();
     IBuilderManejador Argumentos(string codigo, string nombre, string argumentosComando, string? descripcion);
-    Task<IBuilderDisparadorComando> RegistrarAsync();
+    Task<IBuilderDisparador> RegistrarAsync();
 }

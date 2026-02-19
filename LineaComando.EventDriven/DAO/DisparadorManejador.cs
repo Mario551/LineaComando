@@ -5,7 +5,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.DAO
         public int Id { get; set; }
         public int ManejadorEventoId { get; set; }
         public string Codigo { get; set; }
-        public string Nombre { get; set; }
 
         /// <summary>
         /// Modo de disparo: "Evento" o "Programado".
