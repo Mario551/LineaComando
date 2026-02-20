@@ -25,7 +25,7 @@ namespace PER.Comandos.LineaComandos.Builder
         {
             var builder = services.GetRequiredService<LineaComandoBuilder>();
 
-            var inicializadorCola = new InicializadorEsquema(builder.ConnectionString);
+            var inicializadorCola = new InicializadorEsquemaPostgres(builder.ConnectionString);
             await inicializadorCola.InicializarAsync(token);
 
             var inicializadorEventDriven = new InicializadorEsquemaEventDriven(builder.ConnectionString);

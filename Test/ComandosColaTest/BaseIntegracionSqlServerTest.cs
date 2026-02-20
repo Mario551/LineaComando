@@ -1,15 +1,15 @@
 using Dapper;
-using Npgsql;
+using Microsoft.Data.SqlClient;
 
 namespace ComandosColaTest
 {
-    public abstract class BaseIntegracionTest : IAsyncLifetime
+    public abstract class BaseIntegracionSqlServerTest : IAsyncLifetime
     {
         protected readonly string ConnectionString;
 
         protected abstract string PrefijoTest { get; }
 
-        protected BaseIntegracionTest(DatabaseFixture fixture)
+        protected BaseIntegracionSqlServerTest(DatabaseFixtureSqlServer fixture)
         {
             ConnectionString = fixture.ConnectionString;
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
@@ -27,7 +27,7 @@ namespace ComandosColaTest
 
         private async Task LimpiarDatosDelTestAsync()
         {
-            using var connection = new NpgsqlConnection(ConnectionString);
+            using var connection = new SqlConnection(ConnectionString);
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
@@ -38,9 +38,9 @@ namespace ComandosColaTest
                 new { Prefijo = PrefijoTest + "%" });
         }
 
-        protected NpgsqlConnection CrearConexion()
+        protected SqlConnection CrearConexion()
         {
-            return new NpgsqlConnection(ConnectionString);
+            return new SqlConnection(ConnectionString);
         }
     }
 }

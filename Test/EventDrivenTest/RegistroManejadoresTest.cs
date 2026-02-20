@@ -12,7 +12,7 @@ namespace EventDrivenTest
     {
         private readonly RegistroManejadores _registroManejadores;
         private readonly RegistroTiposEvento _registroTipos;
-        private readonly RegistroComandos<string, object> _registroComandos;
+        private readonly RegistroComandosPostgres<string, object> _registroComandos;
 
         protected override string PrefijoTest => "registro_manejadores_";
 
@@ -20,7 +20,7 @@ namespace EventDrivenTest
         {
             _registroManejadores = new RegistroManejadores(ConnectionString);
             _registroTipos = new RegistroTiposEvento(ConnectionString);
-            _registroComandos = new RegistroComandos<string, object>(ConnectionString);
+            _registroComandos = new RegistroComandosPostgres<string, object>(ConnectionString);
         }
 
         private async Task<int> CrearComandoRegistradoAsync(string rutaComando)

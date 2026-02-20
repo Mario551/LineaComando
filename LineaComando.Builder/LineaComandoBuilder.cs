@@ -31,14 +31,36 @@ namespace PER.Comandos.LineaComandos.Builder
         internal string ConnectionString => _connectionString ?? "";
         internal IServiceCollection Services => _services;
 
+        private const int POSTGRESQL = 1;
+        private const int SQLSERVER = 2;
+        private const int SQLITE = 3;
+
+        private int _tipoBaseDatos;
+
         public LineaComandoBuilder(IServiceCollection services, Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> configuracionLineaComandos)
         {
             _services = services ?? throw new ArgumentNullException(nameof(services));
             ConfiguracionLineaComandos = configuracionLineaComandos ?? throw new ArgumentNullException(nameof(configuracionLineaComandos));
+            _tipoBaseDatos = 0;
         }
 
-        public LineaComandoBuilder SetPostgresql(string connectionString)
+        public LineaComandoBuilder UsePostgresql(string connectionString)
         {
+            _tipoBaseDatos = POSTGRESQL;
+            _connectionString = connectionString;
+            return this;
+        }
+
+        public LineaComandoBuilder UseSqlServer(string connectionString)
+        {
+            _tipoBaseDatos = SQLSERVER;
+            _connectionString = connectionString;
+            return this;
+        }
+
+        public LineaComandoBuilder UseSqlite(string connectionString)
+        {
+            _tipoBaseDatos = SQLITE;
             _connectionString = connectionString;
             return this;
         }
@@ -73,11 +95,11 @@ namespace PER.Comandos.LineaComandos.Builder
                 throw new ArgumentException("Cadena de conexión debe estar definida");
 
             _services.AddSingleton(this);
-            _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandos(_connectionString));
+            _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(_connectionString));
             _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadores(_connectionString));
             _services.AddSingleton<CoordinadorTareasProgramadas>();
             _services.AddHostedService<ServicioTareasProgramadas>();
-            _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandos<string, ResultadoComando>(_connectionString));
+            _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosPostgres<string, ResultadoComando>(_connectionString));
             _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
             {
                 var registro = c.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();

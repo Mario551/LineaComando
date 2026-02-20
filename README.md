@@ -117,7 +117,7 @@ public class PagarOrdenParametros : IParametro
 ### Registrar un Comando
 
 ```csharp
-var registroComandos = new RegistroComandos<string, ResultadoComando>(connectionString);
+var registroComandos = new RegistroComandosPostgres<string, ResultadoComando>(connectionString);
 
 await registroComandos.RegistrarComandoAsync(
     new MetadatosComando

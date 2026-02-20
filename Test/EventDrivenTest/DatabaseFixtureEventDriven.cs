@@ -16,7 +16,7 @@ public class DatabaseFixtureEventDriven : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var inicializadorCola = new InicializadorEsquema(ConnectionString);
+        var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString);
         await inicializadorCola.InicializarAsync();
 
         var inicializadorEventDriven = new InicializadorEsquemaEventDriven(ConnectionString);

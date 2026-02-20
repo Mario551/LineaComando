@@ -8,17 +8,17 @@ using PER.Comandos.LineaComandos.Registro;
 namespace ComandosColaTest
 {
     [Collection("Database")]
-    public class AlmacenColaComandosTest : BaseIntegracionTest
+    public class AlmacenColaComandosPostgresTest : BaseIntegracionPostgresTest
     {
-        private readonly AlmacenColaComandos _almacen;
-        private readonly RegistroComandos<string, ResultadoComando> _registro;
+        private readonly AlmacenColaComandosPostgres _almacen;
+        private readonly RegistroComandosPostgres<string, ResultadoComando> _registro;
 
         protected override string PrefijoTest => "almacen_cola_";
 
-        public AlmacenColaComandosTest(DatabaseFixture fixture) : base(fixture)
+        public AlmacenColaComandosPostgresTest(DatabaseFixture fixture) : base(fixture)
         {
-            _almacen = new AlmacenColaComandos(ConnectionString);
-            _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
+            _almacen = new AlmacenColaComandosPostgres(ConnectionString);
+            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString);
         }
 
         private async Task PrepararTestAsync(string rutaComando)

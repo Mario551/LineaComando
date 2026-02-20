@@ -5,11 +5,11 @@ using System.Threading.Tasks;
 
 namespace PER.Comandos.LineaComandos.Cola.Almacen
 {
-    public class AlmacenColaComandos : IAlmacenColaComandos
+    public class AlmacenColaComandosPostgres : IAlmacenColaComandos
     {
         private readonly string _connectionString;
 
-        public AlmacenColaComandos(string connectionString)
+        public AlmacenColaComandosPostgres(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }

@@ -12,16 +12,16 @@ using Dapper;
 namespace ComandosColaTest
 {
     [Collection("Database")]
-    public class ProcesadorColaComandosTest : BaseIntegracionTest
+    public class ProcesadorColaComandosTest : BaseIntegracionPostgresTest
     {
-        private readonly RegistroComandos<string, ResultadoComando> _registro;
+        private readonly RegistroComandosPostgres<string, ResultadoComando> _registro;
         private readonly ILogger<ProcesadorColaComandos> _logger;
 
         protected override string PrefijoTest => "procesador_cola_";
 
         public ProcesadorColaComandosTest(DatabaseFixture fixture) : base(fixture)
         {
-            _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
+            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString);
             _logger = NullLogger<ProcesadorColaComandos>.Instance;
         }
 
@@ -34,7 +34,7 @@ namespace ComandosColaTest
         private IServiceScopeFactory CrearServiceScopeFactory(FactoriaComandos<string, ResultadoComando> factoria)
         {
             var services = new ServiceCollection();
-            services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandos(ConnectionString));
+            services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(ConnectionString));
             services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria);
 
             var provider = services.BuildServiceProvider();
@@ -112,7 +112,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandos(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
@@ -161,7 +161,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandos(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
@@ -206,7 +206,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandos(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
             int cantidadComandos = 5;
             for (int i = 0; i < cantidadComandos; i++)
             {
@@ -252,7 +252,7 @@ namespace ComandosColaTest
         {
             var ruta = PrefijoTest + "comando no registrado";
 
-            var almacen = new AlmacenColaComandos(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
@@ -278,7 +278,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandos(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
             int cantidadComandos = 4;
             for (int i = 0; i < cantidadComandos; i++)
             {

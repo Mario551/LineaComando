@@ -7,16 +7,16 @@ using PER.Comandos.LineaComandos.Registro;
 
 namespace ComandosColaTest
 {
-    [Collection("Database")]
-    public class RegistroComandosTest : BaseIntegracionTest
+    [Collection("DatabaseSqlServer")]
+    public class RegistroComandosSqlServerTest : BaseIntegracionSqlServerTest
     {
-        private readonly RegistroComandos<string, ResultadoComando> _registro;
+        private readonly RegistroComandosSqlServer<string, ResultadoComando> _registro;
 
         protected override string PrefijoTest => "registro_cmd_";
 
-        public RegistroComandosTest(DatabaseFixture fixture) : base(fixture)
+        public RegistroComandosSqlServerTest(DatabaseFixtureSqlServer fixture) : base(fixture)
         {
-            _registro = new RegistroComandos<string, ResultadoComando>(ConnectionString);
+            _registro = new RegistroComandosSqlServer<string, ResultadoComando>(ConnectionString);
         }
 
         [Fact]
@@ -41,7 +41,7 @@ namespace ComandosColaTest
 
             Assert.NotNull(comandoDb);
             Assert.Equal("Comando de prueba", (string)comandoDb.descripcion);
-            Assert.True((bool)comandoDb.activo);
+            Assert.Equal(1, (int)comandoDb.activo);
             Assert.True(metadatos.Id > 0);
         }
 
@@ -95,7 +95,7 @@ namespace ComandosColaTest
             {
                 await connection.OpenAsync();
                 await connection.ExecuteAsync(
-                    "UPDATE per_comandos_registrados SET activo = false WHERE ruta_comando = @Ruta",
+                    "UPDATE per_comandos_registrados SET activo = 0 WHERE ruta_comando = @Ruta",
                     new { Ruta = rutaInactivo });
             }
 
@@ -124,7 +124,7 @@ namespace ComandosColaTest
                 new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);
-            Assert.False((bool)comandoDb.activo);
+            Assert.Equal(0, (int)comandoDb.activo);
         }
 
         [Fact]

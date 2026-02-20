@@ -7,11 +7,11 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
     /// Servicio para inicializar el esquema de base de datos de la cola de comandos.
     /// Crea las tablas y funciones necesarias si no existen.
     /// </summary>
-    public class InicializadorEsquema
+    public class InicializadorEsquemaPostgres
     {
         private readonly string _connectionString;
 
-        public InicializadorEsquema(string connectionString)
+        public InicializadorEsquemaPostgres(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
@@ -66,7 +66,6 @@ namespace PER.Comandos.LineaComandos.Cola.Esquema
                     id SERIAL PRIMARY KEY,
                     ruta_comando VARCHAR(2048) NOT NULL UNIQUE,
                     descripcion TEXT NULL,
-                    esquema_parametros JSONB NULL,
                     activo BOOLEAN NOT NULL DEFAULT true,
                     creado_en TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
                     actualizado_en TIMESTAMP WITHOUT TIME ZONE NULL

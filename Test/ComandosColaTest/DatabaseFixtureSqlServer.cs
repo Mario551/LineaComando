@@ -3,20 +3,20 @@ using PER.Comandos.LineaComandos.EventDriven.Esquema;
 
 namespace ComandosColaTest;
 
-public class DatabaseFixture : IAsyncLifetime
+public class DatabaseFixtureSqlServer : IAsyncLifetime
 {
     public string ConnectionString { get; }
 
-    public DatabaseFixture()
+    public DatabaseFixtureSqlServer()
     {
-        ConnectionString = Environment.GetEnvironmentVariable("LINEA_COMANDOS_CONEXION_POSTGRESQL")
+        ConnectionString = Environment.GetEnvironmentVariable("LINEA_COMANDOS_CONEXION_SQLSERVER")
             ?? throw new InvalidOperationException(
-                "La variable de entorno LINEA_COMANDOS_CONEXION_POSTGRESQL no está configurada");
+                "La variable de entorno LINEA_COMANDOS_CONEXION_SQLSERVER no está configurada");
     }
 
     public async Task InitializeAsync()
     {
-        var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString);
+        var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString);
         await inicializadorCola.InicializarAsync();
 
         var inicializadorEventDriven = new InicializadorEsquemaEventDriven(ConnectionString);
@@ -29,7 +29,7 @@ public class DatabaseFixture : IAsyncLifetime
     }
 }
 
-[CollectionDefinition("Database")]
-public class DatabaseCollection : ICollectionFixture<DatabaseFixture>
+[CollectionDefinition("DatabaseSqlServer")]
+public class DatabaseCollectionSqlServer : ICollectionFixture<DatabaseFixtureSqlServer>
 {
 }

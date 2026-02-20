@@ -8,7 +8,7 @@ using System.Collections.Concurrent;
 
 namespace PER.Comandos.LineaComandos.Cola.Registro
 {
-    public class RegistroComandos<TRead, TWrite> : IRegistroComandos<TRead, TWrite>
+    public class RegistroComandosPostgres<TRead, TWrite> : IRegistroComandos<TRead, TWrite>
     {
         private readonly string _connectionString;
         private readonly Dictionary<string, IComandoCreador<TRead, TWrite>> _comandosRegistrados;
@@ -16,7 +16,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
         private ConcurrentDictionary<string, MetadatosComando> _metadatosComandosRegistrados;
         public IDictionary<string, MetadatosComando> ComandosRegistrados => _metadatosComandosRegistrados;
 
-        public RegistroComandos(string connectionString)
+        public RegistroComandosPostgres(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
             _metadatosComandosRegistrados = new ConcurrentDictionary<string, MetadatosComando>();
