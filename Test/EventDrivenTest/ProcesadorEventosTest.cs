@@ -143,7 +143,8 @@ namespace EventDrivenTest
                 c => c.EncolarAsync(
                     It.Is<ComandoEnCola>(cmd =>
                         cmd.RutaComando == "notificacion email" &&
-                        cmd.Argumentos == "--tipo=pedido" &&
+                        cmd.Argumentos.StartsWith("--origen=evento --codigo=pedido_creado") &&
+                        cmd.Argumentos.Contains("--tipo=pedido") &&
                         cmd.DatosDeComando == evento.DatosEvento),
                     It.IsAny<CancellationToken>()),
                 Times.Once);

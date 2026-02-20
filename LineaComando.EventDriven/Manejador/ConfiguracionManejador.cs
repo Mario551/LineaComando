@@ -62,9 +62,14 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
         /// </summary>
         public DateTime FechaCreacion { get; set; } = DateTime.Now;
 
-    /// <summary>
-    /// Fecha de la última ejecución del disparador programado.
-    /// </summary>
-    public DateTime? UltimaEjecucion { get; set; }
+        /// <summary>
+        /// Fecha de la última ejecución del disparador programado.
+        /// </summary>
+        public DateTime? UltimaEjecucion { get; set; }
+
+        /// <summary>
+        /// Código del disparador.
+        /// </summary>
+        public string Codigo { get; set; } = string.Empty;
     }
 }

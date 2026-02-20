@@ -1,8 +1,9 @@
+using System.Collections.Concurrent;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
-using System.Collections.Concurrent;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Servicio
 {
@@ -127,10 +128,17 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 IAlmacenColaComandos almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
                 IRegistroManejadores registroManejadores = scope.ServiceProvider.GetRequiredService<IRegistroManejadores>();
 
+                System.Text.StringBuilder sbArgumentos = new System.Text.StringBuilder();
+                sbArgumentos.Append("--origen=disparador");
+                sbArgumentos.Append(" --codigo=" + config.Codigo);
+                if (!string.IsNullOrEmpty(config.ArgumentosComando))
+                    sbArgumentos.Append(" " + config.ArgumentosComando);
+                string argumentos = sbArgumentos.ToString();
+
                 var comandoEnCola = new ComandoEnCola
                 {
                     RutaComando = config.RutaComando,
-                    Argumentos = config.ArgumentosComando ?? string.Empty,
+                    Argumentos = argumentos,
                     DatosDeComando = "{}",
                     FechaCreacion = DateTime.Now,
                     Estado = "Pendiente",

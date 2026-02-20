@@ -166,20 +166,36 @@ El `ServicioColaComandos` recogera automaticamente el comando y lo ejecutara.
 ### Flujo de Eventos
 
 ```
-[Tu Codigo] -> IColaEventos.GuardarEventoAsync() -> [Tabla per_eventos_outbox]
+[Tu Codigo] -> IColaEventos.GuardarEventoAsync(DatosEvento con AgregadoId opcional)
                                                               |
                                                               v
-[ServicioProcesadorEventos] <- ObtenerEventosPendientesAsync()
+[ServicioProcesadorEventos] <- ObtenerEventosPendientesAsync() lee EventoOutbox
             |
             v
-    ObtenerManejadoresParaEventoAsync()
+    Agrega parametros automaticos:
+    --origen=evento
+    --codigo={CodigoTipoEvento}
+    --agregado-id={valor} (solo si AgregadoId tiene valor)
             |
             v
-    Por cada manejador -> IAlmacenColaComandos.EncolarAsync()
+    ObtenerManejadoresParaEventoAsync() por CodigoTipoEvento
             |
             v
-[ServicioColaComandos] ejecuta el comando
+    Por cada manejador -> IAlmacenColaComandos.EncolarAsync(ComandoEnCola)
+            |
+            v
+[ServicioColaComandos] ejecuta el comando con todos los argumentos
 ```
+
+**Parametros Automaticos**: Cuando un comando se ejecuta a traves del sistema event-driven, se agregan automaticamente los siguientes parametros:
+
+| Parametro | Descripcion | Ejemplo |
+|-----------|-------------|---------|
+| `--origen` | Indica el origen: `evento` o `disparador` | `--origen=evento` |
+| `--codigo` | Codigo del tipo de evento o del disparador | `--codigo=ORDEN_CREADA` |
+| `--agregado-id` | ID del agregado (solo para eventos con AgregadoId) | `--agregado-id=123` |
+
+Estos parametros se antepone a los argumentos configurados en el manejador, permitiendo al comando conocer su contexto de ejecucion.
 
 ### Modelo de Datos Event-Driven
 
@@ -284,14 +300,58 @@ public class OrdenServicio
         {
             TipoEvento = "ORDEN_CREADA",
             AgregadoId = orden.Id,
-            Datos = JsonSerializer.Serialize(orden),
-            Metadatos = JsonSerializer.Serialize(new { Usuario = "sistema" })
+            Datos = JsonSerializer.Serialize(orden)
         });
     }
 }
 ```
 
-El `ServicioProcesadorEventos` detectara el evento y encolara el comando `notificacion enviar`.
+Cuando el `ServicioProcesadorEventos` procesa el evento, agrega automaticamente los parametros `--origen=evento`, `--codigo={tipoEvento}` y opcionalmente `--agregado-id={valor}` al comando. Estos parametros se antepone a los argumentos configurados en el manejador.
+
+El comando puede recibir estos parametros mediante la clase de parametros:
+
+```csharp
+public class NotificarOrdenComando : ComandoBase<string, ResultadoComando>
+{
+    private NotificarParametros _parametros;
+
+    public override void Preparar(
+        ICollection<Parametro> parametros,
+        IConfiguracion configuracion,
+        ILogger logger)
+    {
+        _parametros = Parametro.New<NotificarParametros>(parametros);
+    }
+
+    public override async Task EjecutarAsync(
+        IStream<string, ResultadoComando> stream,
+        CancellationToken token = default)
+    {
+        // _parametros.Origen indica si viene de "evento" o "disparador"
+        // _parametros.Codigo contiene el codigo del evento o disparador
+        // _parametros.AgregadoId contiene el ID del agregado (si aplica)
+        var datos = stream.ObtenerEntrada();
+
+        if (_parametros.Origen == "evento")
+        {
+            stream.Escribir(ResultadoComando.Exito(
+                $"Notificacion por evento {_parametros.Codigo} para agregado {_parametros.AgregadoId}"));
+        }
+    }
+}
+
+public class NotificarParametros : IParametro
+{
+    [Nombre("origen")]
+    public string Origen { get; set; } = string.Empty;
+    
+    [Nombre("codigo")]
+    public string Codigo { get; set; } = string.Empty;
+    
+    [Nombre("agregado-id")]
+    public long? AgregadoId { get; set; }
+}
+```
 
 ---
 
@@ -326,6 +386,12 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
     CreadoEn = DateTime.Now
 });
 ```
+
+**Parametros en Tareas Programadas**: Al igual que los eventos, las tareas programadas tambien reciben parametros automaticos:
+- `--origen=disparador`
+- `--codigo={codigoDelDisparador}`
+
+Esto permite que el mismo comando pueda distinguir si se ejecuta por un evento o por una tarea programada.
 
 ### Expresiones de Intervalo
 

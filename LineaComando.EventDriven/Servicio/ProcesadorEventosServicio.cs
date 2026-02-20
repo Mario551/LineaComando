@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
@@ -103,10 +104,19 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
             _logger.LogDebug("Encolando comando para handler {ManejadorId} en respuesta a evento {EventoId}",
                 config.IDManejador, evento.Id);
 
+            System.Text.StringBuilder sbArgumentos = new System.Text.StringBuilder();
+            sbArgumentos.Append("--origen=evento");
+            sbArgumentos.Append(" --codigo=" + evento.CodigoTipoEvento);
+            if (evento.AgregadoId != null)
+                sbArgumentos.Append(" --agregado-id=" + evento.AgregadoId);
+            if (!string.IsNullOrEmpty(config.ArgumentosComando))
+                sbArgumentos.Append(" " + config.ArgumentosComando);
+            string argumentos = sbArgumentos.ToString();
+
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = config.RutaComando,
-                Argumentos = config.ArgumentosComando ?? string.Empty,
+                Argumentos = argumentos,
                 DatosDeComando = evento.DatosEvento,
                 FechaCreacion = DateTime.Now,
                 Estado = "Pendiente",
