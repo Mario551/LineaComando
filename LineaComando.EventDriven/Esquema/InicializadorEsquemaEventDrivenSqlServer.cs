@@ -28,6 +28,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             await CrearTablaTiposEventoAsync(connection);
             await CrearTablaManejadoresEventoAsync(connection);
             await CrearTablaDisparadoresManejadorAsync(connection);
+            await MigrarTablaDisparadoresCodigoAsync(connection);
+            await MigrarTablaDisparadoresAsync(connection);
             await CrearTablaEventosOutboxAsync(connection);
             await CrearFuncionObtenerEventosPendientesAsync(connection);
         }
@@ -176,6 +178,48 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                 END";
 
             await connection.ExecuteAsync(sql);
+        }
+
+        private static async Task MigrarTablaDisparadoresCodigoAsync(SqlConnection connection)
+        {
+            const string sqlVerificar = @"
+                SELECT CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('per_disparadores_manejador') 
+                    AND name = 'codigo'
+                ) THEN 1 ELSE 0 END AS BIT);";
+
+            bool columnaExiste = await connection.ExecuteScalarAsync<bool>(sqlVerificar);
+
+            if (!columnaExiste)
+            {
+                const string sqlAgregar = @"
+                    ALTER TABLE per_disparadores_manejador
+                    ADD codigo NVARCHAR(255) NOT NULL UNIQUE;";
+
+                await connection.ExecuteAsync(sqlAgregar);
+            }
+        }
+
+        private static async Task MigrarTablaDisparadoresAsync(SqlConnection connection)
+        {
+            const string sqlVerificar = @"
+                SELECT CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('per_disparadores_manejador') 
+                    AND name = 'ultima_ejecucion'
+                ) THEN 1 ELSE 0 END AS BIT);";
+
+            bool columnaExiste = await connection.ExecuteScalarAsync<bool>(sqlVerificar);
+
+            if (!columnaExiste)
+            {
+                const string sqlAgregar = @"
+                    ALTER TABLE per_disparadores_manejador
+                    ADD ultima_ejecucion DATETIME2 NULL;";
+
+                await connection.ExecuteAsync(sqlAgregar);
+            }
         }
 
         private static async Task CrearTablaEventosOutboxAsync(SqlConnection connection)
