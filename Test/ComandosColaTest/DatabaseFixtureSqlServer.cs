@@ -19,8 +19,9 @@ public class DatabaseFixtureSqlServer : IAsyncLifetime
         var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString);
         await inicializadorCola.InicializarAsync();
 
-        var inicializadorEventDriven = new InicializadorEsquemaEventDriven(ConnectionString);
-        await inicializadorEventDriven.InicializarAsync();
+        // TODO: Crear InicializadorEsquemaEventDrivenSqlServer cuando se implemente soporte para SQL Server
+        // var inicializadorEventDriven = new InicializadorEsquemaEventDriven(ConnectionString);
+        // await inicializadorEventDriven.InicializarAsync();
     }
 
     public Task DisposeAsync()

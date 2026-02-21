@@ -62,10 +62,7 @@ BEGIN
 END
 
 -- Función para obtener comandos pendientes (solo lectura)
-IF OBJECT_ID('obtener_comandos_pendientes', 'IF') IS NOT NULL
-    DROP FUNCTION obtener_comandos_pendientes;
-
-CREATE FUNCTION obtener_comandos_pendientes(
+CREATE OR ALTER FUNCTION obtener_comandos_pendientes(
     @tamanio_lote INT = 50,
     @timeout_milisegundos INT = 300000
 )
@@ -94,10 +91,7 @@ RETURN
     );
 
 -- Procedimiento para marcar comandos como procesando
-IF OBJECT_ID('marcar_comandos_procesando', 'P') IS NOT NULL
-    DROP PROCEDURE marcar_comandos_procesando;
-
-CREATE PROCEDURE marcar_comandos_procesando
+CREATE OR ALTER PROCEDURE marcar_comandos_procesando
     @ids NVARCHAR(MAX)
 AS
 BEGIN
@@ -134,10 +128,7 @@ BEGIN
 END
 
 -- Procedimiento para actualizar fecha de lectura de comandos
-IF OBJECT_ID('actualizar_fecha_leido', 'P') IS NOT NULL
-    DROP PROCEDURE actualizar_fecha_leido;
-
-CREATE PROCEDURE actualizar_fecha_leido
+CREATE OR ALTER PROCEDURE actualizar_fecha_leido
     @ids NVARCHAR(MAX)
 AS
 BEGIN

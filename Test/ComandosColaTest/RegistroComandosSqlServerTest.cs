@@ -46,9 +46,9 @@ namespace ComandosColaTest
         }
 
         [Fact]
-        public async Task RegistrarComandoAsync_DebeActualizarComandoExistente()
+        public async Task RegistrarComandoAsync_NoDebeDuplicarComandoExistente()
         {
-            var ruta = PrefijoTest + "actualizar";
+            var ruta = PrefijoTest + "no_duplicar";
             var metadatos1 = new MetadatosComando
             {
                 RutaComando = ruta,
@@ -57,7 +57,7 @@ namespace ComandosColaTest
             var metadatos2 = new MetadatosComando
             {
                 RutaComando = ruta,
-                Descripcion = "Version 2 actualizada"
+                Descripcion = "Version 2"
             };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
 
@@ -76,7 +76,7 @@ namespace ComandosColaTest
                 new { Ruta = ruta });
 
             Assert.Equal(1, count);
-            Assert.Equal("Version 2 actualizada", (string)comandoDb.descripcion);
+            Assert.Equal("Version 1", (string)comandoDb.descripcion);
         }
 
         [Fact]

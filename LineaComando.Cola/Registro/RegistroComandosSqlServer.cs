@@ -90,15 +90,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             int id;
             if (idExistente.HasValue)
             {
-                const string sqlUpdate = @"
-                    UPDATE per_comandos_registrados
-                    SET activo = 1,
-                        actualizado_en = GETDATE()
-                    WHERE ruta_comando = @RutaComando;
-                    
-                    SELECT id FROM per_comandos_registrados WHERE ruta_comando = @RutaComando;";
-
-                id = await connection.ExecuteScalarAsync<int>(sqlUpdate, new { metadatos.RutaComando });
+                id = idExistente.Value;
             }
             else
             {
