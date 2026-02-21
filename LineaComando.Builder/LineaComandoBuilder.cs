@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -31,36 +32,37 @@ namespace PER.Comandos.LineaComandos.Builder
         internal string ConnectionString => _connectionString ?? "";
         internal IServiceCollection Services => _services;
 
-        private const int POSTGRESQL = 1;
-        private const int SQLSERVER = 2;
-        private const int SQLITE = 3;
+        public const int NONE = 0;
+        public const int POSTGRESQL = 1;
+        public const int SQLSERVER = 2;
+        public const int SQLITE = 3;
 
-        private int _tipoBaseDatos;
+        public int TipoBaseDatos { get; private set; }
 
         public LineaComandoBuilder(IServiceCollection services, Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> configuracionLineaComandos)
         {
             _services = services ?? throw new ArgumentNullException(nameof(services));
             ConfiguracionLineaComandos = configuracionLineaComandos ?? throw new ArgumentNullException(nameof(configuracionLineaComandos));
-            _tipoBaseDatos = 0;
+            TipoBaseDatos = NONE;
         }
 
         public LineaComandoBuilder UsePostgresql(string connectionString)
         {
-            _tipoBaseDatos = POSTGRESQL;
+            TipoBaseDatos = POSTGRESQL;
             _connectionString = connectionString;
             return this;
         }
 
         public LineaComandoBuilder UseSqlServer(string connectionString)
         {
-            _tipoBaseDatos = SQLSERVER;
+            TipoBaseDatos = SQLSERVER;
             _connectionString = connectionString;
             return this;
         }
 
         public LineaComandoBuilder UseSqlite(string connectionString)
         {
-            _tipoBaseDatos = SQLITE;
+            TipoBaseDatos = SQLITE;
             _connectionString = connectionString;
             return this;
         }
@@ -91,15 +93,28 @@ namespace PER.Comandos.LineaComandos.Builder
 
         public void Build()
         {
+            if (TipoBaseDatos == NONE)
+                throw new ArgumentException("Debe elegir una base de datos");
+
             if (string.IsNullOrEmpty(_connectionString))
                 throw new ArgumentException("Cadena de conexión debe estar definida");
 
             _services.AddSingleton(this);
-            _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(_connectionString));
+
+            if (TipoBaseDatos == POSTGRESQL)
+            {
+                _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(_connectionString));
+                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosPostgres<string, ResultadoComando>(_connectionString));
+            }
+            else if (TipoBaseDatos == SQLSERVER)
+            {
+                _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosSqlServer(_connectionString));
+                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosSqlServer<string, ResultadoComando>(_connectionString));
+            }
+
             _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadores(_connectionString));
             _services.AddSingleton<CoordinadorTareasProgramadas>();
             _services.AddHostedService<ServicioTareasProgramadas>();
-            _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosPostgres<string, ResultadoComando>(_connectionString));
             _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
             {
                 var registro = c.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();

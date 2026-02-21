@@ -25,10 +25,18 @@ namespace PER.Comandos.LineaComandos.Builder
         {
             var builder = services.GetRequiredService<LineaComandoBuilder>();
 
-            var inicializadorCola = new InicializadorEsquemaPostgres(builder.ConnectionString);
-            await inicializadorCola.InicializarAsync(token);
+            if (builder.TipoBaseDatos == LineaComandoBuilder.POSTGRESQL)
+            {
+                var inicializadorCola = new InicializadorEsquemaPostgres(builder.ConnectionString);
+                await inicializadorCola.InicializarAsync(token);
+            }
+            else if (builder.TipoBaseDatos == LineaComandoBuilder.SQLSERVER)
+            {
+                var inicializadorCola = new InicializadorEsquemaSqlServer(builder.ConnectionString);
+                await inicializadorCola.InicializarAsync(token);
+            }
 
-            var inicializadorEventDriven = new InicializadorEsquemaEventDriven(builder.ConnectionString);
+            var inicializadorEventDriven = new InicializadorEsquemaEventDrivenPostgres(builder.ConnectionString);
             await inicializadorEventDriven.InicializarAsync(token);
 
             await builder.ConfiguracionLineaComandos(services, new BuilderInicializador.BuilderInicializador(services), token);

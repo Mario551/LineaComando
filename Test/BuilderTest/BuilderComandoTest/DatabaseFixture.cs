@@ -19,7 +19,7 @@ public class DatabaseFixture : IAsyncLifetime
         var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString);
         await inicializadorCola.InicializarAsync();
 
-        var inicializadorEventDriven = new InicializadorEsquemaEventDriven(ConnectionString);
+        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenPostgres(ConnectionString);
         await inicializadorEventDriven.InicializarAsync();
     }
 
