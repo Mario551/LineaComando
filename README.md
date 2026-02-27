@@ -220,7 +220,7 @@ El `ServicioColaComandos` recogera automaticamente el comando y lo ejecutara.
 ### Flujo de Eventos
 
 ```
-[Tu Codigo] -> IColaEventos.GuardarEventoAsync(DatosEvento con AgregadoId opcional)
+[Tu Codigo] -> IRegistroEventoBuilder.Argumentos(tipoEvento, datos, agregadoId).RegistrarEnColaAsync()
                                                               |
                                                               v
 [ServicioProcesadorEventos] <- ObtenerEventosPendientesAsync() lee EventoOutbox
@@ -338,26 +338,25 @@ await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
 
 ### Publicar un Evento
 
+Para publicar un evento, utiliza `IRegistroEventoBuilder`. Este builder permite registrar eventos en la cola de manera fluida y tipada:
+
 ```csharp
 public class OrdenServicio
 {
-    private readonly IColaEventos _colaEventos;
+    private readonly IRegistroEventoBuilder _registroEventoBuilder;
 
-    public OrdenServicio(IColaEventos colaEventos)
+    public OrdenServicio(IRegistroEventoBuilder registroEventoBuilder)
     {
-        _colaEventos = colaEventos;
+        _registroEventoBuilder = registroEventoBuilder;
     }
 
     public async Task CrearOrdenAsync(Orden orden)
     {
         // Guardar orden...
 
-        await _colaEventos.GuardarEventoAsync(new DatosEvento
-        {
-            TipoEvento = "ORDEN_CREADA",
-            AgregadoId = orden.Id,
-            Datos = JsonSerializer.Serialize(orden)
-        });
+        await _registroEventoBuilder
+            .Argumentos("ORDEN_CREADA", orden, orden.Id)
+            .RegistrarEnColaAsync();
     }
 }
 ```
@@ -522,7 +521,7 @@ Las clases de registro utilizan una estrategia **insert-only**. Esto significa q
           |                                 |
           v                                 v
 +----------------------+         +-------------------+
-| IAlmacenColaComandos |         |    IColaEventos   |
+| IAlmacenColaComandos |         | IRegistroEventoBuilder |
 | (Encolar comandos)   |         | (Publicar eventos)|
 +----------------------+         +-------------------+
           |                                 |

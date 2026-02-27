@@ -118,6 +118,7 @@ namespace PER.Comandos.LineaComandos.Builder
                 _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoSqlServer(_connectionString));
             }
 
+            _services.AddTransient<IRegistroEventoBuilder, RegistroEventoBuilder>();
             _services.AddSingleton<CoordinadorTareasProgramadas>();
             _services.AddHostedService<ServicioTareasProgramadas>();
             _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
