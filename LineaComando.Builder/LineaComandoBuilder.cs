@@ -105,14 +105,19 @@ namespace PER.Comandos.LineaComandos.Builder
             {
                 _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(_connectionString));
                 _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosPostgres<string, ResultadoComando>(_connectionString));
+                _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresPostgres(_connectionString));
+                _services.AddTransient<IColaEventos>(sp => new ColaEventosPostgres(_connectionString));
+                _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoPostgres(_connectionString));
             }
             else if (TipoBaseDatos == SQLSERVER)
             {
                 _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosSqlServer(_connectionString));
                 _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosSqlServer<string, ResultadoComando>(_connectionString));
+                _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresSqlServer(_connectionString));
+                _services.AddTransient<IColaEventos>(sp => new ColaEventosSqlServer(_connectionString));
+                _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoSqlServer(_connectionString));
             }
 
-            _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresPostgres(_connectionString));
             _services.AddSingleton<CoordinadorTareasProgramadas>();
             _services.AddHostedService<ServicioTareasProgramadas>();
             _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
@@ -132,9 +137,7 @@ namespace PER.Comandos.LineaComandos.Builder
                     sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
 
             _services.AddHostedService<ServicioColaComandos>();
-            _services.AddTransient<IColaEventos>(sp => new ColaEventosPostgres(_connectionString));
             _services.AddTransient<IRegistrarEvento>(sp => new RegistrarEvento(sp));
-            _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoPostgres(_connectionString));
             _services.AddScoped<ProcesadorEventos>();
             _services.AddHostedService<ServicioProcesadorEventos>();
         }
