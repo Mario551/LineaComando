@@ -3,13 +3,13 @@ using Npgsql;
 
 namespace EventDrivenTest
 {
-    public abstract class BaseIntegracionTestEventDriven : IAsyncLifetime
+    public abstract class BaseIntegracionTestEventDrivenPostgres : IAsyncLifetime
     {
         protected readonly string ConnectionString;
 
         protected abstract string PrefijoTest { get; }
 
-        protected BaseIntegracionTestEventDriven(DatabaseFixtureEventDriven fixture)
+        protected BaseIntegracionTestEventDrivenPostgres(DatabaseFixtureEventDrivenPostgres fixture)
         {
             ConnectionString = fixture.ConnectionString;
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;

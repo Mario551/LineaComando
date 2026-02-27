@@ -1,13 +1,13 @@
 using Dapper;
-using Npgsql;
+using Microsoft.Data.SqlClient;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Outbox
 {
-    public class ColaEventos : IColaEventos
+    public class ColaEventosSqlServer : IColaEventos
     {
         private readonly string _connectionString;
 
-        public ColaEventos(string connectionString)
+        public ColaEventosSqlServer(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
@@ -24,12 +24,12 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
                 VALUES (
                     @TipoEvento,
                     @AgregadoId,
-                    @Datos::jsonb,
-                    NOW()
-                )
-                RETURNING id;";
+                    @Datos,
+                    GETDATE()
+                );
+                SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
 
-            using var connection = new NpgsqlConnection(_connectionString);
+            using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
             return await connection.ExecuteScalarAsync<long>(sql, datosEvento);
@@ -40,19 +40,18 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
             CancellationToken token = default)
         {
             const string sql = @"
-                SELECT
-                    id as Id,
-                    codigo_tipo_evento as CodigoTipoEvento,
-                    agregado_id as AgregadoId,
-                    datos_evento::text as DatosEvento,
-                    creado_en as CreadoEn,
-                    procesado_en as ProcesadoEn
+                SELECT TOP(@TamanioLote)
+                    id,
+                    codigo_tipo_evento,
+                    agregado_id,
+                    datos_evento,
+                    creado_en,
+                    procesado_en
                 FROM per_eventos_outbox
                 WHERE procesado_en IS NULL
-                ORDER BY creado_en
-                LIMIT @TamanioLote;";
+                ORDER BY creado_en;";
 
-            using var connection = new NpgsqlConnection(_connectionString);
+            using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
             return await connection.QueryAsync<EventoOutbox>(sql, new { TamanioLote = tamanioLote });
@@ -62,10 +61,10 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         {
             const string sql = @"
                 UPDATE per_eventos_outbox
-                SET procesado_en = NOW()
+                SET procesado_en = GETDATE()
                 WHERE id = @Id;";
 
-            using var connection = new NpgsqlConnection(_connectionString);
+            using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
             await connection.ExecuteAsync(sql, new { Id = eventoId });
@@ -75,13 +74,13 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         {
             const string sql = @"
                 UPDATE per_eventos_outbox
-                SET procesado_en = NOW()
-                WHERE id = ANY(@Ids);";
+                SET procesado_en = GETDATE()
+                WHERE id IN @Ids;";
 
-            using var connection = new NpgsqlConnection(_connectionString);
+            using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            await connection.ExecuteAsync(sql, new { Ids = eventosIds.ToArray() });
+            await connection.ExecuteAsync(sql, new { Ids = eventosIds });
         }
     }
 }

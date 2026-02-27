@@ -112,7 +112,7 @@ namespace PER.Comandos.LineaComandos.Builder
                 _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosSqlServer<string, ResultadoComando>(_connectionString));
             }
 
-            _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadores(_connectionString));
+            _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresPostgres(_connectionString));
             _services.AddSingleton<CoordinadorTareasProgramadas>();
             _services.AddHostedService<ServicioTareasProgramadas>();
             _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
@@ -132,9 +132,9 @@ namespace PER.Comandos.LineaComandos.Builder
                     sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
 
             _services.AddHostedService<ServicioColaComandos>();
-            _services.AddTransient<IColaEventos>(sp => new ColaEventos(_connectionString));
+            _services.AddTransient<IColaEventos>(sp => new ColaEventosPostgres(_connectionString));
             _services.AddTransient<IRegistrarEvento>(sp => new RegistrarEvento(sp));
-            _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEvento(_connectionString));
+            _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoPostgres(_connectionString));
             _services.AddScoped<ProcesadorEventos>();
             _services.AddHostedService<ServicioProcesadorEventos>();
         }

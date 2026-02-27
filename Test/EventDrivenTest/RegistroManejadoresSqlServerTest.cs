@@ -1,0 +1,497 @@
+using Dapper;
+using PER.Comandos.LineaComandos.EventDriven.DAO;
+using PER.Comandos.LineaComandos.EventDriven.Manejador;
+using PER.Comandos.LineaComandos.EventDriven.Registro;
+using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.Registro;
+
+namespace EventDrivenTest
+{
+    [Collection("DatabaseEventDrivenSqlServer")]
+    public class RegistroManejadoresSqlServerTest : BaseIntegracionTestEventDrivenSqlServer
+    {
+        private readonly RegistroManejadoresSqlServer _registroManejadores;
+        private readonly RegistroTiposEventoSqlServer _registroTipos;
+        private readonly RegistroComandosSqlServer<string, object> _registroComandos;
+
+        protected override string PrefijoTest => "registro_manejadores_sql_";
+
+        public RegistroManejadoresSqlServerTest(DatabaseFixtureEventDrivenSqlServer fixture) : base(fixture)
+        {
+            _registroManejadores = new RegistroManejadoresSqlServer(ConnectionString);
+            _registroTipos = new RegistroTiposEventoSqlServer(ConnectionString);
+            _registroComandos = new RegistroComandosSqlServer<string, object>(ConnectionString);
+        }
+
+        private async Task<int> CrearComandoRegistradoAsync(string rutaComando)
+        {
+            var metadatos = new MetadatosComando
+            {
+                RutaComando = rutaComando,
+                Descripcion = "Comando de prueba"
+            };
+
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            const string sql = @"
+                DECLARE @ResultId INT;
+
+                SELECT @ResultId = id FROM per_comandos_registrados WHERE ruta_comando = @RutaComando;
+
+                IF @ResultId IS NULL
+                BEGIN
+                    INSERT INTO per_comandos_registrados (ruta_comando, descripcion, activo, creado_en)
+                    VALUES (@RutaComando, @Descripcion, 1, GETDATE());
+                    
+                    SET @ResultId = SCOPE_IDENTITY();
+                END
+
+                SELECT @ResultId;";
+
+            var id = await connection.ExecuteScalarAsync<int>(sql, metadatos);
+
+            return id;
+        }
+
+        private async Task<int> CrearTipoEventoAsync(string codigo)
+        {
+            var tipo = new TipoEvento
+            {
+                Codigo = codigo,
+                Nombre = $"Tipo {codigo}",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            return await _registroTipos.RegistrarTipoEventoAsync(tipo);
+        }
+
+        private async Task CrearDisparadorAsync(int manejadorId, int tipoEventoId, int prioridad = 0)
+        {
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            string codigoDisparador = $"{PrefijoTest}disparador_{Guid.NewGuid()}";
+
+            await connection.ExecuteAsync(
+                @"INSERT INTO per_disparadores_manejador
+                  (manejador_evento_id, codigo, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, @Codigo, 'Evento', @TipoEventoId, 1, @Prioridad, GETDATE());",
+                new { ManejadorId = manejadorId, Codigo = codigoDisparador, TipoEventoId = tipoEventoId, Prioridad = prioridad });
+        }
+
+        private async Task CrearDisparadorProgramadoAsync(int manejadorId, string expresion, int prioridad = 0)
+        {
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            string codigoDisparador = $"{PrefijoTest}programado_{Guid.NewGuid()}";
+
+            await connection.ExecuteAsync(
+                @"INSERT INTO per_disparadores_manejador
+                  (manejador_evento_id, codigo, modo_disparo, expresion, activo, prioridad, creado_en)
+                  VALUES (@ManejadorId, @Codigo, 'Programado', @Expresion, 1, @Prioridad, GETDATE());",
+                new { ManejadorId = manejadorId, Codigo = codigoDisparador, Expresion = expresion, Prioridad = prioridad });
+        }
+
+        [Fact]
+        public async Task RegistrarManejadorAsync_DebeInsertarManejador()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_test");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_nuevo",
+                Nombre = "Manejador Nuevo",
+                Descripcion = "Descripcion del manejador",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_test",
+                ArgumentosComando = "--param=valor",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            Assert.True(id > 0);
+
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(id);
+
+            Assert.NotNull(manejadorDb);
+            Assert.Equal(manejador.Codigo, manejadorDb.Codigo);
+            Assert.Equal(manejador.Nombre, manejadorDb.Nombre);
+            Assert.Equal(manejador.RutaComando, manejadorDb.RutaComando);
+            Assert.Equal(manejador.ArgumentosComando, manejadorDb.ArgumentosComando);
+        }
+
+        [Fact]
+        public async Task RegistrarManejadorAsync_CodigoDuplicado_DebeRetornarIdExistente()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_upsert");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_upsert",
+                Nombre = "Nombre Original",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_upsert",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var id1 = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            manejador.Nombre = "Nombre Actualizado";
+            manejador.Descripcion = "Nueva descripcion";
+
+            var id2 = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            Assert.Equal(id1, id2);
+
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(id1);
+
+            Assert.NotNull(manejadorDb);
+            Assert.Equal("Nombre Original", manejadorDb.Nombre);
+            Assert.Null(manejadorDb.Descripcion);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadorPorIdAsync_ManejadorExistente_DebeRetornar()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_buscar_id");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "buscar_por_id",
+                Nombre = "Buscar Por Id",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_buscar_id",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(id);
+
+            Assert.NotNull(manejadorDb);
+            Assert.Equal(id, manejadorDb.Id);
+            Assert.Equal(manejador.Codigo, manejadorDb.Codigo);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadorPorIdAsync_ManejadorNoExistente_DebeRetornarNull()
+        {
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(999999);
+
+            Assert.Null(manejadorDb);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadorPorCodigoAsync_ManejadorExistente_DebeRetornar()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_buscar_codigo");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "buscar_por_codigo",
+                Nombre = "Buscar Por Codigo",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_buscar_codigo",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorCodigoAsync(manejador.Codigo);
+
+            Assert.NotNull(manejadorDb);
+            Assert.Equal(manejador.Codigo, manejadorDb.Codigo);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadorPorCodigoAsync_ManejadorNoExistente_DebeRetornarNull()
+        {
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorCodigoAsync(PrefijoTest + "no_existe");
+
+            Assert.Null(manejadorDb);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadoresActivosAsync_DebeRetornarSoloActivos()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_activos");
+
+            var manejadorActivo = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_activo",
+                Nombre = "Activo",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_activos",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var manejadorInactivo = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_inactivo",
+                Nombre = "Inactivo",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_activos",
+                Activo = false,
+                CreadoEn = DateTime.Now
+            };
+
+            await _registroManejadores.RegistrarManejadorAsync(manejadorActivo);
+            await _registroManejadores.RegistrarManejadorAsync(manejadorInactivo);
+
+            var activos = await _registroManejadores.ObtenerManejadoresActivosAsync();
+
+            var activosFiltrados = activos.Where(m => m.Codigo.StartsWith(PrefijoTest)).ToList();
+
+            Assert.Single(activosFiltrados);
+            Assert.Equal(manejadorActivo.Codigo, activosFiltrados.First().Codigo);
+        }
+
+        [Fact]
+        public async Task ActualizarManejadorAsync_DebeModificarDatos()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_actualizar");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_actualizar",
+                Nombre = "Nombre Original",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_actualizar",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            manejador.Id = id;
+            manejador.Nombre = "Nombre Modificado";
+            manejador.ArgumentosComando = "--nuevo=parametro";
+
+            await _registroManejadores.ActualizarManejadorAsync(manejador);
+
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(id);
+
+            Assert.NotNull(manejadorDb);
+            Assert.Equal("Nombre Modificado", manejadorDb.Nombre);
+            Assert.Equal("--nuevo=parametro", manejadorDb.ArgumentosComando);
+        }
+
+        [Fact]
+        public async Task DesactivarManejadorAsync_DebeCambiarActivo()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_desactivar");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_desactivar",
+                Nombre = "A Desactivar",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_desactivar",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var id = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            await _registroManejadores.DesactivarManejadorAsync(id);
+
+            var manejadorDb = await _registroManejadores.ObtenerManejadorPorIdAsync(id);
+
+            Assert.NotNull(manejadorDb);
+            Assert.False(manejadorDb.Activo);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadoresParaEventoAsync_DebeRetornarConfigurados()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_evento");
+            var tipoEventoId = await CrearTipoEventoAsync(PrefijoTest + "tipo_evento_test");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_evento",
+                Nombre = "Manejador Para Evento",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_evento",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
+            await CrearDisparadorAsync(manejadorId, tipoEventoId);
+
+            var configuraciones = await _registroManejadores.ObtenerManejadoresParaEventoAsync(PrefijoTest + "tipo_evento_test");
+
+            Assert.Single(configuraciones);
+            var config = configuraciones.First();
+            Assert.Equal(PrefijoTest + "comando_evento", config.RutaComando);
+            Assert.Equal("Evento", config.ModoDisparo);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadoresParaEventoAsync_ConPrioridad_DebeOrdenarPorPrioridad()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_prioridad");
+            var tipoEventoId = await CrearTipoEventoAsync(PrefijoTest + "tipo_prioridad");
+
+            var manejador1 = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_prioridad_baja",
+                Nombre = "Prioridad Baja",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_prioridad",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var manejador2 = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_prioridad_alta",
+                Nombre = "Prioridad Alta",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_prioridad",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var id1 = await _registroManejadores.RegistrarManejadorAsync(manejador1);
+            var id2 = await _registroManejadores.RegistrarManejadorAsync(manejador2);
+
+            await CrearDisparadorAsync(id1, tipoEventoId, prioridad: 10);
+            await CrearDisparadorAsync(id2, tipoEventoId, prioridad: 1);
+
+            var configuraciones = (await _registroManejadores.ObtenerManejadoresParaEventoAsync(PrefijoTest + "tipo_prioridad")).ToList();
+
+            Assert.Equal(2, configuraciones.Count);
+            Assert.Equal(1, configuraciones[0].Prioridad);
+            Assert.Equal(10, configuraciones[1].Prioridad);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadoresProgramadosAsync_DebeRetornarProgramados()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_programado");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_programado",
+                Nombre = "Manejador Programado",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_programado",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
+            await CrearDisparadorProgramadoAsync(manejadorId, "00:01:00:00");
+
+            var configuraciones = await _registroManejadores.ObtenerManejadoresProgramadosAsync();
+
+            var configFiltradas = configuraciones.Where(c => c.RutaComando.StartsWith(PrefijoTest)).ToList();
+
+            Assert.Single(configFiltradas);
+            Assert.Equal("Programado", configFiltradas.First().ModoDisparo);
+            Assert.Equal("00:01:00:00", configFiltradas.First().Expresion);
+        }
+
+        [Fact]
+        public async Task ObtenerManejadoresParaEventoAsync_ManejadorInactivo_NoDebeRetornar()
+        {
+            var comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_inactivo");
+            var tipoEventoId = await CrearTipoEventoAsync(PrefijoTest + "tipo_inactivo_test");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_inactivo_test",
+                Nombre = "Manejador Inactivo",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_inactivo",
+                Activo = false,
+                CreadoEn = DateTime.Now
+            };
+
+            var manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
+            await CrearDisparadorAsync(manejadorId, tipoEventoId);
+
+            var configuraciones = await _registroManejadores.ObtenerManejadoresParaEventoAsync(PrefijoTest + "tipo_inactivo_test");
+
+            Assert.Empty(configuraciones);
+        }
+
+        [Fact]
+        public async Task RegistrarDisparadorAsync_DebeInsertarYConsultarDisparador()
+        {
+            int comandoId = await CrearComandoRegistradoAsync(PrefijoTest + "comando_disparador");
+            int tipoEventoId = await CrearTipoEventoAsync(PrefijoTest + "tipo_disparador");
+
+            var manejador = new ManejadorEvento
+            {
+                Codigo = PrefijoTest + "manejador_disparador",
+                Nombre = "Manejador Disparador",
+                IdComandoRegistrado = comandoId,
+                RutaComando = PrefijoTest + "comando_disparador",
+                Activo = true,
+                CreadoEn = DateTime.Now
+            };
+
+            int manejadorId = await _registroManejadores.RegistrarManejadorAsync(manejador);
+
+            var disparador = new DisparadorManejador
+            {
+                ManejadorEventoId = manejadorId,
+                Codigo = PrefijoTest + "disparador_unico",
+                ModoDisparo = "Evento",
+                TipoEventoId = tipoEventoId,
+                Activo = true,
+                Prioridad = 1,
+                CreadoEn = DateTime.Now
+            };
+
+            int disparadorId = await _registroManejadores.RegistrarDisparadorAsync(disparador);
+
+            Assert.True(disparadorId > 0);
+
+            DisparadorManejador? disparadorDb = await ObtenerDisparadorPorIdAsync(disparadorId);
+
+            Assert.NotNull(disparadorDb);
+            Assert.Equal(disparador.Codigo, disparadorDb.Codigo);
+            Assert.Equal(disparador.ManejadorEventoId, disparadorDb.ManejadorEventoId);
+        }
+
+        private async Task<DisparadorManejador?> ObtenerDisparadorPorIdAsync(int id)
+        {
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            return await connection.QueryFirstOrDefaultAsync<DisparadorManejador>(
+                @"SELECT 
+                    id,
+                    manejador_evento_id,
+                    codigo,
+                    modo_disparo,
+                    tipo_evento_id,
+                    expresion,
+                    activo,
+                    prioridad,
+                    creado_en
+                  FROM per_disparadores_manejador
+                  WHERE id = @Id;",
+                new { Id = id });
+        }
+
+        [Fact]
+        public void Constructor_ConnectionStringNulo_DebeLanzarExcepcion()
+        {
+            Assert.Throws<ArgumentNullException>(() => new RegistroManejadoresSqlServer(null!));
+        }
+    }
+}

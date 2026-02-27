@@ -3,16 +3,16 @@ using PER.Comandos.LineaComandos.EventDriven.Outbox;
 
 namespace EventDrivenTest
 {
-    [Collection("DatabaseEventDriven")]
-    public class ColaEventosTest : BaseIntegracionTestEventDriven
+    [Collection("DatabaseEventDrivenSqlServer")]
+    public class ColaEventosSqlServerTest : BaseIntegracionTestEventDrivenSqlServer
     {
-        private readonly ColaEventos _almacen;
+        private readonly ColaEventosSqlServer _almacen;
 
-        protected override string PrefijoTest => "almacen_outbox_";
+        protected override string PrefijoTest => "almacen_outbox_sql_";
 
-        public ColaEventosTest(DatabaseFixtureEventDriven fixture) : base(fixture)
+        public ColaEventosSqlServerTest(DatabaseFixtureEventDrivenSqlServer fixture) : base(fixture)
         {
-            _almacen = new ColaEventos(ConnectionString);
+            _almacen = new ColaEventosSqlServer(ConnectionString);
         }
 
         [Fact]
@@ -33,9 +33,9 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var evento = await connection.QuerySingleAsync<EventoOutbox>(
-                @"SELECT id as Id, codigo_tipo_evento as CodigoTipoEvento, agregado_id as AgregadoId,
-                  datos_evento::text as DatosEvento,
-                  creado_en as CreadoEn, procesado_en as ProcesadoEn
+                @"SELECT id, codigo_tipo_evento, agregado_id,
+                  datos_evento,
+                  creado_en, procesado_en
                   FROM per_eventos_outbox WHERE id = @Id",
                 new { Id = id });
 
@@ -137,8 +137,8 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var procesados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM per_eventos_outbox WHERE id = ANY(@Ids) AND procesado_en IS NOT NULL",
-                new { Ids = ids.ToArray() });
+                "SELECT COUNT(*) FROM per_eventos_outbox WHERE id IN @Ids AND procesado_en IS NOT NULL",
+                new { Ids = ids });
 
             Assert.Equal(3, procesados);
         }
@@ -190,7 +190,7 @@ namespace EventDrivenTest
         [Fact]
         public void Constructor_ConnectionStringNulo_DebeLanzarExcepcion()
         {
-            Assert.Throws<ArgumentNullException>(() => new ColaEventos(null!));
+            Assert.Throws<ArgumentNullException>(() => new ColaEventosSqlServer(null!));
         }
     }
 }

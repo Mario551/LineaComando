@@ -29,9 +29,9 @@ public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
         services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(
             new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString));
         services.AddSingleton<IRegistroManejadores>(
-            new RegistroManejadores(ConnectionString));
+            new RegistroManejadoresPostgres(ConnectionString));
         services.AddSingleton<IRegistroTiposEvento>(
-            new RegistroTiposEvento(ConnectionString));
+            new RegistroTiposEventoPostgres(ConnectionString));
         _serviceProvider = services.BuildServiceProvider();
     }
 

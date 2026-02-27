@@ -5,14 +5,14 @@ using PER.Comandos.LineaComandos.EventDriven.DAO;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Registro
 {
-    public class RegistroTiposEvento : IRegistroTiposEvento
+    public class RegistroTiposEventoPostgres : IRegistroTiposEvento
     {
         private readonly string _connectionString;
         private ConcurrentDictionary<string, TipoEvento> _tiposEventosRegistrados;
 
         public IDictionary<string, TipoEvento> TiposEventosRegistrados => _tiposEventosRegistrados;
 
-        public RegistroTiposEvento(string connectionString)
+        public RegistroTiposEventoPostgres(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
             _tiposEventosRegistrados = new ConcurrentDictionary<string, TipoEvento>();

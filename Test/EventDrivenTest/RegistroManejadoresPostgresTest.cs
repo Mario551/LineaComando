@@ -7,19 +7,19 @@ using PER.Comandos.LineaComandos.Registro;
 
 namespace EventDrivenTest
 {
-    [Collection("DatabaseEventDriven")]
-    public class RegistroManejadoresTest : BaseIntegracionTestEventDriven
+    [Collection("DatabaseEventDrivenPostgres")]
+    public class RegistroManejadoresPostgresTest : BaseIntegracionTestEventDrivenPostgres
     {
-        private readonly RegistroManejadores _registroManejadores;
-        private readonly RegistroTiposEvento _registroTipos;
+        private readonly RegistroManejadoresPostgres _registroManejadores;
+        private readonly RegistroTiposEventoPostgres _registroTipos;
         private readonly RegistroComandosPostgres<string, object> _registroComandos;
 
         protected override string PrefijoTest => "registro_manejadores_";
 
-        public RegistroManejadoresTest(DatabaseFixtureEventDriven fixture) : base(fixture)
+        public RegistroManejadoresPostgresTest(DatabaseFixtureEventDrivenPostgres fixture) : base(fixture)
         {
-            _registroManejadores = new RegistroManejadores(ConnectionString);
-            _registroTipos = new RegistroTiposEvento(ConnectionString);
+            _registroManejadores = new RegistroManejadoresPostgres(ConnectionString);
+            _registroTipos = new RegistroTiposEventoPostgres(ConnectionString);
             _registroComandos = new RegistroComandosPostgres<string, object>(ConnectionString);
         }
 
@@ -482,7 +482,7 @@ namespace EventDrivenTest
         [Fact]
         public void Constructor_ConnectionStringNulo_DebeLanzarExcepcion()
         {
-            Assert.Throws<ArgumentNullException>(() => new RegistroManejadores(null!));
+            Assert.Throws<ArgumentNullException>(() => new RegistroManejadoresPostgres(null!));
         }
     }
 }

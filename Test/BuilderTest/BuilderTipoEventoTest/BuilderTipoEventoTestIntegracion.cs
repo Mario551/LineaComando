@@ -18,7 +18,7 @@ public class BuilderTipoEventoTestIntegracion : BaseIntegracionTestBuilder
     {
         var services = new ServiceCollection();
         services.AddSingleton<IRegistroTiposEvento>(
-            new RegistroTiposEvento(ConnectionString));
+            new RegistroTiposEventoPostgres(ConnectionString));
         _serviceProvider = services.BuildServiceProvider();
     }
 

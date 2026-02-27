@@ -8,14 +8,14 @@ using PER.Comandos.LineaComandos.Cola.Almacen;
 
 namespace EventDrivenTest
 {
-    public class ProcesadorEventosTest
+    public class ProcesadorEventosPostgresTest
     {
         private readonly Mock<IColaEventos> _mockAlmacenOutbox;
         private readonly Mock<IRegistroManejadores> _mockRegistroManejadores;
         private readonly Mock<IAlmacenColaComandos> _mockAlmacenCola;
         private readonly ILogger<ProcesadorEventos> _logger;
 
-        public ProcesadorEventosTest()
+        public ProcesadorEventosPostgresTest()
         {
             _mockAlmacenOutbox = new Mock<IColaEventos>();
             _mockRegistroManejadores = new Mock<IRegistroManejadores>();

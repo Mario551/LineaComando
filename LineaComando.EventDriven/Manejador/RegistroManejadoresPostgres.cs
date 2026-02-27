@@ -4,11 +4,11 @@ using PER.Comandos.LineaComandos.EventDriven.DAO;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 {
-    public class RegistroManejadores : IRegistroManejadores
+    public class RegistroManejadoresPostgres : IRegistroManejadores
     {
         private readonly string _connectionString;
 
-        public RegistroManejadores(string connectionString)
+        public RegistroManejadoresPostgres(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
@@ -278,7 +278,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 UPDATE per_disparadores_manejador
                 SET
                     modo_disparo = @ModoDisparo,
-                    expresion = @ExpresionCron,
+                    expresion = @Expresion,
                     activo = @Activo,
                     prioridad = @Prioridad
                 WHERE id = @Id;";

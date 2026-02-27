@@ -4,16 +4,16 @@ using PER.Comandos.LineaComandos.EventDriven.Registro;
 
 namespace EventDrivenTest
 {
-    [Collection("DatabaseEventDriven")]
-    public class RegistroTiposEventoTest : BaseIntegracionTestEventDriven
+    [Collection("DatabaseEventDrivenPostgres")]
+    public class RegistroTiposEventoPostgresTest : BaseIntegracionTestEventDrivenPostgres
     {
-        private readonly RegistroTiposEvento _registro;
+        private readonly RegistroTiposEventoPostgres _registro;
 
         protected override string PrefijoTest => "registro_tipos_";
 
-        public RegistroTiposEventoTest(DatabaseFixtureEventDriven fixture) : base(fixture)
+        public RegistroTiposEventoPostgresTest(DatabaseFixtureEventDrivenPostgres fixture) : base(fixture)
         {
-            _registro = new RegistroTiposEvento(ConnectionString);
+            _registro = new RegistroTiposEventoPostgres(ConnectionString);
         }
 
         [Fact]
@@ -236,7 +236,7 @@ namespace EventDrivenTest
         [Fact]
         public void Constructor_ConnectionStringNulo_DebeLanzarExcepcion()
         {
-            Assert.Throws<ArgumentNullException>(() => new RegistroTiposEvento(null!));
+            Assert.Throws<ArgumentNullException>(() => new RegistroTiposEventoPostgres(null!));
         }
     }
 }

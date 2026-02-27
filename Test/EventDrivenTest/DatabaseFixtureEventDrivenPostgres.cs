@@ -3,11 +3,11 @@ using PER.Comandos.LineaComandos.EventDriven.Esquema;
 
 namespace EventDrivenTest;
 
-public class DatabaseFixtureEventDriven : IAsyncLifetime
+public class DatabaseFixtureEventDrivenPostgres : IAsyncLifetime
 {
     public string ConnectionString { get; }
 
-    public DatabaseFixtureEventDriven()
+    public DatabaseFixtureEventDrivenPostgres()
     {
         ConnectionString = Environment.GetEnvironmentVariable("LINEA_COMANDOS_CONEXION_POSTGRESQL")
             ?? throw new InvalidOperationException(
@@ -29,7 +29,7 @@ public class DatabaseFixtureEventDriven : IAsyncLifetime
     }
 }
 
-[CollectionDefinition("DatabaseEventDriven")]
-public class DatabaseEventDrivenCollection : ICollectionFixture<DatabaseFixtureEventDriven>
+[CollectionDefinition("DatabaseEventDrivenPostgres")]
+public class DatabaseEventDrivenCollection : ICollectionFixture<DatabaseFixtureEventDrivenPostgres>
 {
 }

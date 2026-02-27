@@ -230,7 +230,7 @@ El sistema event-driven utiliza tres tablas relacionadas:
 ### Registrar un Tipo de Evento
 
 ```csharp
-var registroTipos = new RegistroTiposEvento(connectionString);
+var registroTipos = new RegistroTiposEventoPostgres(connectionString);
 
 await registroTipos.RegistrarTipoEventoAsync(new TipoEvento
 {
@@ -247,7 +247,7 @@ await registroTipos.RegistrarTipoEventoAsync(new TipoEvento
 Un manejador vincula un tipo de evento con un comando a ejecutar:
 
 ```csharp
-var registroManejadores = new RegistroManejadores(connectionString);
+var registroManejadores = new RegistroManejadoresPostgres(connectionString);
 
 var manejadorId = await registroManejadores.RegistrarManejadorAsync(new ManejadorEvento
 {
@@ -364,7 +364,7 @@ El sistema rastrea la ultima ejecucion de cada tarea mediante el campo `ultima_e
 ### Registrar una Tarea Programada
 
 ```csharp
-var registroManejadores = new RegistroManejadores(connectionString);
+var registroManejadores = new RegistroManejadoresPostgres(connectionString);
 
 var manejadorId = await registroManejadores.RegistrarManejadorAsync(new ManejadorEvento
 {
