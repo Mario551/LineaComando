@@ -5,7 +5,7 @@ Sistema de procesamiento de comandos y eventos para aplicaciones .NET. Incluye c
 ## Dependencias
 
 - .NET 8.0+
-- PostgreSQL (Npgsql)
+- PostgreSQL (Npgsql), SQL Server (Microsoft.Data.SqlClient) o SQLite
 - Dapper
 - Microsoft.Extensions.Hosting
 - Microsoft.Extensions.DependencyInjection
@@ -29,11 +29,35 @@ Agregar referencias a los proyectos necesarios:
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddLineaComando(builder.Configuration.GetConnectionString("Default")!)
-    .ConColaComandos(tiempoRefresco: TimeSpan.FromSeconds(2), maxParalelismo: 8)
-    .ConEventDriven(
-        tiempoRefrescoEventos: TimeSpan.FromSeconds(1),
-        tiempoRefrescoTareas: TimeSpan.FromSeconds(5))
+    .AddLineaComando(async (sp, builderInicializador, token) =>
+    {
+        // IBuilderComando, IBuilderManejador, etc. se obtienen de ServiceProvider
+        // Usa builderInicializador.NewBuilderComando() para crear nuevos builders
+        // Usa builderInicializador.NewBuilderTipoEvento() para crear builders de tipos de evento
+
+        IBuilderComando builderComando = builderInicializador.NewBuilderComando();
+
+        IBuilderManejador builderManejador = await builderComando
+            .Argumentos("orden pagar", "Procesa el pago de una orden")
+            .Accion(new PagarOrdenComando())
+            .RegistrarAsync();
+
+        IBuilderTipoEvento builderTipoEvento = builderInicializador.NewBuilderTipoEvento();
+        ITipoEvento tipoEvento = await builderTipoEvento
+            .Argumentos("ORDEN_CREADA", "Orden Creada", "Se emite cuando se crea una nueva orden")
+            .RegistrarAsync();
+
+        IBuilderDisparador builderDisparador = await builderManejador
+            .Argumentos("NOTIFICAR_ORDEN_CREADA", "Notificar orden creada", string.Empty, "Envia notificacion al crear una orden")
+            .RegistrarAsync();
+
+        await builderDisparador
+            .Argumentos("DISPARADOR_ORDEN_CREADA", 1, tipoEvento)
+            .RegistrarAsync();
+    })
+    .UseSqlServer(builder.Configuration.GetConnectionString("Default")!)
+    .SetTiempoRefrescoColaComandos(TimeSpan.FromSeconds(1))
+    .SetMaxParalelismoCola(4)
     .Build();
 
 var app = builder.Build();
@@ -50,9 +74,19 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
         services
-            .AddLineaComando(context.Configuration.GetConnectionString("Default")!)
-            .ConColaComandos()
-            .ConEventDriven()
+            .AddLineaComando(async (sp, builderInicializador, token) =>
+            {
+                // Configura comandos, manejadores, eventos usando los builders
+                IBuilderComando builderComando = builderInicializador.NewBuilderComando();
+
+                await builderComando
+                    .Argumentos("orden pagar", "Procesa el pago de una orden")
+                    .Accion(new PagarOrdenComando())
+                    .RegistrarAsync();
+            })
+            .UsePostgresql(context.Configuration.GetConnectionString("Default")!)
+            .SetTiempoRefrescoColaComandos(TimeSpan.FromSeconds(1))
+            .SetMaxParalelismoCola(4)
             .Build();
     })
     .Build();
@@ -60,6 +94,25 @@ var host = Host.CreateDefaultBuilder(args)
 await host.InicializarLineaComandoAsync();
 await host.RunAsync();
 ```
+
+### Seleccion de Base de Datos
+
+El builder permite elegir entre PostgreSQL, SQL Server o SQLite mediante los metodos:
+
+- `.UsePostgresql(connectionString)` - Para PostgreSQL
+- `.UseSqlServer(connectionString)` - Para SQL Server
+- `.UseSqlite(connectionString)` - Para SQLite
+
+La implementacion concreta de las interfaces se registra automaticamente en el contenedor de dependencias segun la base de datos seleccionada.
+
+### Configuracion de Parametros
+
+| Metodo | Descripcion | Valor por Defecto |
+|--------|-------------|-------------------|
+| `SetTiempoRefrescoColaComandos(TimeSpan)` | Intervalo de escaneo de la cola de comandos | 1 segundo |
+| `SetTiempoRefrescoColaEventos(TimeSpan)` | Intervalo de escaneo de eventos pendientes | 1 segundo |
+| `SetTiempoRefrescoColaTareas(TimeSpan)` | Intervalo de verificacion de tareas programadas | 1 segundo |
+| `SetMaxParalelismoCola(int)` | Maximo de comandos ejecutandose en paralelo | 4 |
 
 ## Servicios en Segundo Plano
 
@@ -117,7 +170,8 @@ public class PagarOrdenParametros : IParametro
 ### Registrar un Comando
 
 ```csharp
-var registroComandos = new RegistroComandosPostgres<string, ResultadoComando>(connectionString);
+// IRegistroComandos se obtiene via ServiceProvider (inyeccion de dependencias)
+IRegistroComandos<string, ResultadoComando> registroComandos = /* desde DI */;
 
 await registroComandos.RegistrarComandoAsync(
     new MetadatosComando
@@ -230,7 +284,8 @@ El sistema event-driven utiliza tres tablas relacionadas:
 ### Registrar un Tipo de Evento
 
 ```csharp
-var registroTipos = new RegistroTiposEventoPostgres(connectionString);
+// IRegistroTiposEvento se obtiene via ServiceProvider (inyeccion de dependencias)
+IRegistroTiposEvento registroTipos = /* desde DI */;
 
 await registroTipos.RegistrarTipoEventoAsync(new TipoEvento
 {
@@ -247,7 +302,8 @@ await registroTipos.RegistrarTipoEventoAsync(new TipoEvento
 Un manejador vincula un tipo de evento con un comando a ejecutar:
 
 ```csharp
-var registroManejadores = new RegistroManejadoresPostgres(connectionString);
+// IRegistroManejadores se obtiene via ServiceProvider (inyeccion de dependencias)
+IRegistroManejadores registroManejadores = /* desde DI */;
 
 var manejadorId = await registroManejadores.RegistrarManejadorAsync(new ManejadorEvento
 {
@@ -364,7 +420,8 @@ El sistema rastrea la ultima ejecucion de cada tarea mediante el campo `ultima_e
 ### Registrar una Tarea Programada
 
 ```csharp
-var registroManejadores = new RegistroManejadoresPostgres(connectionString);
+// IRegistroManejadores se obtiene via ServiceProvider (inyeccion de dependencias)
+IRegistroManejadores registroManejadores = /* desde DI */;
 
 var manejadorId = await registroManejadores.RegistrarManejadorAsync(new ManejadorEvento
 {
@@ -424,6 +481,8 @@ Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`
 - `per_disparadores_manejador`: Configuracion de cuando se dispara cada manejador
 - `per_eventos_outbox`: Eventos publicados pendientes de procesar
 
+> **Nota**: El esquema de base de datos es compatible con PostgreSQL, SQL Server y SQLite. Los tipos de datos se adaptan automaticamente segun el motor de base de datos seleccionado.
+
 ---
 
 ## Comportamiento en Conflictos (Insert-Only)
@@ -470,7 +529,7 @@ Las clases de registro utilizan una estrategia **insert-only**. Esto significa q
           v                                 v
 +-------------------+            +-------------------+
 | per_cola_comandos |            | per_eventos_outbox|
-| (Tabla PostgreSQL)|            | (Tabla PostgreSQL)|
+| (Tabla de BD)     |            | (Tabla de BD)     |
 +-------------------+            +-------------------+
           ^                                 |
           |                                 v
