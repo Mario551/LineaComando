@@ -4,7 +4,7 @@ using Moq;
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
 using PER.Comandos.LineaComandos.EventDriven.Servicio;
-using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Colas;
 
 namespace EventDrivenTest
 {
@@ -12,14 +12,14 @@ namespace EventDrivenTest
     {
         private readonly Mock<IColaEventos> _mockAlmacenOutbox;
         private readonly Mock<IRegistroManejadores> _mockRegistroManejadores;
-        private readonly Mock<IAlmacenColaComandos> _mockAlmacenCola;
+        private readonly Mock<IColaComandosMemoria> _mockColaComandosMemoria;
         private readonly ILogger<ProcesadorEventos> _logger;
 
         public ProcesadorEventosPostgresTest()
         {
             _mockAlmacenOutbox = new Mock<IColaEventos>();
             _mockRegistroManejadores = new Mock<IRegistroManejadores>();
-            _mockAlmacenCola = new Mock<IAlmacenColaComandos>();
+            _mockColaComandosMemoria = new Mock<IColaComandosMemoria>();
             _logger = NullLogger<ProcesadorEventos>.Instance;
         }
 
@@ -30,7 +30,7 @@ namespace EventDrivenTest
                 new ProcesadorEventos(
                     null!,
                     _mockRegistroManejadores.Object,
-                    _mockAlmacenCola.Object,
+                    _mockColaComandosMemoria.Object,
                     _logger));
         }
 
@@ -41,19 +41,19 @@ namespace EventDrivenTest
                 new ProcesadorEventos(
                     _mockAlmacenOutbox.Object,
                     null!,
-                    _mockAlmacenCola.Object,
+                    _mockColaComandosMemoria.Object,
                     _logger));
         }
 
         [Fact]
-        public void Constructor_AlmacenColaNulo_DebeLanzarExcepcion()
+        public void Constructor_ColaComandosMemoriaNulo_DebeLanzarExcepcion()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new ProcesadorEventos(
-                    _mockAlmacenOutbox.Object,
-                    _mockRegistroManejadores.Object,
-                    null!,
-                    _logger));
+                      new ProcesadorEventos(
+                          _mockAlmacenOutbox.Object,
+                          _mockRegistroManejadores.Object,
+                      (IColaComandosMemoria)null!,
+                      _logger));
         }
 
         [Fact]
@@ -63,7 +63,7 @@ namespace EventDrivenTest
                 new ProcesadorEventos(
                     _mockAlmacenOutbox.Object,
                     _mockRegistroManejadores.Object,
-                    _mockAlmacenCola.Object,
+                    _mockColaComandosMemoria.Object,
                     null!));
         }
 
@@ -77,7 +77,7 @@ namespace EventDrivenTest
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();
@@ -90,8 +90,8 @@ namespace EventDrivenTest
                 r => r.ObtenerManejadoresParaEventoAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
                 Times.Never);
 
-            _mockAlmacenCola.Verify(
-                c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()),
+            _mockColaComandosMemoria.Verify(
+                c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -127,21 +127,21 @@ namespace EventDrivenTest
                 .Setup(r => r.ObtenerManejadoresParaEventoAsync("pedido_creado", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { configuracion });
 
-            _mockAlmacenCola
-                .Setup(c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1L);
+            _mockColaComandosMemoria
+                .Setup(c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ComandoEncolado { ComandoId = 1L });
 
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();
 
-            _mockAlmacenCola.Verify(
+            _mockColaComandosMemoria.Verify(
                 c => c.EncolarAsync(
-                    It.Is<ComandoEnCola>(cmd =>
+                    It.Is<SolicitudComando>(cmd =>
                         cmd.RutaComando == "notificacion email" &&
                         cmd.Argumentos.StartsWith("--origen=evento --codigo=pedido_creado") &&
                         cmd.Argumentos.Contains("--tipo=pedido") &&
@@ -176,13 +176,13 @@ namespace EventDrivenTest
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();
 
-            _mockAlmacenCola.Verify(
-                c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()),
+            _mockColaComandosMemoria.Verify(
+                c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()),
                 Times.Never);
 
             _mockAlmacenOutbox.Verify(
@@ -227,20 +227,20 @@ namespace EventDrivenTest
                 .Setup(r => r.ObtenerManejadoresParaEventoAsync("pedido_creado", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(configuraciones);
 
-            _mockAlmacenCola
-                .Setup(c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1L);
+            _mockColaComandosMemoria
+                .Setup(c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ComandoEncolado { ComandoId = 1L });
 
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();
 
-            _mockAlmacenCola.Verify(
-                c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()),
+            _mockColaComandosMemoria.Verify(
+                c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()),
                 Times.Exactly(2));
         }
 
@@ -267,7 +267,7 @@ namespace EventDrivenTest
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync(token: cts.Token);
@@ -287,7 +287,7 @@ namespace EventDrivenTest
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync(tamanioLote: 100);
@@ -318,7 +318,7 @@ namespace EventDrivenTest
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();
@@ -358,13 +358,13 @@ namespace EventDrivenTest
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();
 
-            _mockAlmacenCola.Verify(
-                c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()),
+            _mockColaComandosMemoria.Verify(
+                c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -395,14 +395,14 @@ namespace EventDrivenTest
                 .Setup(r => r.ObtenerManejadoresParaEventoAsync("evento_error", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new[] { configuracion });
 
-            _mockAlmacenCola
-                .Setup(c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()))
+            _mockColaComandosMemoria
+                .Setup(c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new InvalidOperationException("Error al encolar"));
 
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() => procesador.ProcesarLoteAsync());
@@ -435,15 +435,15 @@ namespace EventDrivenTest
                 .Setup(r => r.ObtenerManejadoresParaEventoAsync("evento_prioridad", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(configuraciones);
 
-            _mockAlmacenCola
-                .Setup(c => c.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()))
-                .Callback<ComandoEnCola, CancellationToken>((cmd, _) => ordenEjecucion.Add(cmd.RutaComando))
-                .ReturnsAsync(1L);
+            _mockColaComandosMemoria
+                .Setup(c => c.EncolarAsync(It.IsAny<SolicitudComando>(), It.IsAny<CancellationToken>()))
+                .Callback<SolicitudComando, CancellationToken>((cmd, _) => ordenEjecucion.Add(cmd.RutaComando))
+                .ReturnsAsync(new ComandoEncolado { ComandoId = 1L });
 
             var procesador = new ProcesadorEventos(
                 _mockAlmacenOutbox.Object,
                 _mockRegistroManejadores.Object,
-                _mockAlmacenCola.Object,
+                _mockColaComandosMemoria.Object,
                 _logger);
 
             await procesador.ProcesarLoteAsync();

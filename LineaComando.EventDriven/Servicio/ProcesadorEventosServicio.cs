@@ -1,6 +1,6 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
-using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
 
@@ -14,18 +14,18 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
     {
         private readonly IColaEventos _almacenOutbox;
         private readonly IRegistroManejadores _registroManejadores;
-        private readonly IAlmacenColaComandos _almacenColaComandos;
+        private readonly IColaComandosMemoria _colaComandosMemoria;
         private readonly ILogger<ProcesadorEventos> _logger;
 
         public ProcesadorEventos(
             IColaEventos almacenOutbox,
             IRegistroManejadores registroManejadores,
-            IAlmacenColaComandos almacenColaComandos,
+            IColaComandosMemoria colaComandosMemoria,
             ILogger<ProcesadorEventos> logger)
         {
             _almacenOutbox = almacenOutbox ?? throw new ArgumentNullException(nameof(almacenOutbox));
             _registroManejadores = registroManejadores ?? throw new ArgumentNullException(nameof(registroManejadores));
-            _almacenColaComandos = almacenColaComandos ?? throw new ArgumentNullException(nameof(almacenColaComandos));
+            _colaComandosMemoria = colaComandosMemoria ?? throw new ArgumentNullException(nameof(colaComandosMemoria));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -48,7 +48,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
         /// <summary>
         /// Procesa un evento individual.
         /// </summary>
-        protected virtual async Task ProcesarEventoAsync(EventoOutbox evento, CancellationToken token)
+        public virtual async Task ProcesarEventoAsync(EventoOutbox evento, CancellationToken token)
         {
             try
             {
@@ -85,6 +85,11 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
 
                 _logger.LogInformation("Evento {EventoId} procesado exitosamente", evento.Id);
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                _logger.LogWarning("Procesamiento de evento {EventoId} cancelado.", evento.Id);
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error procesando evento {EventoId}: {Error}",
@@ -104,7 +109,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
             _logger.LogDebug("Encolando comando para handler {ManejadorId} en respuesta a evento {EventoId}",
                 config.IDManejador, evento.Id);
 
-            System.Text.StringBuilder sbArgumentos = new System.Text.StringBuilder();
+            StringBuilder sbArgumentos = new StringBuilder();
             sbArgumentos.Append("--origen=evento");
             sbArgumentos.Append(" --codigo=" + evento.CodigoTipoEvento);
             if (evento.AgregadoId != null)
@@ -113,17 +118,14 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 sbArgumentos.Append(" " + config.ArgumentosComando);
             string argumentos = sbArgumentos.ToString();
 
-            var comandoEnCola = new ComandoEnCola
+            SolicitudComando solicitud = new SolicitudComando
             {
                 RutaComando = config.RutaComando,
                 Argumentos = argumentos,
-                DatosDeComando = evento.DatosEvento,
-                FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
-                Intentos = 0
+                DatosDeComando = evento.DatosEvento
             };
 
-            await _almacenColaComandos.EncolarAsync(comandoEnCola, token);
+            await _colaComandosMemoria.EncolarAsync(solicitud, token);
 
             _logger.LogInformation("Comando encolado: {RutaComando} para evento {EventoId}",
                 config.RutaComando, evento.Id);

@@ -1,0 +1,266 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1350" viewBox="0 0 1900 1350">
+  <defs>
+    <linearGradient id="blueHeader" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#063b8f"/>
+      <stop offset="1" stop-color="#0f6edb"/>
+    </linearGradient>
+    <linearGradient id="purpleHeader" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5b21b6"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="greenHeader" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#047857"/>
+      <stop offset="1" stop-color="#16a34a"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrowDark" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#1f2937"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#0b4fb3"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#6d28d9"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#15803d"/>
+    </marker>
+    <style>
+      .title { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 48px; font-weight: 850; fill: #0f172a; }
+      .subtitle { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 18px; font-weight: 650; fill: #475569; }
+      .section { fill: #ffffff; stroke-width: 2.4; rx: 18; filter: url(#shadow); }
+      .sectionBlue { stroke: #2563eb; }
+      .sectionPurple { stroke: #7c3aed; }
+      .sectionGreen { stroke: #16a34a; }
+      .sectionGray { stroke: #64748b; }
+      .headerText { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 23px; font-weight: 850; fill: #ffffff; }
+      .box { fill: #ffffff; stroke-width: 2; rx: 13; filter: url(#shadow); }
+      .blue { fill: #eff6ff; stroke: #2563eb; }
+      .purple { fill: #faf5ff; stroke: #7c3aed; }
+      .green { fill: #f0fdf4; stroke: #16a34a; }
+      .orange { fill: #fff7ed; stroke: #ea580c; }
+      .red { fill: #fff1f2; stroke: #e11d48; }
+      .gray { fill: #f8fafc; stroke: #64748b; }
+      .label { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 18px; font-weight: 850; fill: #0f172a; }
+      .small { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 14px; font-weight: 650; fill: #334155; }
+      .tiny { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 12px; font-weight: 650; fill: #475569; }
+      .note { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 15px; font-weight: 750; fill: #1e3a8a; }
+      .warn { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 15px; font-weight: 750; fill: #9f1239; }
+      .num { font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 18px; font-weight: 900; fill: #ffffff; }
+      .circleBlue { fill: #0b4fb3; }
+      .circlePurple { fill: #6d28d9; }
+      .circleGreen { fill: #15803d; }
+      .arrow { stroke: #1f2937; stroke-width: 3; fill: none; marker-end: url(#arrowDark); }
+      .arrowBlue { stroke: #0b4fb3; stroke-width: 3; fill: none; marker-end: url(#arrowBlue); }
+      .arrowPurple { stroke: #6d28d9; stroke-width: 3; fill: none; marker-end: url(#arrowPurple); }
+      .arrowGreen { stroke: #15803d; stroke-width: 3; fill: none; marker-end: url(#arrowGreen); }
+      .dashed { stroke-dasharray: 8 8; }
+      .pill { fill: #eff6ff; stroke: #2563eb; stroke-width: 1.6; rx: 16; }
+      .pillPurple { fill: #faf5ff; stroke: #7c3aed; stroke-width: 1.6; rx: 16; }
+      .pillGreen { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.6; rx: 16; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1900" height="1350" fill="#ffffff"/>
+
+  <text class="title" x="950" y="58" text-anchor="middle">Arquitectura actual implementada: eventos, disparadores y comandos</text>
+  <text class="subtitle" x="950" y="92" text-anchor="middle">Basado en el código actual: outbox persistido, disparadores por evento/programados y cola persistida de comandos</text>
+
+  <rect class="section sectionBlue" x="30" y="120" width="1840" height="260" rx="20"/>
+  <rect x="650" y="98" width="600" height="46" rx="12" fill="url(#blueHeader)"/>
+  <text class="headerText" x="950" y="129" text-anchor="middle">1) Configuración y registros del sistema</text>
+
+  <rect class="box blue" x="60" y="180" width="230" height="130" rx="14"/>
+  <text class="label" x="175" y="215" text-anchor="middle">Aplicación / DI</text>
+  <text class="small" x="175" y="245" text-anchor="middle">AddLineaComando</text>
+  <text class="small" x="175" y="270" text-anchor="middle">Build()</text>
+  <text class="tiny" x="175" y="296" text-anchor="middle">registra servicios hosted</text>
+
+  <rect class="box green" x="340" y="180" width="230" height="130" rx="14"/>
+  <text class="label" x="455" y="215" text-anchor="middle">Inicialización BD</text>
+  <text class="small" x="455" y="245" text-anchor="middle">cola_comandos</text>
+  <text class="small" x="455" y="270" text-anchor="middle">event_driven</text>
+  <text class="tiny" x="455" y="296" text-anchor="middle">tablas, funciones, índices</text>
+
+  <rect class="box blue" x="620" y="180" width="230" height="130" rx="14"/>
+  <text class="label" x="735" y="215" text-anchor="middle">Registro comandos</text>
+  <text class="small" x="735" y="245" text-anchor="middle">per_comandos_registrados</text>
+  <text class="small" x="735" y="270" text-anchor="middle">FactoriaComandos</text>
+  <text class="tiny" x="735" y="296" text-anchor="middle">rutas activas en árbol</text>
+
+  <rect class="box purple" x="900" y="180" width="230" height="130" rx="14"/>
+  <text class="label" x="1015" y="215" text-anchor="middle">Tipos de evento</text>
+  <text class="small" x="1015" y="245" text-anchor="middle">per_tipos_evento</text>
+  <text class="small" x="1015" y="270" text-anchor="middle">código / nombre / activo</text>
+  <text class="tiny" x="1015" y="296" text-anchor="middle">catálogo de eventos</text>
+
+  <rect class="box purple" x="1180" y="180" width="250" height="130" rx="14"/>
+  <text class="label" x="1305" y="215" text-anchor="middle">Manejadores</text>
+  <text class="small" x="1305" y="245" text-anchor="middle">per_manejadores_evento</text>
+  <text class="small" x="1305" y="270" text-anchor="middle">comando asociado</text>
+  <text class="tiny" x="1305" y="296" text-anchor="middle">ruta + argumentos base</text>
+
+  <rect class="box purple" x="1480" y="180" width="250" height="130" rx="14"/>
+  <text class="label" x="1605" y="215" text-anchor="middle">Disparadores</text>
+  <text class="small" x="1605" y="245" text-anchor="middle">per_disparadores_manejador</text>
+  <text class="small" x="1605" y="270" text-anchor="middle">PorEvento / Programado</text>
+  <text class="tiny" x="1605" y="296" text-anchor="middle">prioridad, expresión, última ejecución</text>
+
+  <path class="arrow" d="M 290 245 L 330 245"/>
+  <path class="arrow" d="M 570 245 L 610 245"/>
+  <path class="arrow" d="M 850 245 L 890 245"/>
+  <path class="arrow" d="M 1130 245 L 1170 245"/>
+  <path class="arrow" d="M 1430 245 L 1470 245"/>
+
+  <rect class="pill" x="410" y="326" width="1080" height="38" rx="16"/>
+  <text class="note" x="950" y="351" text-anchor="middle">La configuración construye la infraestructura persistida y deja activos los workers de eventos, tareas programadas y cola de comandos.</text>
+
+  <rect class="section sectionPurple" x="30" y="420" width="900" height="360" rx="20"/>
+  <rect x="250" y="398" width="460" height="46" rx="12" fill="url(#purpleHeader)"/>
+  <text class="headerText" x="480" y="429" text-anchor="middle">2) Flujo actual por eventos</text>
+
+  <rect class="box gray" x="60" y="485" width="180" height="100" rx="14"/>
+  <text class="label" x="150" y="520" text-anchor="middle">Código cliente</text>
+  <text class="small" x="150" y="548" text-anchor="middle">solicita registrar</text>
+  <text class="small" x="150" y="571" text-anchor="middle">un evento</text>
+
+  <rect class="box purple" x="285" y="485" width="210" height="100" rx="14"/>
+  <text class="label" x="390" y="520" text-anchor="middle">RegistrarEvento</text>
+  <text class="small" x="390" y="548" text-anchor="middle">Argumentos()</text>
+  <text class="small" x="390" y="571" text-anchor="middle">RegistrarEnColaAsync()</text>
+
+  <rect class="box green" x="540" y="485" width="205" height="100" rx="14"/>
+  <text class="label" x="643" y="520" text-anchor="middle">Outbox eventos</text>
+  <text class="small" x="643" y="548" text-anchor="middle">per_eventos_outbox</text>
+  <text class="small" x="643" y="571" text-anchor="middle">procesado_en NULL</text>
+
+  <rect class="box purple" x="60" y="640" width="210" height="100" rx="14"/>
+  <text class="label" x="165" y="675" text-anchor="middle">ServicioProcesador</text>
+  <text class="label" x="165" y="700" text-anchor="middle">Eventos</text>
+  <text class="tiny" x="165" y="725" text-anchor="middle">BackgroundService + intervalo</text>
+
+  <rect class="box purple" x="315" y="640" width="230" height="100" rx="14"/>
+  <text class="label" x="430" y="675" text-anchor="middle">ProcesadorEventos</text>
+  <text class="small" x="430" y="703" text-anchor="middle">ProcesarLoteAsync()</text>
+  <text class="tiny" x="430" y="727" text-anchor="middle">consulta eventos pendientes</text>
+
+  <rect class="box purple" x="590" y="640" width="280" height="100" rx="14"/>
+  <text class="label" x="730" y="675" text-anchor="middle">Resolver manejadores</text>
+  <text class="small" x="730" y="703" text-anchor="middle">ObtenerManejadoresParaEventoAsync()</text>
+  <text class="tiny" x="730" y="727" text-anchor="middle">activos, por tipo de evento y prioridad</text>
+
+  <path class="arrow" d="M 240 535 L 275 535"/>
+  <path class="arrow" d="M 495 535 L 530 535"/>
+  <path class="arrowPurple dashed" d="M 643 585 C 643 620, 430 610, 430 630"/>
+  <path class="arrow" d="M 270 690 L 305 690"/>
+  <path class="arrow" d="M 545 690 L 580 690"/>
+
+  <rect class="pillPurple" x="110" y="750" width="720" height="38" rx="16"/>
+  <text class="note" x="470" y="775" text-anchor="middle">El evento se marca como procesado cuando sus comandos quedan encolados, no cuando terminan de ejecutarse.</text>
+
+  <rect class="section sectionGreen" x="970" y="420" width="900" height="360" rx="20"/>
+  <rect x="1070" y="398" width="700" height="46" rx="12" fill="url(#greenHeader)"/>
+  <text class="headerText" x="1420" y="429" text-anchor="middle">3) Flujo actual por disparadores programados</text>
+
+  <rect class="box green" x="1010" y="485" width="240" height="100" rx="14"/>
+  <text class="label" x="1130" y="520" text-anchor="middle">ServicioTareas</text>
+  <text class="label" x="1130" y="545" text-anchor="middle">Programadas</text>
+  <text class="tiny" x="1130" y="570" text-anchor="middle">BackgroundService + intervalo</text>
+
+  <rect class="box green" x="1300" y="485" width="270" height="100" rx="14"/>
+  <text class="label" x="1435" y="520" text-anchor="middle">CoordinadorTareas</text>
+  <text class="label" x="1435" y="545" text-anchor="middle">Programadas</text>
+  <text class="tiny" x="1435" y="570" text-anchor="middle">EjecutarTareasProgramadasAsync()</text>
+
+  <rect class="box green" x="1615" y="485" width="210" height="100" rx="14"/>
+  <text class="label" x="1720" y="520" text-anchor="middle">Disparadores</text>
+  <text class="small" x="1720" y="548" text-anchor="middle">modo = Programado</text>
+  <text class="tiny" x="1720" y="571" text-anchor="middle">activos y por prioridad</text>
+
+  <rect class="box orange" x="1110" y="640" width="280" height="100" rx="14"/>
+  <text class="label" x="1250" y="675" text-anchor="middle">Evaluar ejecución</text>
+  <text class="small" x="1250" y="703" text-anchor="middle">expresión dd:hh:mm:ss</text>
+  <text class="tiny" x="1250" y="727" text-anchor="middle">compara contra última_ejecución</text>
+
+  <rect class="box green" x="1450" y="640" width="300" height="100" rx="14"/>
+  <text class="label" x="1600" y="675" text-anchor="middle">Encolar comando</text>
+  <text class="small" x="1600" y="703" text-anchor="middle">--origen=disparador --codigo=...</text>
+  <text class="tiny" x="1600" y="727" text-anchor="middle">actualiza última_ejecución</text>
+
+  <path class="arrowGreen" d="M 1250 535 L 1290 535"/>
+  <path class="arrowGreen" d="M 1570 535 L 1605 535"/>
+  <path class="arrowGreen dashed" d="M 1720 585 C 1720 620, 1250 610, 1250 630"/>
+  <path class="arrowGreen" d="M 1390 690 L 1440 690"/>
+
+  <rect class="pillGreen" x="1080" y="750" width="720" height="38" rx="16"/>
+  <text class="note" x="1440" y="775" text-anchor="middle">Los disparadores programados no nacen de un evento; se revisan por intervalo y también terminan en la cola de comandos.</text>
+
+  <rect class="section sectionBlue" x="30" y="820" width="1840" height="400" rx="20"/>
+  <rect x="660" y="798" width="580" height="46" rx="12" fill="url(#blueHeader)"/>
+  <text class="headerText" x="950" y="829" text-anchor="middle">4) Cola persistida y ejecución actual de comandos</text>
+
+  <rect class="box blue" x="70" y="900" width="250" height="120" rx="14"/>
+  <text class="label" x="195" y="935" text-anchor="middle">Origen evento</text>
+  <text class="small" x="195" y="965" text-anchor="middle">ProcesadorEventos</text>
+  <text class="small" x="195" y="990" text-anchor="middle">crea ComandoEnCola</text>
+
+  <rect class="box green" x="70" y="1055" width="250" height="120" rx="14"/>
+  <text class="label" x="195" y="1090" text-anchor="middle">Origen programado</text>
+  <text class="small" x="195" y="1120" text-anchor="middle">CoordinadorTareas</text>
+  <text class="small" x="195" y="1145" text-anchor="middle">crea ComandoEnCola</text>
+
+  <rect class="box gray" x="380" y="965" width="240" height="120" rx="14"/>
+  <text class="label" x="500" y="1000" text-anchor="middle">per_cola_comandos</text>
+  <text class="small" x="500" y="1030" text-anchor="middle">Pendiente / Procesando</text>
+  <text class="small" x="500" y="1055" text-anchor="middle">Completado / Fallido</text>
+
+  <rect class="box blue" x="680" y="965" width="230" height="120" rx="14"/>
+  <text class="label" x="795" y="1000" text-anchor="middle">ServicioCola</text>
+  <text class="label" x="795" y="1025" text-anchor="middle">Comandos</text>
+  <text class="tiny" x="795" y="1055" text-anchor="middle">BackgroundService + intervalo</text>
+
+  <rect class="box blue" x="970" y="965" width="270" height="120" rx="14"/>
+  <text class="label" x="1105" y="1000" text-anchor="middle">ProcesadorCola</text>
+  <text class="label" x="1105" y="1025" text-anchor="middle">Comandos</text>
+  <text class="tiny" x="1105" y="1055" text-anchor="middle">paralelismo máximo configurable</text>
+
+  <rect class="box orange" x="1300" y="890" width="250" height="120" rx="14"/>
+  <text class="label" x="1425" y="925" text-anchor="middle">Crear comando</text>
+  <text class="small" x="1425" y="955" text-anchor="middle">LineaComando + Factoria</text>
+  <text class="small" x="1425" y="980" text-anchor="middle">StreamEnMemoria</text>
+
+  <rect class="box orange" x="1300" y="1055" width="250" height="120" rx="14"/>
+  <text class="label" x="1425" y="1090" text-anchor="middle">EjecutarAsync()</text>
+  <text class="small" x="1425" y="1120" text-anchor="middle">espera a que termine</text>
+  <text class="small" x="1425" y="1145" text-anchor="middle">lee ResultadoComando</text>
+
+  <rect class="box gray" x="1610" y="965" width="220" height="120" rx="14"/>
+  <text class="label" x="1720" y="1000" text-anchor="middle">Guardar resultado</text>
+  <text class="small" x="1720" y="1030" text-anchor="middle">MarcarComoProcesado</text>
+  <text class="small" x="1720" y="1055" text-anchor="middle">salida / error / duración</text>
+
+  <path class="arrow" d="M 320 960 L 370 1000"/>
+  <path class="arrowGreen" d="M 320 1115 L 370 1055"/>
+  <path class="arrow" d="M 620 1025 L 670 1025"/>
+  <path class="arrow" d="M 910 1025 L 960 1025"/>
+  <path class="arrow" d="M 1240 1005 L 1290 950"/>
+  <path class="arrow" d="M 1425 1010 L 1425 1045"/>
+  <path class="arrow" d="M 1550 1115 C 1600 1115, 1600 1025, 1600 1025 L 1600 1025"/>
+  <path class="arrow" d="M 1550 1025 L 1600 1025"/>
+
+  <rect class="pill" x="370" y="1180" width="780" height="34" rx="16"/>
+  <text class="note" x="760" y="1202" text-anchor="middle">El worker obtiene pendientes, actualiza fecha_leido y ejecuta tareas hasta obtener resultado final.</text>
+  <rect class="pill" x="1180" y="1180" width="620" height="34" rx="16"/>
+  <text class="warn" x="1490" y="1202" text-anchor="middle">No se observa evento ComandoCompletado/Fallido hacia el solicitante.</text>
+
+  <rect class="section sectionGray" x="30" y="1240" width="1840" height="80" rx="18"/>
+  <text class="label" x="70" y="1275">Notas actuales:</text>
+  <text class="small" x="245" y="1275">Eventos: polling sobre outbox</text>
+  <text class="small" x="540" y="1275">Disparadores programados: polling por intervalo</text>
+  <text class="small" x="950" y="1275">Comandos: polling sobre cola persistida</text>
+  <text class="small" x="1285" y="1275">BD es la fuente operativa</text>
+  <text class="small" x="1580" y="1275">Bus en memoria no participa aquí</text>
+  <text class="tiny" x="950" y="1302" text-anchor="middle">Este diagrama muestra lo implementado actualmente, no la propuesta nueva de mensajería/contexto.</text>
+</svg>

@@ -5,6 +5,8 @@ namespace ComandosColaTest;
 
 public class DatabaseFixture : IAsyncLifetime
 {
+    public string Esquema { get; } = $"test_{Guid.NewGuid():N}";
+
     public string ConnectionString { get; }
 
     public DatabaseFixture()
@@ -16,10 +18,10 @@ public class DatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString);
+        var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString, Esquema);
         await inicializadorCola.InicializarAsync();
 
-        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenPostgres(ConnectionString);
+        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenPostgres(ConnectionString, Esquema);
         await inicializadorEventDriven.InicializarAsync();
     }
 

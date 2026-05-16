@@ -1,3 +1,5 @@
+using PER.Comandos.LineaComandos.Cola.Resultados;
+
 namespace PER.Comandos.LineaComandos.Cola.Almacen
 {
     /// <summary>
@@ -24,6 +26,16 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// Marca un comando como procesado con su resultado; éxito o error
         /// </summary>
         Task MarcarComoProcesadoAsync(long comandoId, ResultadoComando resultado, CancellationToken token = default);
+
+        Task MarcarComoProcesadoAsync(
+            long comandoId,
+            ResultadoComando resultado,
+            PayloadResultadoComando? payloadResultado,
+            CancellationToken token = default);
+
+        Task<ResultadoComandoPersistido?> ObtenerResultadoPersistidoAsync(
+            long comandoId,
+            CancellationToken token = default);
 
         /// <summary>
         /// Actualiza la fecha de lectura de los comandos especificados.

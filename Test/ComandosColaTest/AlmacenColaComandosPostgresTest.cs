@@ -3,7 +3,9 @@ using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.Registro;
+using Npgsql;
 
 namespace ComandosColaTest
 {
@@ -17,8 +19,8 @@ namespace ComandosColaTest
 
         public AlmacenColaComandosPostgresTest(DatabaseFixture fixture) : base(fixture)
         {
-            _almacen = new AlmacenColaComandosPostgres(ConnectionString);
-            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString);
+            _almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
+            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString, Esquema);
         }
 
         private async Task PrepararTestAsync(string rutaComando)
@@ -44,7 +46,7 @@ namespace ComandosColaTest
                 Argumentos = "--mensaje=hola",
                 DatosDeComando = "{\"key\": \"value\"}",
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -56,13 +58,64 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-                "SELECT * FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT * FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = id });
 
             Assert.NotNull(comandoDb);
             Assert.Equal(ruta, (string)comandoDb.ruta_comando);
             Assert.Equal("--mensaje=hola", (string)comandoDb.argumentos);
-            Assert.Equal("Pendiente", (string)comandoDb.estado);
+            Assert.Equal("pendiente", (string)comandoDb.estado);
+        }
+
+        [Fact]
+        public async Task EstadosColaComandos_DebeCrearCatalogoBase()
+        {
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            IEnumerable<string> estados = await connection.QueryAsync<string>(
+                $"SELECT estado FROM {Nombres.ColaComandosEstados} ORDER BY estado;");
+
+            Assert.Equal(
+                new[] { "completado", "fallido", "pendiente", "procesando" },
+                estados.ToArray());
+        }
+
+        [Fact]
+        public async Task EncolarAsync_ConEstadoInvalido_DebeFallarPorLlaveForanea()
+        {
+            string ruta = PrefijoTest + "estado_invalido";
+            await PrepararTestAsync(ruta);
+
+            using var connection = CrearConexion();
+            await connection.OpenAsync();
+
+            int comandoRegistradoId = await connection.ExecuteScalarAsync<int>(
+                $"SELECT id FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
+                new { Ruta = ruta });
+
+            await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+                $@"
+                INSERT INTO {Nombres.ColaComandos} (
+                    id_comando_registrado,
+                    ruta_comando,
+                    fecha_creacion,
+                    estado,
+                    intentos
+                )
+                VALUES (
+                    @IdComandoRegistrado,
+                    @Ruta,
+                    NOW(),
+                    @Estado,
+                    0
+                );",
+                new
+                {
+                    IdComandoRegistrado = comandoRegistradoId,
+                    Ruta = ruta,
+                    Estado = "invalido"
+                }));
         }
 
         [Fact]
@@ -76,7 +129,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--id=1",
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
             var comando2 = new ComandoEnCola
@@ -84,7 +137,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--id=2",
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -98,7 +151,7 @@ namespace ComandosColaTest
             Assert.Equal(2, pendientes.Count);
             Assert.Contains(c1, pendientes.Select(e => e.Id));
             Assert.Contains(c2, pendientes.Select(e => e.Id));
-            Assert.All(pendientes, c => Assert.Equal("Pendiente", c.Estado));
+            Assert.All(pendientes, c => Assert.Equal("pendiente", c.Estado));
         }
 
         [Fact]
@@ -112,7 +165,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--test=true",
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -121,16 +174,16 @@ namespace ComandosColaTest
             var procesando = await _almacen.MarcarComandosProcesandoAsync(new[] { id });
 
             Assert.Single(procesando);
-            Assert.Equal("Procesando", procesando.First().Estado);
+            Assert.Equal("procesando", procesando.First().Estado);
 
             using var connection = CrearConexion();
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT * FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = id });
 
-            Assert.Equal("Procesando", (string)comandoDb.estado);
+            Assert.Equal("procesando", (string)comandoDb.estado);
             Assert.NotNull(comandoDb.fecha_leido);
         }
 
@@ -144,7 +197,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -171,7 +224,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -186,14 +239,90 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT * FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = id });
 
-            Assert.Equal("Completado", (string)comandoDb.estado);
+            Assert.Equal("completado", (string)comandoDb.estado);
             Assert.NotNull(comandoDb.fecha_ejecucion);
-            Assert.Equal("Procesado correctamente", (string)comandoDb.salida);
             Assert.Equal(150, (long)comandoDb.duracion_ms);
             Assert.Null(comandoDb.mensaje_error);
+        }
+
+        [Fact]
+        public async Task MarcarComoProcesadoAsync_ConPayloadResultado_DebePersistirResultado()
+        {
+            string ruta = PrefijoTest + "resultado_payload";
+            await PrepararTestAsync(ruta);
+
+            ComandoEnCola comando = new ComandoEnCola
+            {
+                RutaComando = ruta,
+                FechaCreacion = DateTime.Now,
+                Estado = "pendiente",
+                Intentos = 0
+            };
+
+            long id = await _almacen.EncolarAsync(comando);
+            await _almacen.MarcarComandosProcesandoAsync(new[] { id });
+
+            ResultadoComando resultado = ResultadoComando.Exito("salida durable", TimeSpan.FromMilliseconds(75));
+            PayloadResultadoComando payload = new PayloadResultadoComando
+            {
+                Tipo = "texto",
+                Version = 1,
+                Formato = "text/plain",
+                Contenido = "salida durable"
+            };
+
+            await _almacen.MarcarComoProcesadoAsync(id, resultado, payload);
+
+            ResultadoComandoPersistido? resultadoPersistido = await _almacen.ObtenerResultadoPersistidoAsync(id);
+
+            Assert.NotNull(resultadoPersistido);
+            Assert.Equal("completado", resultadoPersistido.Estado);
+            Assert.Equal(TimeSpan.FromMilliseconds(75), resultadoPersistido.Duracion);
+            Assert.NotNull(resultadoPersistido.PayloadResultado);
+            Assert.Equal("texto", resultadoPersistido.PayloadResultado.Tipo);
+            Assert.Equal(1, resultadoPersistido.PayloadResultado.Version);
+            Assert.Equal("text/plain", resultadoPersistido.PayloadResultado.Formato);
+            Assert.Equal("salida durable", resultadoPersistido.PayloadResultado.Contenido);
+            Assert.Null(resultadoPersistido.PayloadResultado.RutaPayload);
+        }
+
+        [Fact]
+        public async Task MarcarComoProcesadoAsync_ConRutaPayloadResultado_DebePersistirRuta()
+        {
+            string ruta = PrefijoTest + "resultado_ruta_payload";
+            await PrepararTestAsync(ruta);
+
+            ComandoEnCola comando = new ComandoEnCola
+            {
+                RutaComando = ruta,
+                FechaCreacion = DateTime.Now,
+                Estado = "pendiente",
+                Intentos = 0
+            };
+
+            long id = await _almacen.EncolarAsync(comando);
+            await _almacen.MarcarComandosProcesandoAsync(new[] { id });
+
+            ResultadoComando resultado = ResultadoComando.Exito("salida durable", TimeSpan.FromMilliseconds(75));
+            PayloadResultadoComando payload = new PayloadResultadoComando
+            {
+                Tipo = "texto",
+                Version = 1,
+                Formato = "text/plain",
+                RutaPayload = "texto/v1/10.11111111111111111111111111111111.payload"
+            };
+
+            await _almacen.MarcarComoProcesadoAsync(id, resultado, payload);
+
+            ResultadoComandoPersistido? resultadoPersistido = await _almacen.ObtenerResultadoPersistidoAsync(id);
+
+            Assert.NotNull(resultadoPersistido);
+            Assert.NotNull(resultadoPersistido.PayloadResultado);
+            Assert.Null(resultadoPersistido.PayloadResultado.Contenido);
+            Assert.Equal("texto/v1/10.11111111111111111111111111111111.payload", resultadoPersistido.PayloadResultado.RutaPayload);
         }
 
         [Fact]
@@ -206,7 +335,7 @@ namespace ComandosColaTest
             {
                 RutaComando = ruta,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -221,10 +350,10 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT * FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = id });
 
-            Assert.Equal("Fallido", (string)comandoDb.estado);
+            Assert.Equal("fallido", (string)comandoDb.estado);
             Assert.Equal("Error de conexión", (string)comandoDb.mensaje_error);
             Assert.Equal(1, (int)comandoDb.intentos);
         }
@@ -242,7 +371,7 @@ namespace ComandosColaTest
                     RutaComando = ruta,
                     Argumentos = $"--index={i}",
                     FechaCreacion = DateTime.Now,
-                    Estado = "Pendiente",
+                    Estado = "pendiente",
                     Intentos = 0
                 };
                 await _almacen.EncolarAsync(comando);
@@ -268,7 +397,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--orden=primero",
                 FechaCreacion = fechaBase.AddSeconds(1),
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
             var comando2 = new ComandoEnCola
@@ -276,11 +405,9 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 Argumentos = "--orden=segundo",
                 FechaCreacion = fechaBase,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
-
-            System.Diagnostics.Debugger.Launch();
 
             await _almacen.EncolarAsync(comando1);
             await _almacen.EncolarAsync(comando2);
@@ -311,7 +438,7 @@ namespace ComandosColaTest
                 RutaComando = ruta,
                 DatosDeComando = datosJson,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -321,7 +448,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var datosDb = await connection.QuerySingleAsync<string>(
-                "SELECT datos_comando::text FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT datos_comando::text FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = id });
 
             Assert.Contains("12345", datosDb);

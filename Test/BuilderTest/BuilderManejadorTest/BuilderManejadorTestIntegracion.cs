@@ -24,9 +24,9 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
     {
         var services = new ServiceCollection();
         services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(
-            new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString));
+            new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString, Esquema));
         services.AddSingleton<IRegistroManejadores>(
-            new RegistroManejadoresPostgres(ConnectionString));
+            new RegistroManejadoresPostgres(ConnectionString, Esquema));
         _serviceProvider = services.BuildServiceProvider();
     }
 
@@ -54,7 +54,7 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
 
         var manejadorDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-            @"SELECT * FROM per_manejadores_evento 
+            $@"SELECT * FROM {Nombres.ManejadoresEvento}
             WHERE codigo = @Codigo AND id_comando_registrado = @IdComando",
             new { Codigo = codigoManejador, IdComando = metadatosComando.Id });
 
@@ -81,7 +81,7 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
         
         var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-            "SELECT id, ruta_comando, descripcion, activo, creado_en FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+            $"SELECT id, ruta_comando, descripcion, activo, creado_en FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
             new { Ruta = rutaComando });
 
         Assert.NotNull(comandoDb);
@@ -102,7 +102,7 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
 
         await connection.ExecuteAsync(
-            @"DELETE FROM per_manejadores_evento 
+            $@"DELETE FROM {Nombres.ManejadoresEvento}
             WHERE codigo LIKE @Prefijo OR ruta_comando LIKE @PrefijoCmd",
             new { 
                 Prefijo = PrefijoTest + "%",
@@ -110,7 +110,7 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
             });
 
         await connection.ExecuteAsync(
-            "DELETE FROM per_comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
+            $"DELETE FROM {Nombres.ComandosRegistrados} WHERE ruta_comando LIKE @Prefijo;",
             new { Prefijo = PrefijoTest + "%" });
     }
 

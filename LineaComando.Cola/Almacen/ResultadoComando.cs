@@ -18,7 +18,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// <summary>
         /// Datos de salida del comando.
         /// </summary>
-        public string? Salida { get; set; }
+        public object? Salida { get; set; }
 
         /// <summary>
         /// Duración de la ejecución.
@@ -28,7 +28,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// <summary>
         /// Crea un resultado exitoso.
         /// </summary>
-        public static ResultadoComando Exito(string? salida = null, TimeSpan duracion = default)
+        public static ResultadoComando Exito(object? salida = null, TimeSpan duracion = default)
         {
             return new ResultadoComando
             {

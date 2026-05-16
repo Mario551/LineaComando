@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="1200" viewBox="0 0 1300 1200">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="34" y="32" width="1232" height="1136" fill="none" stroke="#1f2937" stroke-width="2"/>
+<text x="60" y="66" font-size="24" fill="#111827" font-weight="800">ObtenerComandosPendientesAsync_NoDebeRetornarComandosYaMarcados</text>
+<text x="60" y="96" font-size="14" fill="#4b5563" font-weight="600">Diagrama detallado de flujo del test</text>
+<rect x="910" y="54" width="300" height="42" rx="6" fill="#e8f5ee" stroke="#1f6b3a" stroke-width="2"/>
+<text x="1060.0" y="82.0" text-anchor="middle" font-size="15" fill="#1f6b3a" font-weight="800">Estado: CORRECTO</text>
+<ellipse cx="655.0" cy="143.0" rx="105.0" ry="33.0" fill="#050505" stroke="#000" stroke-width="2"/>
+<text x="655.0" y="148.0" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Inicio</text>
+<line x1="655.0" y1="176" x2="655.0" y2="222" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,222 662.0,222 655.0,234" fill="#1f2937"/>
+<rect x="460" y="234" width="390" height="92" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="275.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Registrar comando y encolar una</text>
+<text x="655.0" y="294.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">fila pendiente</text>
+<path d="M910,252.0 C910,238.0 1210,238.0 1210,252.0 L1210,308.0 C1210,322.0 910,322.0 910,308.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="252.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,308.0 C910,322.0 1210,322.0 1210,308.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="280.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos</text>
+<text x="928" y="304" font-size="12" fill="#eef7fb" font-weight="500">estado: pendiente</text>
+<path d="M850,280.0 H880.0 V280.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,273.0 898,287.0 910,280.0" fill="#1f2937"/>
+<text x="888.0" y="272.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="326" x2="655.0" y2="372" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,372 662.0,372 655.0,384" fill="#1f2937"/>
+<rect x="460" y="384" width="390" height="92" fill="#1d526b" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="425.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Primera lectura de pendientes para</text>
+<text x="655.0" y="444.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">la ruta del test</text>
+<path d="M910,402.0 C910,388.0 1210,388.0 1210,402.0 L1210,458.0 C1210,472.0 910,472.0 910,458.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="402.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,458.0 C910,472.0 1210,472.0 1210,458.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="430.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos</text>
+<text x="928" y="454" font-size="12" fill="#eef7fb" font-weight="500">obtiene id pendiente</text>
+<path d="M850,430.0 H880.0 V430.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,423.0 898,437.0 910,430.0" fill="#1f2937"/>
+<text x="888.0" y="422.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="476" x2="655.0" y2="522" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,522 662.0,522 655.0,534" fill="#1f2937"/>
+<rect x="460" y="534" width="390" height="92" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="575.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Marcar como procesando los ids</text>
+<text x="655.0" y="594.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">encontrados</text>
+<path d="M910,552.0 C910,538.0 1210,538.0 1210,552.0 L1210,608.0 C1210,622.0 910,622.0 910,608.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="552.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,608.0 C910,622.0 1210,622.0 1210,608.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="580.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos</text>
+<text x="928" y="604" font-size="12" fill="#eef7fb" font-weight="500">estado cambia a procesando</text>
+<path d="M850,580.0 H880.0 V580.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,573.0 898,587.0 910,580.0" fill="#1f2937"/>
+<text x="888.0" y="572.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="626" x2="655.0" y2="672" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,672 662.0,672 655.0,684" fill="#1f2937"/>
+<rect x="460" y="684" width="390" height="92" fill="#1d526b" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="725.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Segunda lectura de pendientes para</text>
+<text x="655.0" y="744.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">la misma ruta</text>
+<path d="M910,702.0 C910,688.0 1210,688.0 1210,702.0 L1210,758.0 C1210,772.0 910,772.0 910,758.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="702.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,758.0 C910,772.0 1210,772.0 1210,758.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="730.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos</text>
+<text x="928" y="754" font-size="12" fill="#eef7fb" font-weight="500">filtro solo pendientes</text>
+<path d="M850,730.0 H880.0 V730.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,723.0 898,737.0 910,730.0" fill="#1f2937"/>
+<text x="888.0" y="722.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="776" x2="655.0" y2="822" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,822 662.0,822 655.0,834" fill="#1f2937"/>
+<polygon points="655.0,834 825,898.0 655.0,962 485,898.0" fill="#205872" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="894.5" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">¿La segunda lectura esta</text>
+<text x="655.0" y="911.5" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">vacia?</text>
+<rect x="910" y="860.0" width="300" height="76" rx="6" fill="#fff0f0" stroke="#8a1f1f" stroke-width="2"/>
+<text x="1060.0" y="902.0" text-anchor="middle" font-size="13" fill="#8a1f1f" font-weight="700">Falla el test</text>
+<path d="M825,898.0 H867.5 V898.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,891.0 898,905.0 910,898.0" fill="#1f2937"/>
+<text x="875.5" y="890.0" font-size="13" fill="#1f2937" font-weight="700">No</text>
+<line x1="655.0" y1="962" x2="655.0" y2="1008" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,1008 662.0,1008 655.0,1020" fill="#1f2937"/>
+<text x="667.0" y="991.0" font-size="13" fill="#1f2937" font-weight="700">Si</text>
+<ellipse cx="655.0" cy="1053.0" rx="105.0" ry="33.0" fill="#1f6b3a" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="1058.0" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">Fin correcto</text>
+<text x="60" y="1158" font-size="13" fill="#6b7280">Formato: ovalo inicio/fin, rectangulo accion, cilindro BD, documento datos, rombo decision/assert.</text>
+</svg>

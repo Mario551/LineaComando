@@ -1,17 +1,22 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 
 namespace EventDrivenTest
 {
     public abstract class BaseIntegracionTestEventDrivenSqlServer : IAsyncLifetime
     {
         protected readonly string ConnectionString;
+        protected readonly string Esquema;
+        protected readonly NombresBaseDatos Nombres;
 
         protected abstract string PrefijoTest { get; }
 
         protected BaseIntegracionTestEventDrivenSqlServer(DatabaseFixtureEventDrivenSqlServer fixture)
         {
             ConnectionString = fixture.ConnectionString;
+            Esquema = DatabaseFixtureEventDrivenSqlServer.Esquema;
+            Nombres = NombresBaseDatos.SqlServer(Esquema);
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
 
@@ -31,27 +36,27 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_eventos_outbox WHERE codigo_tipo_evento LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.EventosOutbox} WHERE codigo_tipo_evento LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_disparadores_manejador WHERE manejador_evento_id IN (SELECT id FROM per_manejadores_evento WHERE codigo LIKE @Prefijo);",
+                $"DELETE FROM {Nombres.DisparadoresManejador} WHERE manejador_evento_id IN (SELECT id FROM {Nombres.ManejadoresEvento} WHERE codigo LIKE @Prefijo);",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_manejadores_evento WHERE codigo LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.ManejadoresEvento} WHERE codigo LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_tipos_evento WHERE codigo LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.TiposEvento} WHERE codigo LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_cola_comandos WHERE ruta_comando LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.ColaComandos} WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.ComandosRegistrados} WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
         }
 

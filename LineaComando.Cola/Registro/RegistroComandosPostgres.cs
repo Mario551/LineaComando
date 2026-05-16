@@ -3,6 +3,7 @@ using Npgsql;
 using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.Cola.DAO;
 using System.Collections.Concurrent;
 
@@ -11,28 +12,35 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
     public class RegistroComandosPostgres<TRead, TWrite> : IRegistroComandos<TRead, TWrite>
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
         private readonly Dictionary<string, IComandoCreador<TRead, TWrite>> _comandosRegistrados;
 
         private ConcurrentDictionary<string, MetadatosComando> _metadatosComandosRegistrados;
         public IDictionary<string, MetadatosComando> ComandosRegistrados => _metadatosComandosRegistrados;
 
         public RegistroComandosPostgres(string connectionString)
+            : this(connectionString, "public")
+        {
+        }
+
+        public RegistroComandosPostgres(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.Postgres(esquema);
             _metadatosComandosRegistrados = new ConcurrentDictionary<string, MetadatosComando>();
             _comandosRegistrados = new Dictionary<string, IComandoCreador<TRead, TWrite>>();
         }
 
         public async Task<IEnumerable<MetadatosComando>> ObtenerComandosRegistradosAsync(CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id as Id,
                     ruta_comando as RutaComando,
                     descripcion as Descripcion,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM per_comandos_registrados
+                FROM {_nombres.ComandosRegistrados}
                 WHERE activo = true
                 ORDER BY ruta_comando;";
 
@@ -77,8 +85,8 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             _comandosRegistrados[metadatos.RutaComando] = comandoCreador;
             _metadatosComandosRegistrados.TryAdd(metadatos.RutaComando, metadatos);
 
-            const string sql = @"
-                INSERT INTO per_comandos_registrados (
+            string sql = $@"
+                INSERT INTO {_nombres.ComandosRegistrados} AS cr (
                     ruta_comando,
                     descripcion,
                     activo,
@@ -92,7 +100,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                 )
                 ON CONFLICT (ruta_comando)
                 DO UPDATE SET
-                    id = per_comandos_registrados.id
+                    ruta_comando = EXCLUDED.ruta_comando
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -165,8 +173,8 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
 
         private async Task DesactivarComandosAsync(IEnumerable<string> rutas, CancellationToken token)
         {
-            const string sql = @"
-                UPDATE per_comandos_registrados
+            string sql = $@"
+                UPDATE {_nombres.ComandosRegistrados}
                 SET activo = false,
                     actualizado_en = NOW()
                 WHERE ruta_comando = ANY(@Rutas);";

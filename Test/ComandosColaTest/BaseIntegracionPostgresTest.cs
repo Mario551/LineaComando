@@ -1,17 +1,22 @@
 using Dapper;
 using Npgsql;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 
 namespace ComandosColaTest
 {
     public abstract class BaseIntegracionPostgresTest : IAsyncLifetime
     {
         protected readonly string ConnectionString;
+        protected readonly string Esquema;
+        protected readonly NombresBaseDatos Nombres;
 
         protected abstract string PrefijoTest { get; }
 
         protected BaseIntegracionPostgresTest(DatabaseFixture fixture)
         {
             ConnectionString = fixture.ConnectionString;
+            Esquema = fixture.Esquema;
+            Nombres = NombresBaseDatos.Postgres(Esquema);
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
 
@@ -31,10 +36,10 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             await connection.ExecuteAsync(
-                "DELETE FROM per_cola_comandos WHERE ruta_comando LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.ColaComandos} WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
             await connection.ExecuteAsync(
-                "DELETE FROM per_comandos_registrados WHERE ruta_comando LIKE @Prefijo;",
+                $"DELETE FROM {Nombres.ComandosRegistrados} WHERE ruta_comando LIKE @Prefijo;",
                 new { Prefijo = PrefijoTest + "%" });
         }
 

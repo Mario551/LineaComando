@@ -12,7 +12,7 @@ namespace EventDrivenTest
 
         public ColaEventosSqlServerTest(DatabaseFixtureEventDrivenSqlServer fixture) : base(fixture)
         {
-            _almacen = new ColaEventosSqlServer(ConnectionString);
+            _almacen = new ColaEventosSqlServer(ConnectionString, Esquema);
         }
 
         [Fact]
@@ -33,10 +33,10 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var evento = await connection.QuerySingleAsync<EventoOutbox>(
-                @"SELECT id, codigo_tipo_evento, agregado_id,
+                $@"SELECT id, codigo_tipo_evento, agregado_id,
                   datos_evento,
                   creado_en, procesado_en
-                  FROM per_eventos_outbox WHERE id = @Id",
+                  FROM {Nombres.EventosOutbox} WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal(datosEvento.TipoEvento, evento.CodigoTipoEvento);
@@ -111,7 +111,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var procesadoEn = await connection.QuerySingleAsync<DateTime?>(
-                "SELECT procesado_en FROM per_eventos_outbox WHERE id = @Id",
+                $"SELECT procesado_en FROM {Nombres.EventosOutbox} WHERE id = @Id",
                 new { Id = eventoId });
 
             Assert.NotNull(procesadoEn);
@@ -137,7 +137,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var procesados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM per_eventos_outbox WHERE id IN @Ids AND procesado_en IS NOT NULL",
+                $"SELECT COUNT(*) FROM {Nombres.EventosOutbox} WHERE id IN @Ids AND procesado_en IS NOT NULL",
                 new { Ids = ids });
 
             Assert.Equal(3, procesados);

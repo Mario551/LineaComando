@@ -13,7 +13,7 @@ namespace EventDrivenTest
 
         public RegistroTiposEventoPostgresTest(DatabaseFixtureEventDrivenPostgres fixture) : base(fixture)
         {
-            _registro = new RegistroTiposEventoPostgres(ConnectionString);
+            _registro = new RegistroTiposEventoPostgres(ConnectionString, Esquema);
         }
 
         [Fact]
@@ -36,9 +36,9 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var tipoDb = await connection.QuerySingleAsync<TipoEvento>(
-                @"SELECT id as Id, codigo as Codigo, nombre as Nombre,
+                $@"SELECT id as Id, codigo as Codigo, nombre as Nombre,
                   descripcion as Descripcion, activo as Activo, creado_en as CreadoEn
-                  FROM per_tipos_evento WHERE id = @Id",
+                  FROM {Nombres.TiposEvento} WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal(tipoEvento.Codigo, tipoDb.Codigo);

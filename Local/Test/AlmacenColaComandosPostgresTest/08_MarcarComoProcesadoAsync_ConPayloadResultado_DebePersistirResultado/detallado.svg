@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="1226" viewBox="0 0 1300 1226">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="34" y="32" width="1232" height="1162" fill="none" stroke="#1f2937" stroke-width="2"/>
+<text x="60" y="66" font-size="24" fill="#111827" font-weight="800">MarcarComoProcesadoAsync_ConPayloadResultado_DebePersistirResultado</text>
+<text x="60" y="96" font-size="14" fill="#4b5563" font-weight="600">Diagrama detallado de flujo del test</text>
+<rect x="910" y="54" width="300" height="42" rx="6" fill="#e8f5ee" stroke="#1f6b3a" stroke-width="2"/>
+<text x="1060.0" y="82.0" text-anchor="middle" font-size="15" fill="#1f6b3a" font-weight="800">Estado: CORRECTO</text>
+<ellipse cx="655.0" cy="143.0" rx="105.0" ry="33.0" fill="#050505" stroke="#000" stroke-width="2"/>
+<text x="655.0" y="148.0" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Inicio</text>
+<line x1="655.0" y1="176" x2="655.0" y2="222" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,222 662.0,222 655.0,234" fill="#1f2937"/>
+<rect x="460" y="234" width="390" height="92" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="275.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Registrar, encolar y marcar el</text>
+<text x="655.0" y="294.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">comando como procesando</text>
+<path d="M910,252.0 C910,238.0 1210,238.0 1210,252.0 L1210,308.0 C1210,322.0 910,322.0 910,308.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="252.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,308.0 C910,322.0 1210,322.0 1210,308.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="280.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos</text>
+<text x="928" y="304" font-size="12" fill="#eef7fb" font-weight="500">estado: procesando</text>
+<path d="M850,280.0 H880.0 V280.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,273.0 898,287.0 910,280.0" fill="#1f2937"/>
+<text x="888.0" y="272.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="326" x2="655.0" y2="372" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,372 662.0,372 655.0,384" fill="#1f2937"/>
+<rect x="460" y="384" width="390" height="128" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="443.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Crear ResultadoComando.Exito y</text>
+<text x="655.0" y="462.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">PayloadResultadoComando inline</text>
+<path d="M910,384.0 H1210 V494.0 C1150,508.0 970,480.0 910,498.0 Z" fill="#eef6fb" stroke="#16415b" stroke-width="2"/>
+<text x="1060.0" y="416.0" text-anchor="middle" font-size="13" fill="#183548" font-weight="700">Payload inline</text>
+<text x="928" y="434" font-size="12" fill="#263244" font-weight="500">tipo: texto</text>
+<text x="928" y="450" font-size="12" fill="#263244" font-weight="500">version: 1</text>
+<text x="928" y="466" font-size="12" fill="#263244" font-weight="500">formato: text/plain</text>
+<text x="928" y="482" font-size="12" fill="#263244" font-weight="500">contenido: salida durable</text>
+<path d="M850,448.0 H880.0 V448.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,441.0 898,455.0 910,448.0" fill="#1f2937"/>
+<text x="888.0" y="440.0" font-size="13" fill="#1f2937" font-weight="700">datos</text>
+<line x1="655.0" y1="512" x2="655.0" y2="558" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,558 662.0,558 655.0,570" fill="#1f2937"/>
+<rect x="460" y="570" width="390" height="112" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="621.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">Ejecutar MarcarComoProcesadoAsync</text>
+<text x="655.0" y="640.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">con payload</text>
+<path d="M910,588.0 C910,574.0 1210,574.0 1210,588.0 L1210,664.0 C1210,678.0 910,678.0 910,664.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="588.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,664.0 C910,678.0 1210,678.0 1210,664.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="616.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos_resultados</text>
+<text x="928" y="640" font-size="12" fill="#eef7fb" font-weight="500">payload = salida durable</text>
+<text x="928" y="656" font-size="12" fill="#eef7fb" font-weight="500">ruta_payload = null</text>
+<text x="928" y="672" font-size="12" fill="#eef7fb" font-weight="500">tipo/version/formato</text>
+<path d="M850,626.0 H880.0 V626.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,619.0 898,633.0 910,626.0" fill="#1f2937"/>
+<text x="888.0" y="618.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="682" x2="655.0" y2="728" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,728 662.0,728 655.0,740" fill="#1f2937"/>
+<rect x="460" y="740" width="390" height="96" fill="#1d526b" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="783.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">ObtenerResultadoPersistidoAsync</text>
+<text x="655.0" y="802.5" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="700">por id</text>
+<path d="M910,758.0 C910,744.0 1210,744.0 1210,758.0 L1210,818.0 C1210,832.0 910,832.0 910,818.0 Z" fill="#2b6b82" stroke="#0e2f42" stroke-width="2"/>
+<ellipse cx="1060.0" cy="758.0" rx="150.0" ry="18" fill="#397d96" stroke="#0e2f42" stroke-width="2"/>
+<path d="M910,818.0 C910,832.0 1210,832.0 1210,818.0" fill="none" stroke="#0e2f42" stroke-width="2"/>
+<text x="1060.0" y="778.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">per_cola_comandos +</text>
+<text x="1060.0" y="794.0" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="700">resultados</text>
+<text x="928" y="810" font-size="12" fill="#eef7fb" font-weight="500">JOIN logico por comando_id</text>
+<text x="928" y="826" font-size="12" fill="#eef7fb" font-weight="500">recupera metadata y payload</text>
+<path d="M850,788.0 H880.0 V788.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,781.0 898,795.0 910,788.0" fill="#1f2937"/>
+<text x="888.0" y="780.0" font-size="13" fill="#1f2937" font-weight="700">BD</text>
+<line x1="655.0" y1="836" x2="655.0" y2="882" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,882 662.0,882 655.0,894" fill="#1f2937"/>
+<polygon points="655.0,894 825,958.0 655.0,1022 485,958.0" fill="#205872" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="946.0" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">¿Resultado completado con</text>
+<text x="655.0" y="963.0" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">duracion 75 ms y payload</text>
+<text x="655.0" y="980.0" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">inline correcto?</text>
+<rect x="910" y="920.0" width="300" height="76" rx="6" fill="#fff0f0" stroke="#8a1f1f" stroke-width="2"/>
+<text x="1060.0" y="962.0" text-anchor="middle" font-size="13" fill="#8a1f1f" font-weight="700">Falla el test</text>
+<path d="M825,958.0 H867.5 V958.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,951.0 898,965.0 910,958.0" fill="#1f2937"/>
+<text x="875.5" y="950.0" font-size="13" fill="#1f2937" font-weight="700">No</text>
+<line x1="655.0" y1="1022" x2="655.0" y2="1068" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,1068 662.0,1068 655.0,1080" fill="#1f2937"/>
+<text x="667.0" y="1051.0" font-size="13" fill="#1f2937" font-weight="700">Si</text>
+<ellipse cx="655.0" cy="1113.0" rx="105.0" ry="33.0" fill="#1f6b3a" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="1118.0" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="700">Fin correcto</text>
+<text x="60" y="1184" font-size="13" fill="#6b7280">Formato: ovalo inicio/fin, rectangulo accion, cilindro BD, documento datos, rombo decision/assert.</text>
+</svg>

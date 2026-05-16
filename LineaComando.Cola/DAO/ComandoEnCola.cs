@@ -10,9 +10,8 @@ namespace PER.Comandos.LineaComandos.Cola.DAO
             public DateTime FechaCreacion { get; set; }
             public DateTime? FechaLeido { get; set; }
             public DateTime? FechaEjecucion { get; set; }
-            public string Estado { get; set; } = "Pendiente";
+            public string Estado { get; set; } = "pendiente";
             public string? MensajeError { get; set; }
-            public string? Salida { get; set; }
             public long? DuracionMs { get; set; }
             public int Intentos { get; set; }
         }

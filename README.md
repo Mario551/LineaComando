@@ -10,17 +10,6 @@ Sistema de procesamiento de comandos y eventos para aplicaciones .NET. Incluye c
 - Microsoft.Extensions.Hosting
 - Microsoft.Extensions.DependencyInjection
 
-
-## Instalacion
-
-Agregar referencias a los proyectos necesarios:
-
-```xml
-<ItemGroup>
-    <ProjectReference Include="..\LineaComando.Builder\LineaComando.Builder.csproj" />
-</ItemGroup>
-```
-
 ## Configuracion con el Builder
 
 ### ASP.NET Core

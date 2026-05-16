@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Servicio
@@ -11,7 +11,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
     /// Coordinador de tareas programadas (scheduled jobs).
     /// Lee configuración de handlers scheduled y encola comandos según expresión de intervalo (dd:hh:mm:ss).
     /// </summary>
-    public class CoordinadorTareasProgramadas
+    public class CoordinadorTareasProgramadas : IPlanificadorTareasProgramadas
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<CoordinadorTareasProgramadas> _logger;
@@ -40,6 +40,9 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 if (token.IsCancellationRequested)
                     break;
 
+                if (ExpresionProgramadaVacia(config))
+                    continue;
+
                 if (DebeEjecutarse(config))
                 {
                     _concurrencyBag.Add(EjecutarTareaAsync(config, token)
@@ -52,17 +55,81 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
             }
         }
 
+        public virtual async Task IniciarAsync(CancellationToken token = default)
+        {
+            using IServiceScope scope = _serviceScopeFactory.CreateScope();
+            IRegistroManejadores registroManejadores = scope.ServiceProvider.GetRequiredService<IRegistroManejadores>();
+
+            IEnumerable<ConfiguracionManejador> manejadoresProgramados = await registroManejadores.ObtenerManejadoresProgramadosAsync(token);
+            List<Task> tareasProgramadas = new List<Task>();
+
+            foreach (ConfiguracionManejador config in manejadoresProgramados.Where(m => m.Activo))
+            {
+                if (ExpresionProgramadaVacia(config))
+                    continue;
+
+                tareasProgramadas.Add(EjecutarPlanificacionAsync(config, token));
+            }
+
+            if (!tareasProgramadas.Any())
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return;
+            }
+
+            await Task.WhenAll(tareasProgramadas);
+        }
+
+        private async Task EjecutarPlanificacionAsync(ConfiguracionManejador config, CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                TimeSpan espera = CalcularEspera(config);
+
+                if (espera == Timeout.InfiniteTimeSpan)
+                {
+                    ExpresionProgramadaVacia(config);
+                    return;
+                }
+
+                if (espera > TimeSpan.Zero)
+                    await Task.Delay(espera, token);
+
+                await EjecutarTareaAsync(config, token);
+                config.UltimaEjecucion = DateTime.Now;
+            }
+        }
+
+        private TimeSpan CalcularEspera(ConfiguracionManejador config)
+        {
+            if (string.IsNullOrWhiteSpace(config.Expresion))
+                return Timeout.InfiniteTimeSpan;
+
+            if (!config.UltimaEjecucion.HasValue)
+                return TimeSpan.Zero;
+
+            string expresion = config.Expresion!;
+            DateTime siguienteEjecucion = CalcularSiguienteEjecucion(expresion, config.UltimaEjecucion.Value);
+            DateTime ahora = DateTime.Now;
+
+            if (ahora >= siguienteEjecucion)
+                return TimeSpan.Zero;
+
+            return siguienteEjecucion - ahora;
+        }
+
         /// <summary>
         /// Determina si una tarea debe ejecutarse basándose en su expresión de intervalo.
         /// </summary>
         protected virtual bool DebeEjecutarse(ConfiguracionManejador config)
         {
-            if (string.IsNullOrEmpty(config.Expresion))
+            if (ExpresionProgramadaVacia(config))
                 return false;
 
             if (config.UltimaEjecucion.HasValue)
             {
-                DateTime siguienteEjecucion = CalcularSiguienteEjecucion(config.Expresion, config.UltimaEjecucion.Value);
+                string expresion = config.Expresion!;
+                DateTime siguienteEjecucion = CalcularSiguienteEjecucion(expresion, config.UltimaEjecucion.Value);
                 return DateTime.Now >= siguienteEjecucion;
             }
 
@@ -125,27 +192,24 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 _logger.LogInformation("Encolando comando para tarea programada {ManejadorId}", config.IDManejador);
 
                 using IServiceScope scope = _serviceScopeFactory.CreateScope();
-                IAlmacenColaComandos almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
+                IColaComandosMemoria colaComandosMemoria = scope.ServiceProvider.GetRequiredService<IColaComandosMemoria>();
                 IRegistroManejadores registroManejadores = scope.ServiceProvider.GetRequiredService<IRegistroManejadores>();
 
-                System.Text.StringBuilder sbArgumentos = new System.Text.StringBuilder();
+                StringBuilder sbArgumentos = new StringBuilder();
                 sbArgumentos.Append("--origen=disparador");
                 sbArgumentos.Append(" --codigo=" + config.Codigo);
                 if (!string.IsNullOrEmpty(config.ArgumentosComando))
                     sbArgumentos.Append(" " + config.ArgumentosComando);
                 string argumentos = sbArgumentos.ToString();
 
-                var comandoEnCola = new ComandoEnCola
+                SolicitudComando solicitud = new SolicitudComando
                 {
                     RutaComando = config.RutaComando,
                     Argumentos = argumentos,
-                    DatosDeComando = "{}",
-                    FechaCreacion = DateTime.Now,
-                    Estado = "Pendiente",
-                    Intentos = 0
+                    DatosDeComando = "{}"
                 };
 
-                await almacenColaComandos.EncolarAsync(comandoEnCola, token);
+                await colaComandosMemoria.EncolarAsync(solicitud, token);
 
                 DateTime ahora = DateTime.Now;
                 await registroManejadores.ActualizarUltimaEjecucionAsync(config.Id, ahora, token);
@@ -153,11 +217,29 @@ namespace PER.Comandos.LineaComandos.EventDriven.Servicio
                 _logger.LogInformation("Comando encolado: {RutaComando} para tarea programada {ManejadorId}",
                     config.RutaComando, config.IDManejador);
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                _logger.LogWarning("Tarea programada {ManejadorId} cancelada.", config.IDManejador);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error encolando comando para tarea programada {ManejadorId}: {Error}",
                     config.IDManejador, ex.Message);
             }
+        }
+
+        private bool ExpresionProgramadaVacia(ConfiguracionManejador config)
+        {
+            if (!string.IsNullOrWhiteSpace(config.Expresion))
+                return false;
+
+            _logger.LogWarning(
+                "Tarea programada {ManejadorId} no se planificó porque la expresión está vacía. Ruta: {RutaComando}, Código: {Codigo}.",
+                config.IDManejador,
+                config.RutaComando,
+                config.Codigo);
+
+            return true;
         }
     }
 }

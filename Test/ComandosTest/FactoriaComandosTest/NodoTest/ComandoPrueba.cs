@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.Comando;
-using PER.Comandos.LineaComandos.Stream;
 
 namespace ComandosTest.FactoriaComandosTest.NodoTest
 {
@@ -10,13 +9,13 @@ namespace ComandosTest.FactoriaComandosTest.NodoTest
         public override void Preparar(ICollection<Parametro> parametros)
         { }
 
-        public override async Task EjecutarAsync(IStream<string, string> stream, CancellationToken token = default)
+        public override async Task<string> EjecutarAsync(string entrada, CancellationToken token = default)
         {
             await EmpezarAsync(token);
-
-            // Código de comando
             
             await FinalizarAsync(token);
+
+            return entrada;
         }
     }
 }

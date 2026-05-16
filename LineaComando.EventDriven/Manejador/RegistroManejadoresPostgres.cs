@@ -1,5 +1,6 @@
 using Dapper;
 using Npgsql;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.EventDriven.DAO;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Manejador
@@ -7,16 +8,23 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
     public class RegistroManejadoresPostgres : IRegistroManejadores
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
 
         public RegistroManejadoresPostgres(string connectionString)
+            : this(connectionString, "public")
+        {
+        }
+
+        public RegistroManejadoresPostgres(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.Postgres(esquema);
         }
 
         public async Task<int> RegistrarManejadorAsync(ManejadorEvento manejador, CancellationToken token = default)
         {
-            const string sql = @"
-                INSERT INTO per_manejadores_evento (
+            string sql = $@"
+                INSERT INTO {_nombres.ManejadoresEvento} AS m (
                     codigo,
                     nombre,
                     descripcion,
@@ -38,7 +46,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 )
                 ON CONFLICT (codigo)
                 DO UPDATE SET
-                    id = per_manejadores_evento.id
+                    codigo = EXCLUDED.codigo
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -64,7 +72,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<ManejadorEvento?> ObtenerManejadorPorIdAsync(int id, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id as Id,
                     codigo as Codigo,
@@ -75,7 +83,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     argumentos_comando as ArgumentosComando,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM per_manejadores_evento
+                FROM {_nombres.ManejadoresEvento}
                 WHERE id = @Id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -86,7 +94,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<ManejadorEvento?> ObtenerManejadorPorCodigoAsync(string codigo, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id as Id,
                     codigo as Codigo,
@@ -97,7 +105,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     argumentos_comando as ArgumentosComando,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM per_manejadores_evento
+                FROM {_nombres.ManejadoresEvento}
                 WHERE codigo = @Codigo;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -108,7 +116,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<IEnumerable<ManejadorEvento>> ObtenerManejadoresActivosAsync(CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id as Id,
                     codigo as Codigo,
@@ -119,7 +127,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     argumentos_comando as ArgumentosComando,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM per_manejadores_evento
+                FROM {_nombres.ManejadoresEvento}
                 WHERE activo = true
                 ORDER BY codigo;";
 
@@ -131,8 +139,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task ActualizarManejadorAsync(ManejadorEvento manejador, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_manejadores_evento
+            string sql = $@"
+                UPDATE {_nombres.ManejadoresEvento}
                 SET
                     codigo = @Codigo,
                     nombre = @Nombre,
@@ -151,8 +159,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task DesactivarManejadorAsync(int id, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_manejadores_evento
+            string sql = $@"
+                UPDATE {_nombres.ManejadoresEvento}
                 SET activo = false
                 WHERE id = @Id;";
 
@@ -164,8 +172,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<int> RegistrarDisparadorAsync(DisparadorManejador disparador, CancellationToken token = default)
         {
-            const string sql = @"
-                INSERT INTO per_disparadores_manejador (
+            string sql = $@"
+                INSERT INTO {_nombres.DisparadoresManejador} AS d (
                     manejador_evento_id,
                     codigo,
                     modo_disparo,
@@ -187,7 +195,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                 )
                 ON CONFLICT (codigo)
                 DO UPDATE SET
-                    id = per_disparadores_manejador.id
+                    codigo = EXCLUDED.codigo
                 RETURNING id;";
 
             using var connection = new NpgsqlConnection(_connectionString);
@@ -214,7 +222,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
             string tipoEvento,
             CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     d.id as Id,
                     d.manejador_evento_id as IDManejador,
@@ -228,9 +236,9 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     d.activo as Activo,
                     d.prioridad as Prioridad,
                     d.creado_en as FechaCreacion
-                FROM per_disparadores_manejador d
-                INNER JOIN per_manejadores_evento m ON d.manejador_evento_id = m.id
-                INNER JOIN per_tipos_evento te ON d.tipo_evento_id = te.id
+                FROM {_nombres.DisparadoresManejador} d
+                INNER JOIN {_nombres.ManejadoresEvento} m ON d.manejador_evento_id = m.id
+                INNER JOIN {_nombres.TiposEvento} te ON d.tipo_evento_id = te.id
                 WHERE te.codigo = @TipoEvento
                     AND d.activo = true
                     AND m.activo = true
@@ -245,7 +253,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
         public async Task<IEnumerable<ConfiguracionManejador>> ObtenerManejadoresProgramadosAsync(
             CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     d.id as Id,
                     d.manejador_evento_id as IDManejador,
@@ -259,8 +267,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     d.prioridad as Prioridad,
                     d.creado_en as FechaCreacion,
                     d.ultima_ejecucion as UltimaEjecucion
-                FROM per_disparadores_manejador d
-                INNER JOIN per_manejadores_evento m ON d.manejador_evento_id = m.id
+                FROM {_nombres.DisparadoresManejador} d
+                INNER JOIN {_nombres.ManejadoresEvento} m ON d.manejador_evento_id = m.id
                 WHERE d.modo_disparo = 'Programado'
                     AND d.activo = true
                     AND m.activo = true
@@ -274,8 +282,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task ActualizarConfiguracionAsync(ConfiguracionManejador configuracion, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_disparadores_manejador
+            string sql = $@"
+                UPDATE {_nombres.DisparadoresManejador}
                 SET
                     modo_disparo = @ModoDisparo,
                     expresion = @Expresion,
@@ -292,8 +300,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task ActualizarUltimaEjecucionAsync(int disparadorId, DateTime ultimaEjecucion, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_disparadores_manejador
+            string sql = $@"
+                UPDATE {_nombres.DisparadoresManejador}
                 SET ultima_ejecucion = @UltimaEjecucion
                 WHERE id = @Id;";
 

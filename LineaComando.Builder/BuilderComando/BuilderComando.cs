@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.BuilderManejador;
 using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.Cola.Registro;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
@@ -15,6 +16,7 @@ public class BuilderComando : IBuilderComando
     private string? _descripcion;
     private Func<ICollection<Parametro>, IComando<string, ResultadoComando>>? _accionFunc;
     private ComandoBase<string, ResultadoComando>? _accionComandoBase;
+    private IProcesadorResultadoComando? _procesadorResultado;
     private bool _argumentosInicializados;
     private bool _accionInicializada;
 
@@ -51,6 +53,12 @@ public class BuilderComando : IBuilderComando
         return this;
     }
 
+    public IBuilderComando Resultado(IProcesadorResultadoComando procesador)
+    {
+        _procesadorResultado = procesador ?? throw new ArgumentNullException(nameof(procesador));
+        return this;
+    }
+
     public async Task<IBuilderManejador> RegistrarAsync()
     {
         if (!_argumentosInicializados)
@@ -74,6 +82,12 @@ public class BuilderComando : IBuilderComando
         var registroComandos = _serviceProvider.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
 
         await registroComandos.RegistrarComandoAsync(metadatos, nodo);
+
+        if (_procesadorResultado is not null)
+        {
+            IRegistroProcesadoresResultadoComando registroProcesadores = _serviceProvider.GetRequiredService<IRegistroProcesadoresResultadoComando>();
+            registroProcesadores.Registrar(_rutaComando, _procesadorResultado);
+        }
 
         return new BuilderManejador.BuilderManejador(metadatos, _serviceProvider);
     }

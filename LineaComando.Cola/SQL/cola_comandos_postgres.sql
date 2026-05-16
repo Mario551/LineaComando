@@ -1,3 +1,36 @@
+-- Tabla: per_comandos_registrados
+-- Almacena el catálogo de comandos disponibles en el sistema
+CREATE TABLE IF NOT EXISTS per_comandos_registrados (
+    id SERIAL PRIMARY KEY,
+    ruta_comando VARCHAR(2048) NOT NULL UNIQUE,
+    descripcion TEXT NULL,
+    activo BOOLEAN NOT NULL DEFAULT true,
+    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+    actualizado_en TIMESTAMP NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_per_comandos_registrados_ruta
+    ON per_comandos_registrados(ruta_comando);
+
+CREATE INDEX IF NOT EXISTS idx_per_comandos_registrados_activo
+    ON per_comandos_registrados(activo);
+
+-- Tabla: per_cola_comandos_estados
+-- Catálogo de estados válidos para la cola de comandos
+CREATE TABLE IF NOT EXISTS per_cola_comandos_estados (
+    estado VARCHAR(50) PRIMARY KEY,
+    descripcion VARCHAR(200) NOT NULL
+);
+
+INSERT INTO per_cola_comandos_estados (estado, descripcion)
+VALUES
+    ('pendiente', 'Comando registrado y pendiente de tomar.'),
+    ('procesando', 'Comando tomado por un worker.'),
+    ('completado', 'Comando ejecutado correctamente.'),
+    ('fallido', 'Comando terminado con error.')
+ON CONFLICT (estado) DO UPDATE
+SET descripcion = EXCLUDED.descripcion;
+
 -- Tabla: per_cola_comandos
 -- Representa la cola de ejecución de comandos con relación a comandos registrados
 
@@ -10,15 +43,19 @@ CREATE TABLE IF NOT EXISTS per_cola_comandos (
     fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
     fecha_leido TIMESTAMP NULL,
     fecha_ejecucion TIMESTAMP NULL,
-    estado VARCHAR(50) NOT NULL DEFAULT 'Pendiente',
+    estado VARCHAR(50) NOT NULL DEFAULT 'pendiente',
     mensaje_error TEXT NULL,
-    salida TEXT NULL,
     duracion_ms BIGINT NULL,
     intentos INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT fk_cola_comandos_comando_registrado
         FOREIGN KEY (id_comando_registrado)
         REFERENCES per_comandos_registrados(id)
+        ON DELETE NO ACTION,
+
+    CONSTRAINT fk_per_cola_comandos_estado
+        FOREIGN KEY (estado)
+        REFERENCES per_cola_comandos_estados(estado)
         ON DELETE NO ACTION
 );
 
@@ -35,7 +72,34 @@ CREATE INDEX IF NOT EXISTS idx_per_cola_comandos_fecha_leido
 
 CREATE INDEX IF NOT EXISTS idx_per_cola_comandos_pendientes
     ON per_cola_comandos(id, fecha_creacion)
-    WHERE estado = 'Pendiente' AND fecha_leido IS NULL;
+    WHERE estado = 'pendiente' AND fecha_leido IS NULL;
+
+-- Tabla: per_cola_comandos_resultados
+-- Payload durable de resultados de comandos completados
+CREATE TABLE IF NOT EXISTS per_cola_comandos_resultados (
+    comando_id BIGINT PRIMARY KEY,
+    tipo VARCHAR(200) NOT NULL,
+    version_resultado INTEGER NOT NULL,
+    formato VARCHAR(100) NOT NULL,
+    payload TEXT NULL,
+    ruta_payload TEXT NULL,
+    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_per_cola_comandos_resultados_comando
+        FOREIGN KEY (comando_id)
+        REFERENCES per_cola_comandos(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT ck_per_cola_comandos_resultados_payload_o_ruta
+        CHECK (
+            (payload IS NOT NULL AND ruta_payload IS NULL)
+            OR
+            (payload IS NULL AND ruta_payload IS NOT NULL)
+        )
+);
+
+CREATE INDEX IF NOT EXISTS idx_per_cola_comandos_resultados_tipo_version
+    ON per_cola_comandos_resultados(tipo, version_resultado);
 
 -- Función para obtener comandos pendientes (solo lectura)
 CREATE OR REPLACE FUNCTION obtener_comandos_pendientes(
@@ -53,7 +117,6 @@ RETURNS TABLE (
     fecha_ejecucion TIMESTAMP,
     estado VARCHAR(50),
     mensaje_error TEXT,
-    salida TEXT,
     duracion_ms BIGINT,
     intentos INTEGER
 )
@@ -67,9 +130,9 @@ BEGIN
     SELECT c.*
     FROM per_cola_comandos c
     WHERE (
-        (c.fecha_leido IS NULL AND c.estado = 'Pendiente')
+        (c.fecha_leido IS NULL AND c.estado = 'pendiente')
         OR
-        (c.estado = 'Procesando' AND c.fecha_leido < v_timeout_timestamp)
+        (c.estado = 'procesando' AND c.fecha_leido < v_timeout_timestamp)
     )
     ORDER BY c.id
     LIMIT p_tamanio_lote;
@@ -91,7 +154,6 @@ RETURNS TABLE (
     fecha_ejecucion TIMESTAMP,
     estado VARCHAR(50),
     mensaje_error TEXT,
-    salida TEXT,
     duracion_ms BIGINT,
     intentos INTEGER
 )
@@ -99,7 +161,7 @@ AS $$
 BEGIN
     UPDATE per_cola_comandos c
     SET fecha_leido = NOW(),
-        estado = 'Procesando'
+        estado = 'procesando'
     WHERE c.id = ANY(p_ids);
 
     RETURN QUERY SELECT c.* FROM per_cola_comandos c WHERE c.id = ANY(p_ids);
@@ -118,20 +180,3 @@ BEGIN
     AND fecha_leido IS NULL;
 END;
 $$ LANGUAGE plpgsql;
-
--- Tabla: per_comandos_registrados
--- Almacena el catálogo de comandos disponibles en el sistema
-CREATE TABLE IF NOT EXISTS per_comandos_registrados (
-    id SERIAL PRIMARY KEY,
-    ruta_comando VARCHAR(2048) NOT NULL UNIQUE,
-    descripcion TEXT NULL,
-    activo BOOLEAN NOT NULL DEFAULT true,
-    creado_en TIMESTAMP NOT NULL DEFAULT NOW(),
-    actualizado_en TIMESTAMP NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_per_comandos_registrados_ruta
-    ON per_comandos_registrados(ruta_comando);
-
-CREATE INDEX IF NOT EXISTS idx_per_comandos_registrados_activo
-    ON per_comandos_registrados(activo);

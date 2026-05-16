@@ -13,7 +13,7 @@ namespace EventDrivenTest
 
         public RegistroTiposEventoSqlServerTest(DatabaseFixtureEventDrivenSqlServer fixture) : base(fixture)
         {
-            _registro = new RegistroTiposEventoSqlServer(ConnectionString);
+            _registro = new RegistroTiposEventoSqlServer(ConnectionString, Esquema);
         }
 
         [Fact]
@@ -36,8 +36,8 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var tipoDb = await connection.QuerySingleAsync<TipoEvento>(
-                @"SELECT id, codigo, nombre, descripcion, activo, creado_en
-                  FROM per_tipos_evento WHERE id = @Id",
+                $@"SELECT id, codigo, nombre, descripcion, activo, creado_en
+                  FROM {Nombres.TiposEvento} WHERE id = @Id",
                 new { Id = id });
 
             Assert.Equal(tipoEvento.Codigo, tipoDb.Codigo);

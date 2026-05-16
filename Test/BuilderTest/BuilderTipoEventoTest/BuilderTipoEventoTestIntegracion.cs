@@ -18,7 +18,7 @@ public class BuilderTipoEventoTestIntegracion : BaseIntegracionTestBuilder
     {
         var services = new ServiceCollection();
         services.AddSingleton<IRegistroTiposEvento>(
-            new RegistroTiposEventoPostgres(ConnectionString));
+            new RegistroTiposEventoPostgres(ConnectionString, Esquema));
         _serviceProvider = services.BuildServiceProvider();
     }
 
@@ -41,7 +41,7 @@ public class BuilderTipoEventoTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
 
         var tipoEventoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-            "SELECT * FROM per_tipos_evento WHERE codigo = @Codigo",
+            $"SELECT * FROM {Nombres.TiposEvento} WHERE codigo = @Codigo",
             new { Codigo = codigoTipoEvento });
 
         Assert.NotNull(tipoEventoDb);
@@ -68,7 +68,7 @@ public class BuilderTipoEventoTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
 
         await connection.ExecuteAsync(
-            "DELETE FROM per_tipos_evento WHERE codigo LIKE @Prefijo;",
+            $"DELETE FROM {Nombres.TiposEvento} WHERE codigo LIKE @Prefijo;",
             new { Prefijo = PrefijoTest + "%" });
     }
 }

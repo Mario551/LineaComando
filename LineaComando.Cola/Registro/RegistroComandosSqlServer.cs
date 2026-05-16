@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.Cola.DAO;
 using System.Collections.Concurrent;
 
@@ -11,28 +12,35 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
     public class RegistroComandosSqlServer<TRead, TWrite> : IRegistroComandos<TRead, TWrite>
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
         private readonly Dictionary<string, IComandoCreador<TRead, TWrite>> _comandosRegistrados;
 
         private ConcurrentDictionary<string, MetadatosComando> _metadatosComandosRegistrados;
         public IDictionary<string, MetadatosComando> ComandosRegistrados => _metadatosComandosRegistrados;
 
         public RegistroComandosSqlServer(string connectionString)
+            : this(connectionString, "dbo")
+        {
+        }
+
+        public RegistroComandosSqlServer(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.SqlServer(esquema);
             _metadatosComandosRegistrados = new ConcurrentDictionary<string, MetadatosComando>();
             _comandosRegistrados = new Dictionary<string, IComandoCreador<TRead, TWrite>>();
         }
 
         public async Task<IEnumerable<MetadatosComando>> ObtenerComandosRegistradosAsync(CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id as Id,
                     ruta_comando as RutaComando,
                     descripcion as Descripcion,
                     activo as Activo,
                     creado_en as CreadoEn
-                FROM per_comandos_registrados
+                FROM {_nombres.ComandosRegistrados}
                 WHERE activo = 1
                 ORDER BY ruta_comando;";
 
@@ -80,9 +88,9 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            const string sqlExiste = @"
+            string sqlExiste = $@"
                 SELECT id 
-                FROM per_comandos_registrados 
+                FROM {_nombres.ComandosRegistrados}
                 WHERE ruta_comando = @RutaComando;";
 
             var idExistente = await connection.ExecuteScalarAsync<int?>(sqlExiste, new { metadatos.RutaComando });
@@ -94,8 +102,8 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             }
             else
             {
-                const string sqlInsert = @"
-                    INSERT INTO per_comandos_registrados (
+                string sqlInsert = $@"
+                    INSERT INTO {_nombres.ComandosRegistrados} (
                         ruta_comando,
                         descripcion,
                         activo,
@@ -176,8 +184,8 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
 
         private async Task DesactivarComandosAsync(IEnumerable<string> rutas, CancellationToken token)
         {
-            const string sql = @"
-                UPDATE per_comandos_registrados
+            string sql = $@"
+                UPDATE {_nombres.ComandosRegistrados}
                 SET activo = 0,
                     actualizado_en = GETDATE()
                 WHERE ruta_comando IN (

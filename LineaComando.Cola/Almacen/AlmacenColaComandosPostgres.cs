@@ -1,6 +1,8 @@
 using Dapper;
 using Npgsql;
 using PER.Comandos.LineaComandos.Cola;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
+using PER.Comandos.LineaComandos.Cola.Resultados;
 using System.Threading.Tasks;
 
 namespace PER.Comandos.LineaComandos.Cola.Almacen
@@ -8,10 +10,17 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
     public class AlmacenColaComandosPostgres : IAlmacenColaComandos
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
 
         public AlmacenColaComandosPostgres(string connectionString)
+            : this(connectionString, "public")
+        {
+        }
+
+        public AlmacenColaComandosPostgres(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.Postgres(esquema);
         }
 
         /// <summary>
@@ -22,8 +31,8 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// <returns>ID del comando encolado.</returns>
         public async Task<long> EncolarAsync(ComandoEnCola comando, CancellationToken token = default)
         {
-            const string sql = @"
-                INSERT INTO per_cola_comandos (
+            string sql = $@"
+                INSERT INTO {_nombres.ColaComandos} (
                     id_comando_registrado,
                     ruta_comando,
                     argumentos,
@@ -40,7 +49,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                     @FechaCreacion,
                     @Estado,
                     @Intentos
-                FROM per_comandos_registrados cr
+                FROM {_nombres.ComandosRegistrados} cr
                 WHERE cr.ruta_comando = @RutaComando
                 RETURNING id;";
 
@@ -75,7 +84,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
             int tamanioLote = 50,
             CancellationToken token = default)
         {
-            const string sql = "SELECT * FROM obtener_comandos_pendientes(@TamanioLote, @TimeoutMilisegundos);";
+            string sql = $"SELECT * FROM {_nombres.ObtenerComandosPendientes}(@TamanioLote, @TimeoutMilisegundos);";
 
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
@@ -97,7 +106,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
             if (ids.Length == 0)
                 return Enumerable.Empty<ComandoEnCola>();
 
-            const string sql = "SELECT * FROM marcar_comandos_procesando(@Ids);";
+            string sql = $"SELECT * FROM {_nombres.MarcarComandosProcesando}(@Ids);";
 
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
@@ -119,18 +128,27 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
             ResultadoComando resultado,
             CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_cola_comandos
+            await MarcarComoProcesadoAsync(comandoId, resultado, null, token);
+        }
+
+        public async Task MarcarComoProcesadoAsync(
+            long comandoId,
+            ResultadoComando resultado,
+            PayloadResultadoComando? payloadResultado,
+            CancellationToken token = default)
+        {
+            string sql = $@"
+                UPDATE {_nombres.ColaComandos}
                 SET fecha_ejecucion = @FechaEjecucion,
                     estado = @Estado,
                     mensaje_error = @MensajeError,
-                    salida = @Salida,
                     duracion_ms = @DuracionMs,
                     intentos = intentos + 1
                 WHERE id = @ComandoId;";
 
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
+            using var transaction = connection.BeginTransaction();
 
             await connection.ExecuteAsync(
                 sql,
@@ -138,11 +156,44 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                 {
                     ComandoId = comandoId,
                     FechaEjecucion = DateTime.Now,
-                    Estado = resultado.Exitoso ? "Completado" : "Fallido",
+                    Estado = resultado.Exitoso ? "completado" : "fallido",
                     resultado.MensajeError,
-                    resultado.Salida,
                     DuracionMs = (long)resultado.Duracion.TotalMilliseconds
-                });
+                },
+                transaction);
+
+            await GuardarPayloadResultadoAsync(connection, transaction, comandoId, payloadResultado);
+
+            transaction.Commit();
+        }
+
+        public async Task<ResultadoComandoPersistido?> ObtenerResultadoPersistidoAsync(
+            long comandoId,
+            CancellationToken token = default)
+        {
+            string sql = $@"
+                SELECT
+                    c.id AS ComandoId,
+                    c.estado AS Estado,
+                    c.mensaje_error AS MensajeError,
+                    c.duracion_ms AS DuracionMs,
+                    r.tipo AS ResultadoTipo,
+                    r.version_resultado AS ResultadoVersion,
+                    r.formato AS ResultadoFormato,
+                    r.payload AS ResultadoPayload,
+                    r.ruta_payload AS ResultadoRutaPayload
+                FROM {_nombres.ColaComandos} c
+                LEFT JOIN {_nombres.ColaComandosResultados} r ON r.comando_id = c.id
+                WHERE c.id = @ComandoId;";
+
+            using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(token);
+
+            ResultadoComandoPersistidoFila? fila = await connection.QuerySingleOrDefaultAsync<ResultadoComandoPersistidoFila>(
+                sql,
+                new { ComandoId = comandoId });
+
+            return fila is null ? null : MapToResultadoPersistido(fila);
         }
 
         public async Task ActualizarFechaLeidoAsync(long[] ids, CancellationToken token = default)
@@ -150,7 +201,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
             if (ids.Length == 0)
                 return;
 
-            const string sql = "CALL actualizar_fecha_leido(@Ids);";
+            string sql = $"CALL {_nombres.ActualizarFechaLeido}(@Ids);";
 
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
@@ -175,6 +226,97 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
                 MensajeError = dao.MensajeError,
                 Intentos = dao.Intentos
             };
+        }
+
+        private async Task GuardarPayloadResultadoAsync(
+            NpgsqlConnection connection,
+            NpgsqlTransaction transaction,
+            long comandoId,
+            PayloadResultadoComando? payloadResultado)
+        {
+            string eliminarSql = $"DELETE FROM {_nombres.ColaComandosResultados} WHERE comando_id = @ComandoId;";
+
+            await connection.ExecuteAsync(eliminarSql, new { ComandoId = comandoId }, transaction);
+
+            if (payloadResultado is null)
+                return;
+
+            string insertarSql = $@"
+                INSERT INTO {_nombres.ColaComandosResultados} (
+                    comando_id,
+                    tipo,
+                    version_resultado,
+                    formato,
+                    payload,
+                    ruta_payload,
+                    creado_en
+                )
+                VALUES (
+                    @ComandoId,
+                    @Tipo,
+                    @Version,
+                    @Formato,
+                    @Payload,
+                    @RutaPayload,
+                    NOW()
+                );";
+
+            await connection.ExecuteAsync(
+                insertarSql,
+                new
+                {
+                    ComandoId = comandoId,
+                    payloadResultado.Tipo,
+                    payloadResultado.Version,
+                    payloadResultado.Formato,
+                    Payload = payloadResultado.Contenido,
+                    payloadResultado.RutaPayload
+                },
+                transaction);
+        }
+
+        private static ResultadoComandoPersistido MapToResultadoPersistido(ResultadoComandoPersistidoFila fila)
+        {
+            PayloadResultadoComando? payloadResultado = string.IsNullOrWhiteSpace(fila.ResultadoTipo)
+                ? null
+                : new PayloadResultadoComando
+                {
+                    Tipo = fila.ResultadoTipo,
+                    Version = fila.ResultadoVersion ?? 0,
+                    Formato = fila.ResultadoFormato ?? "application/json",
+                    Contenido = fila.ResultadoPayload,
+                    RutaPayload = fila.ResultadoRutaPayload
+                };
+
+            return new ResultadoComandoPersistido
+            {
+                ComandoId = fila.ComandoId,
+                Estado = fila.Estado,
+                MensajeError = fila.MensajeError,
+                Duracion = TimeSpan.FromMilliseconds(fila.DuracionMs ?? 0),
+                PayloadResultado = payloadResultado
+            };
+        }
+
+        private sealed class ResultadoComandoPersistidoFila
+        {
+            public long ComandoId { get; set; }
+
+            public string Estado { get; set; } = string.Empty;
+
+            public string? MensajeError { get; set; }
+
+            public long? DuracionMs { get; set; }
+
+            public string? ResultadoTipo { get; set; }
+
+            public int? ResultadoVersion { get; set; }
+
+            public string? ResultadoFormato { get; set; }
+
+            public string? ResultadoPayload { get; set; }
+
+            public string? ResultadoRutaPayload { get; set; }
         }
     }
 }

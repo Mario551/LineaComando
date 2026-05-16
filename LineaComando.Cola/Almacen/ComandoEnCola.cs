@@ -38,7 +38,7 @@ namespace PER.Comandos.LineaComandos.Cola.Almacen
         /// <summary>
         /// Estado del procesamiento.
         /// </summary>
-        public string Estado { get; set; } = "Pendiente";
+        public string Estado { get; set; } = "pendiente";
 
         /// <summary>
         /// Mensaje de error si falló.

@@ -5,6 +5,8 @@ namespace ComandosColaTest;
 
 public class DatabaseFixtureSqlServer : IAsyncLifetime
 {
+    public const string Esquema = "test";
+
     public string ConnectionString { get; }
 
     public DatabaseFixtureSqlServer()
@@ -16,10 +18,10 @@ public class DatabaseFixtureSqlServer : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString);
+        var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString, Esquema);
         await inicializadorCola.InicializarAsync();
 
-        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenSqlServer(ConnectionString);
+        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenSqlServer(ConnectionString, Esquema);
         await inicializadorEventDriven.InicializarAsync();
     }
 

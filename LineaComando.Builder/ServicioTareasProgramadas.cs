@@ -1,32 +1,35 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.EventDriven.Servicio;
 
 namespace PER.Comandos.LineaComandos.Builder
 {
     public class ServicioTareasProgramadas : BackgroundService
     {
-        private readonly CoordinadorTareasProgramadas _coordinador;
-        private readonly TimeSpan _tiempoRefresco;
+        private readonly IPlanificadorTareasProgramadas _planificador;
+        private readonly ILogger<ServicioTareasProgramadas> _logger;
 
-        public ServicioTareasProgramadas(CoordinadorTareasProgramadas coordinador, LineaComandoBuilder builder)
+        public ServicioTareasProgramadas(
+            IPlanificadorTareasProgramadas planificador,
+            ILogger<ServicioTareasProgramadas> logger)
         {
-            _coordinador = coordinador ?? throw new ArgumentNullException(nameof(coordinador));
-            _tiempoRefresco = builder.TiempoRefrescoTareas;
+            _planificador = planificador ?? throw new ArgumentNullException(nameof(planificador));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                try
-                {
-                    await _coordinador.EjecutarTareasProgramadasAsync(stoppingToken);
-                    await Task.Delay(_tiempoRefresco, stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
+                await _planificador.IniciarAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("ServicioTareasProgramadas cancelado.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ServicioTareasProgramadas finalizó por un error no controlado.");
             }
         }
     }

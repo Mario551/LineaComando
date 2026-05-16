@@ -16,7 +16,7 @@ namespace ComandosColaTest
 
         public RegistroComandosSqlServerTest(DatabaseFixtureSqlServer fixture) : base(fixture)
         {
-            _registro = new RegistroComandosSqlServer<string, ResultadoComando>(ConnectionString);
+            _registro = new RegistroComandosSqlServer<string, ResultadoComando>(ConnectionString, Esquema);
         }
 
         [Fact]
@@ -36,7 +36,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-                "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+                $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);
@@ -68,11 +68,11 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var count = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+                $"SELECT COUNT(*) FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+                $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.Equal(1, count);
@@ -95,7 +95,7 @@ namespace ComandosColaTest
             {
                 await connection.OpenAsync();
                 await connection.ExecuteAsync(
-                    "UPDATE per_comandos_registrados SET activo = 0 WHERE ruta_comando = @Ruta",
+                    $"UPDATE {Nombres.ComandosRegistrados} SET activo = 0 WHERE ruta_comando = @Ruta",
                     new { Ruta = rutaInactivo });
             }
 
@@ -120,7 +120,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-                "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+                $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.Procesadores;
 using PER.Comandos.LineaComandos.Cola.Registro;
@@ -21,7 +22,7 @@ namespace ComandosColaTest
 
         public ProcesadorColaComandosTest(DatabaseFixture fixture) : base(fixture)
         {
-            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString);
+            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString, Esquema);
             _logger = NullLogger<ProcesadorColaComandos>.Instance;
         }
 
@@ -34,11 +35,18 @@ namespace ComandosColaTest
         private IServiceScopeFactory CrearServiceScopeFactory(FactoriaComandos<string, ResultadoComando> factoria)
         {
             var services = new ServiceCollection();
-            services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(ConnectionString));
+            services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(ConnectionString, Esquema));
             services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria);
 
             var provider = services.BuildServiceProvider();
             return provider.GetRequiredService<IServiceScopeFactory>();
+        }
+
+        private IColaComandosMemoria CrearColaComandosMemoria(IServiceScopeFactory serviceScopeFactory)
+        {
+            return new ColaComandosMemoria(
+                serviceScopeFactory,
+                NullLogger<ColaComandosMemoria>.Instance);
         }
 
         [Fact]
@@ -50,37 +58,38 @@ namespace ComandosColaTest
             var excepcion = Assert.Throws<ArgumentException>(() =>
                 new ProcesadorColaComandos(
                     scopeFactory,
+                    CrearColaComandosMemoria(scopeFactory),
                     0,
-                    TimeSpan.FromSeconds(1),
                     _logger));
 
             Assert.Contains("máximo paralelismo", excepcion.Message.ToLower());
         }
 
         [Fact]
-        public void Constructor_TiempoRefrescoMenorOIgualACero_DebeLanzarExcepcion()
+        public void Constructor_ColaComandosMemoriaNula_DebeLanzarExcepcion()
         {
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             var scopeFactory = CrearServiceScopeFactory(factoria);
 
-            var excepcion = Assert.Throws<ArgumentException>(() =>
+            Assert.Throws<ArgumentNullException>(() =>
                 new ProcesadorColaComandos(
                     scopeFactory,
+                    null!,
                     1,
-                    TimeSpan.Zero,
                     _logger));
-
-            Assert.Contains("tiempo de refresco", excepcion.Message.ToLower());
         }
 
         [Fact]
         public void Constructor_ScopeFactoryNulo_DebeLanzarExcepcion()
         {
+            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var scopeFactory = CrearServiceScopeFactory(factoria);
+
             Assert.Throws<ArgumentNullException>(() =>
                 new ProcesadorColaComandos(
                     null!,
+                    CrearColaComandosMemoria(scopeFactory),
                     1,
-                    TimeSpan.FromSeconds(1),
                     _logger));
         }
 
@@ -91,8 +100,8 @@ namespace ComandosColaTest
             var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
                 scopeFactory,
+                CrearColaComandosMemoria(scopeFactory),
                 1,
-                TimeSpan.FromMilliseconds(50),
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -112,12 +121,12 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -128,8 +137,8 @@ namespace ComandosColaTest
             var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
                 scopeFactory,
+                CrearColaComandosMemoria(scopeFactory),
                 1,
-                TimeSpan.FromMilliseconds(50),
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -143,11 +152,10 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT * FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = comandoId });
 
-            Assert.Equal("Completado", (string)comandoDb.estado);
-            Assert.Equal("Ejecutado por procesador", (string)comandoDb.salida);
+            Assert.Equal("completado", (string)comandoDb.estado);
         }
 
         [Fact]
@@ -161,12 +169,12 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -175,8 +183,8 @@ namespace ComandosColaTest
             var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
                 scopeFactory,
+                CrearColaComandosMemoria(scopeFactory),
                 1,
-                TimeSpan.FromMilliseconds(50),
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -188,10 +196,10 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_cola_comandos WHERE id = @Id",
+                $"SELECT * FROM {Nombres.ColaComandos} WHERE id = @Id",
                 new { Id = comandoId });
 
-            Assert.Equal("Fallido", (string)comandoDb.estado);
+            Assert.Equal("fallido", (string)comandoDb.estado);
             Assert.Contains("Error simulado", (string)comandoDb.mensaje_error);
         }
 
@@ -206,7 +214,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             int cantidadComandos = 5;
             for (int i = 0; i < cantidadComandos; i++)
             {
@@ -215,7 +223,7 @@ namespace ComandosColaTest
                     RutaComando = ruta,
                     Argumentos = $"--index={i}",
                     FechaCreacion = DateTime.Now.AddMilliseconds(i * 10),
-                    Estado = "Pendiente",
+                    Estado = "pendiente",
                     Intentos = 0
                 };
                 await almacen.EncolarAsync(comandoEnCola);
@@ -226,8 +234,8 @@ namespace ComandosColaTest
             var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
                 scopeFactory,
+                CrearColaComandosMemoria(scopeFactory),
                 2,
-                TimeSpan.FromMilliseconds(50),
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -241,7 +249,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var completados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM per_cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
+                $"SELECT COUNT(*) FROM {Nombres.ColaComandos} WHERE estado = 'completado' AND ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.Equal(cantidadComandos, completados);
@@ -252,12 +260,12 @@ namespace ComandosColaTest
         {
             var ruta = PrefijoTest + "comando no registrado";
 
-            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             var comandoEnCola = new ComandoEnCola
             {
                 RutaComando = ruta,
                 FechaCreacion = DateTime.Now,
-                Estado = "Pendiente",
+                Estado = "pendiente",
                 Intentos = 0
             };
 
@@ -278,7 +286,7 @@ namespace ComandosColaTest
             var factoria = new FactoriaComandos<string, ResultadoComando>();
             await _registro.ConstruirFactoriaAsync(factoria);
 
-            var almacen = new AlmacenColaComandosPostgres(ConnectionString);
+            var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             int cantidadComandos = 4;
             for (int i = 0; i < cantidadComandos; i++)
             {
@@ -286,7 +294,7 @@ namespace ComandosColaTest
                 {
                     RutaComando = ruta,
                     FechaCreacion = DateTime.Now,
-                    Estado = "Pendiente",
+                    Estado = "pendiente",
                     Intentos = 0
                 };
                 await almacen.EncolarAsync(comandoEnCola);
@@ -295,8 +303,8 @@ namespace ComandosColaTest
             var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
                 scopeFactory,
+                CrearColaComandosMemoria(scopeFactory),
                 2,
-                TimeSpan.FromMilliseconds(50),
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -308,7 +316,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var completados = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM per_cola_comandos WHERE estado = 'Completado' AND ruta_comando = @Ruta",
+                $"SELECT COUNT(*) FROM {Nombres.ColaComandos} WHERE estado = 'completado' AND ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.Equal(cantidadComandos, completados);

@@ -1,6 +1,4 @@
-﻿using PER.Comandos.LineaComandos.Stream;
-
-namespace PER.Comandos.LineaComandos.Comando
+﻿namespace PER.Comandos.LineaComandos.Comando
 {
     /// <summary>
     /// Interfaz base para comandos.
@@ -20,6 +18,6 @@ namespace PER.Comandos.LineaComandos.Comando
         /// <summary>
         /// Ejecuta el comando de forma asíncrona.
         /// </summary>
-        Task EjecutarAsync(IStream<TRead, TWrite> stream, CancellationToken token = default);
+        Task<TWrite> EjecutarAsync(TRead entrada, CancellationToken token = default);
     }
 }

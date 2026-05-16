@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Comando;
-using PER.Comandos.LineaComandos.Stream;
 
 namespace ComandosColaTest.Helpers
 {
@@ -46,7 +45,7 @@ namespace ComandosColaTest.Helpers
             }
         }
 
-        public override async Task EjecutarAsync(IStream<string, ResultadoComando> stream, CancellationToken token = default)
+        public override async Task<ResultadoComando> EjecutarAsync(string entrada, CancellationToken token = default)
         {
             await EmpezarAsync(token);
 
@@ -62,12 +61,10 @@ namespace ComandosColaTest.Helpers
 
                 if (_deberiaFallar)
                 {
-                    stream.Writer.TryWrite(ResultadoComando.Fallo("Error simulado en comando de prueba"));
+                    return ResultadoComando.Fallo("Error simulado en comando de prueba");
                 }
-                else
-                {
-                    stream.Writer.TryWrite(ResultadoComando.Exito(_mensaje));
-                }
+
+                return ResultadoComando.Exito(_mensaje);
             }
             finally
             {
@@ -98,14 +95,14 @@ namespace ComandosColaTest.Helpers
             _b = int.Parse(paramB?.Valor?.ToString() ?? "0");
         }
 
-        public override async Task EjecutarAsync(IStream<string, ResultadoComando> stream, CancellationToken token = default)
+        public override async Task<ResultadoComando> EjecutarAsync(string entrada, CancellationToken token = default)
         {
             await EmpezarAsync(token);
 
             try
             {
-                var resultado = _a + _b;
-                stream.Writer.TryWrite(ResultadoComando.Exito($"Resultado: {resultado}"));
+                int resultado = _a + _b;
+                return ResultadoComando.Exito($"Resultado: {resultado}");
             }
             finally
             {

@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Atributo;
-using PER.Comandos.LineaComandos.Stream;
 
 namespace PER.Comandos.LineaComandos.Comando
 {
@@ -55,6 +54,6 @@ namespace PER.Comandos.LineaComandos.Comando
         /// <summary>
         /// Ejecuta el comando de forma asíncrona.
         /// </summary>
-        public abstract Task EjecutarAsync(IStream<TRead, TWrite> stream, CancellationToken token = default);
+        public abstract Task<TWrite> EjecutarAsync(TRead entrada, CancellationToken token = default);
     }
 }

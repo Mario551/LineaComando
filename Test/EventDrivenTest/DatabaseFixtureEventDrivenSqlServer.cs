@@ -5,6 +5,8 @@ namespace EventDrivenTest;
 
 public class DatabaseFixtureEventDrivenSqlServer : IAsyncLifetime
 {
+    public const string Esquema = "test";
+
     public string ConnectionString { get; }
 
     public DatabaseFixtureEventDrivenSqlServer()
@@ -16,10 +18,10 @@ public class DatabaseFixtureEventDrivenSqlServer : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString);
+        var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString, Esquema);
         await inicializadorCola.InicializarAsync();
 
-        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenSqlServer(ConnectionString);
+        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenSqlServer(ConnectionString, Esquema);
         await inicializadorEventDriven.InicializarAsync();
     }
 

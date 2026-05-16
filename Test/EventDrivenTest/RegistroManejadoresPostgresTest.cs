@@ -18,9 +18,9 @@ namespace EventDrivenTest
 
         public RegistroManejadoresPostgresTest(DatabaseFixtureEventDrivenPostgres fixture) : base(fixture)
         {
-            _registroManejadores = new RegistroManejadoresPostgres(ConnectionString);
-            _registroTipos = new RegistroTiposEventoPostgres(ConnectionString);
-            _registroComandos = new RegistroComandosPostgres<string, object>(ConnectionString);
+            _registroManejadores = new RegistroManejadoresPostgres(ConnectionString, Esquema);
+            _registroTipos = new RegistroTiposEventoPostgres(ConnectionString, Esquema);
+            _registroComandos = new RegistroComandosPostgres<string, object>(ConnectionString, Esquema);
         }
 
         private async Task<int> CrearComandoRegistradoAsync(string rutaComando)
@@ -35,10 +35,10 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             var id = await connection.ExecuteScalarAsync<int>(
-                @"INSERT INTO per_comandos_registrados (ruta_comando, descripcion, activo, creado_en)
+                $@"INSERT INTO {Nombres.ComandosRegistrados} AS comandos (ruta_comando, descripcion, activo, creado_en)
                   VALUES (@RutaComando, @Descripcion, true, NOW())
                   ON CONFLICT (ruta_comando)
-                  DO UPDATE SET id = per_comandos_registrados.id
+                  DO UPDATE SET id = comandos.id
                   RETURNING id;",
                 metadatos);
 
@@ -66,7 +66,7 @@ namespace EventDrivenTest
             string codigoDisparador = $"{PrefijoTest}disparador_{Guid.NewGuid()}";
 
             await connection.ExecuteAsync(
-                @"INSERT INTO per_disparadores_manejador
+                $@"INSERT INTO {Nombres.DisparadoresManejador}
                   (manejador_evento_id, codigo, modo_disparo, tipo_evento_id, activo, prioridad, creado_en)
                   VALUES (@ManejadorId, @Codigo, 'Evento', @TipoEventoId, true, @Prioridad, NOW());",
                 new { ManejadorId = manejadorId, Codigo = codigoDisparador, TipoEventoId = tipoEventoId, Prioridad = prioridad });
@@ -80,7 +80,7 @@ namespace EventDrivenTest
             string codigoDisparador = $"{PrefijoTest}programado_{Guid.NewGuid()}";
 
             await connection.ExecuteAsync(
-                @"INSERT INTO per_disparadores_manejador
+                $@"INSERT INTO {Nombres.DisparadoresManejador}
                   (manejador_evento_id, codigo, modo_disparo, expresion, activo, prioridad, creado_en)
                   VALUES (@ManejadorId, @Codigo, 'Programado', @Expresion, true, @Prioridad, NOW());",
                 new { ManejadorId = manejadorId, Codigo = codigoDisparador, Expresion = expresion, Prioridad = prioridad });
@@ -464,7 +464,7 @@ namespace EventDrivenTest
             await connection.OpenAsync();
 
             return await connection.QueryFirstOrDefaultAsync<DisparadorManejador>(
-                @"SELECT 
+                $@"SELECT
                     id as Id,
                     manejador_evento_id as ManejadorEventoId,
                     codigo as Codigo,
@@ -474,7 +474,7 @@ namespace EventDrivenTest
                     activo as Activo,
                     prioridad as Prioridad,
                     creado_en as CreadoEn
-                  FROM per_disparadores_manejador
+                  FROM {Nombres.DisparadoresManejador}
                   WHERE id = @Id;",
                 new { Id = id });
         }

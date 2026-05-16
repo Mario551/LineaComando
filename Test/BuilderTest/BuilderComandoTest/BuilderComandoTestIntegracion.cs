@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PER.Comandos.LineaComandos.BuilderComando;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Stream;
@@ -21,7 +22,8 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
     {
         var services = new ServiceCollection();
         services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(
-            new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString));
+            new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString, Esquema));
+        services.AddSingleton<IRegistroProcesadoresResultadoComando, RegistroProcesadoresResultadoComando>();
         _serviceProvider = services.BuildServiceProvider();
     }
 
@@ -42,7 +44,7 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
 
         var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-            "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+            $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
             new { Ruta = rutaComando });
 
         Assert.NotNull(comandoDb);
@@ -68,13 +70,33 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
         await connection.OpenAsync();
 
         var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-            "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+            $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
             new { Ruta = rutaComando });
 
         Assert.NotNull(comandoDb);
         Assert.Equal(rutaComando, (string)comandoDb.ruta_comando);
         Assert.Equal(descripcion, (string)comandoDb.descripcion);
         Assert.True((bool)comandoDb.activo);
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_ConResultado_DebeRegistrarProcesador()
+    {
+        string rutaComando = PrefijoTest + "test_resultado";
+        ProcesadorResultadoTexto procesador = new ProcesadorResultadoTexto();
+
+        var builderComando = new BuilderComando(_serviceProvider);
+        builderComando
+            .Argumentos(rutaComando, "Comando con resultado")
+            .Accion(new ComandoPrueba())
+            .Resultado(procesador);
+
+        await builderComando.RegistrarAsync();
+
+        IRegistroProcesadoresResultadoComando registroProcesadores = _serviceProvider.GetRequiredService<IRegistroProcesadoresResultadoComando>();
+
+        Assert.Same(procesador, registroProcesadores.ObtenerPorRutaComando(rutaComando));
+        Assert.Same(procesador, registroProcesadores.ObtenerPorTipoVersion(procesador.Tipo, procesador.Version));
     }
 
     [Fact]

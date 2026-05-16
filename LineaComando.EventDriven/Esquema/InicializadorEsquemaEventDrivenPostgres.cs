@@ -1,5 +1,6 @@
 using Dapper;
 using Npgsql;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 {
@@ -12,10 +13,17 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
     public class InicializadorEsquemaEventDrivenPostgres
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
 
         public InicializadorEsquemaEventDrivenPostgres(string connectionString)
+            : this(connectionString, "public")
+        {
+        }
+
+        public InicializadorEsquemaEventDrivenPostgres(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.Postgres(esquema);
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }
 
@@ -31,7 +39,6 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(token);
 
-            // Verificar dependencia de LineaComando.Cola
             if (!await TablaExisteAsync(connection, "per_comandos_registrados"))
             {
                 throw new InvalidOperationException(
@@ -73,22 +80,22 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
             return await TablaExisteAsync(connection, "per_comandos_registrados");
         }
 
-        private static async Task<bool> TablaExisteAsync(NpgsqlConnection connection, string nombreTabla)
+        private async Task<bool> TablaExisteAsync(NpgsqlConnection connection, string nombreTabla)
         {
             const string sql = @"
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
-                    WHERE table_schema = 'public'
+                    WHERE table_schema = @Esquema
                     AND table_name = @NombreTabla
                 );";
 
-            return await connection.ExecuteScalarAsync<bool>(sql, new { NombreTabla = nombreTabla });
+            return await connection.ExecuteScalarAsync<bool>(sql, new { _nombres.Esquema, NombreTabla = nombreTabla });
         }
 
-        private static async Task CrearTablaTiposEventoAsync(NpgsqlConnection connection)
+        private async Task CrearTablaTiposEventoAsync(NpgsqlConnection connection)
         {
-            const string sql = @"
-                CREATE TABLE IF NOT EXISTS per_tipos_evento (
+            string sql = $@"
+                CREATE TABLE IF NOT EXISTS {_nombres.TiposEvento} (
                     id SERIAL PRIMARY KEY,
                     codigo VARCHAR(255) NOT NULL UNIQUE,
                     nombre VARCHAR(255) NOT NULL,
@@ -98,18 +105,18 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_tipos_evento_codigo
-                    ON per_tipos_evento(codigo);
+                    ON {_nombres.TiposEvento}(codigo);
 
                 CREATE INDEX IF NOT EXISTS idx_per_tipos_evento_activo
-                    ON per_tipos_evento(activo);";
+                    ON {_nombres.TiposEvento}(activo);";
 
             await connection.ExecuteAsync(sql);
         }
 
-        private static async Task CrearTablaManejadoresEventoAsync(NpgsqlConnection connection)
+        private async Task CrearTablaManejadoresEventoAsync(NpgsqlConnection connection)
         {
-            const string sql = @"
-                CREATE TABLE IF NOT EXISTS per_manejadores_evento (
+            string sql = $@"
+                CREATE TABLE IF NOT EXISTS {_nombres.ManejadoresEvento} (
                     id SERIAL PRIMARY KEY,
                     codigo VARCHAR(255) NOT NULL UNIQUE,
                     nombre VARCHAR(255) NOT NULL,
@@ -122,26 +129,26 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
                     CONSTRAINT fk_manejador_comando
                         FOREIGN KEY (id_comando_registrado)
-                        REFERENCES per_comandos_registrados(id)
+                        REFERENCES {_nombres.ComandosRegistrados}(id)
                         ON DELETE NO ACTION
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_codigo
-                    ON per_manejadores_evento(codigo);
+                    ON {_nombres.ManejadoresEvento}(codigo);
 
                 CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_activo
-                    ON per_manejadores_evento(activo);
+                    ON {_nombres.ManejadoresEvento}(activo);
 
                 CREATE INDEX IF NOT EXISTS idx_per_manejadores_evento_comando
-                    ON per_manejadores_evento(id_comando_registrado);";
+                    ON {_nombres.ManejadoresEvento}(id_comando_registrado);";
 
             await connection.ExecuteAsync(sql);
         }
 
-        private static async Task CrearTablaDisparadoresManejadorAsync(NpgsqlConnection connection)
+        private async Task CrearTablaDisparadoresManejadorAsync(NpgsqlConnection connection)
         {
-            const string sql = @"
-                CREATE TABLE IF NOT EXISTS per_disparadores_manejador (
+            string sql = $@"
+                CREATE TABLE IF NOT EXISTS {_nombres.DisparadoresManejador} (
                     id SERIAL PRIMARY KEY,
                     codigo TEXT NOT NULL UNIQUE,
                     manejador_evento_id INTEGER NOT NULL,
@@ -155,12 +162,12 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
 
                     CONSTRAINT fk_disparador_manejador
                         FOREIGN KEY (manejador_evento_id)
-                        REFERENCES per_manejadores_evento(id)
+                        REFERENCES {_nombres.ManejadoresEvento}(id)
                         ON DELETE CASCADE,
 
                     CONSTRAINT fk_disparador_tipo_evento
                         FOREIGN KEY (tipo_evento_id)
-                        REFERENCES per_tipos_evento(id)
+                        REFERENCES {_nombres.TiposEvento}(id)
                         ON DELETE CASCADE,
 
                     CONSTRAINT chk_modo_disparo
@@ -174,26 +181,26 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_disparadores_manejador_evento_id
-                    ON per_disparadores_manejador(manejador_evento_id);
+                    ON {_nombres.DisparadoresManejador}(manejador_evento_id);
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_tipo_evento
-                    ON per_disparadores_manejador(tipo_evento_id)
+                    ON {_nombres.DisparadoresManejador}(tipo_evento_id)
                     WHERE tipo_evento_id IS NOT NULL;
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_modo
-                    ON per_disparadores_manejador(modo_disparo, activo);
+                    ON {_nombres.DisparadoresManejador}(modo_disparo, activo);
 
                 CREATE INDEX IF NOT EXISTS idx_disparadores_programados
-                    ON per_disparadores_manejador(modo_disparo, activo, expresion)
+                    ON {_nombres.DisparadoresManejador}(modo_disparo, activo, expresion)
                     WHERE modo_disparo = 'Programado';";
 
             await connection.ExecuteAsync(sql);
         }
 
-        private static async Task CrearTablaEventosOutboxAsync(NpgsqlConnection connection)
+        private async Task CrearTablaEventosOutboxAsync(NpgsqlConnection connection)
         {
-            const string sql = @"
-                CREATE TABLE IF NOT EXISTS per_eventos_outbox (
+            string sql = $@"
+                CREATE TABLE IF NOT EXISTS {_nombres.EventosOutbox} (
                     id BIGSERIAL PRIMARY KEY,
                     codigo_tipo_evento VARCHAR(255) NOT NULL,
                     agregado_id BIGINT NULL,
@@ -203,29 +210,29 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_tipo
-                    ON per_eventos_outbox(codigo_tipo_evento);
+                    ON {_nombres.EventosOutbox}(codigo_tipo_evento);
 
                 CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_procesado
-                    ON per_eventos_outbox(procesado_en)
+                    ON {_nombres.EventosOutbox}(procesado_en)
                     WHERE procesado_en IS NULL;
 
                 CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_creado
-                    ON per_eventos_outbox(creado_en);
+                    ON {_nombres.EventosOutbox}(creado_en);
 
                 CREATE INDEX IF NOT EXISTS idx_per_eventos_outbox_pendientes
-                    ON per_eventos_outbox(codigo_tipo_evento, creado_en)
+                    ON {_nombres.EventosOutbox}(codigo_tipo_evento, creado_en)
                     WHERE procesado_en IS NULL;";
 
             await connection.ExecuteAsync(sql);
         }
 
-        private static async Task CrearFuncionObtenerEventosPendientesAsync(NpgsqlConnection connection)
+        private async Task CrearFuncionObtenerEventosPendientesAsync(NpgsqlConnection connection)
         {
-            const string dropSql = @"
-                DROP FUNCTION IF EXISTS obtener_eventos_pendientes(INTEGER);";
+            string dropSql = $@"
+                DROP FUNCTION IF EXISTS {_nombres.ObtenerEventosPendientes}(INTEGER);";
 
-            const string createSql = @"
-                CREATE OR REPLACE FUNCTION obtener_eventos_pendientes(
+            string createSql = $@"
+                CREATE OR REPLACE FUNCTION {_nombres.ObtenerEventosPendientes}(
                     p_tamanio_lote INTEGER DEFAULT 50
                 )
                 RETURNS TABLE (
@@ -246,7 +253,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Esquema
                         e.datos_evento,
                         e.creado_en,
                         e.procesado_en
-                    FROM per_eventos_outbox e
+                    FROM {_nombres.EventosOutbox} e
                     WHERE e.procesado_en IS NULL
                     ORDER BY e.creado_en
                     LIMIT p_tamanio_lote;

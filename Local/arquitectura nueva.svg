@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1440" viewBox="0 0 1900 1440">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .title { font: 700 34px Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 16px Arial, sans-serif; fill: #526070; }
+      .lane-title { font: 700 18px Arial, sans-serif; fill: #263244; }
+      .box-title { font: 700 15px Arial, sans-serif; fill: #172033; }
+      .box-text { font: 400 13px Arial, sans-serif; fill: #334155; }
+      .small { font: 400 12px Arial, sans-serif; fill: #64748b; }
+      .label { font: 700 12px Arial, sans-serif; fill: #334155; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.4; rx: 8; }
+      .source { fill: #fff7ed; stroke: #fb923c; }
+      .memory { fill: #eefbf3; stroke: #22c55e; }
+      .worker { fill: #eff6ff; stroke: #3b82f6; }
+      .db { fill: #f8fafc; stroke: #64748b; }
+      .result { fill: #f5f3ff; stroke: #8b5cf6; }
+      .rule { fill: #fff1f2; stroke: #f43f5e; }
+      .contract { fill: #ffffff; stroke: #94a3b8; }
+      .arrow { fill: none; stroke: #475569; stroke-width: 2; marker-end: url(#arrow); }
+      .arrow-memory { fill: none; stroke: #16a34a; stroke-width: 2.2; marker-end: url(#arrowMemory); }
+      .arrow-result { fill: none; stroke: #7c3aed; stroke-width: 2.2; marker-end: url(#arrowResult); }
+      .arrow-soft { fill: none; stroke: #94a3b8; stroke-width: 2; marker-end: url(#arrowSoft); stroke-dasharray: 7 6; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
+    </marker>
+    <marker id="arrowMemory" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a" />
+    </marker>
+    <marker id="arrowResult" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed" />
+    </marker>
+    <marker id="arrowSoft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1900" height="1440" />
+
+  <text class="title" x="60" y="62">Arquitectura nueva</text>
+  <text class="subtitle" x="60" y="92">Colas en memoria con persistencia en BD, recuperacion por comandoId y resultados inline o archivo externo</text>
+
+  <text class="lane-title" x="60" y="145">1. Flujo por eventos</text>
+
+  <rect class="box source" x="60" y="170" width="245" height="120" />
+  <text class="box-title" x="82" y="200">Canales externos</text>
+  <text class="box-text" x="82" y="225">Servicio de mensajeria</text>
+  <text class="box-text" x="82" y="247">Registra evento outbox</text>
+  <text class="small" x="82" y="270">Entrada desde integraciones</text>
+
+  <rect class="box db" x="370" y="170" width="250" height="120" />
+  <text class="box-title" x="392" y="200">per_eventos_outbox</text>
+  <text class="box-text" x="392" y="225">Eventos pendientes</text>
+  <text class="box-text" x="392" y="247">Eventos procesados</text>
+  <text class="small" x="392" y="270">Fuente durable</text>
+
+  <rect class="box memory" x="685" y="170" width="270" height="120" />
+  <text class="box-title" x="707" y="200">ColaEventosMemoria</text>
+  <text class="box-text" x="707" y="225">Channel&lt;EventoOutbox&gt;</text>
+  <text class="box-text" x="707" y="247">Carga pendientes al iniciar</text>
+  <text class="small" x="707" y="270">La BD no empuja eventos</text>
+
+  <rect class="box worker" x="1020" y="170" width="270" height="120" />
+  <text class="box-title" x="1042" y="200">ServicioProcesadorEventos</text>
+  <text class="box-text" x="1042" y="225">Lee cola de eventos</text>
+  <text class="box-text" x="1042" y="247">ProcesadorEventos</text>
+  <text class="small" x="1042" y="270">Mapea evento a comando</text>
+
+  <rect class="box memory" x="1355" y="170" width="270" height="120" />
+  <text class="box-title" x="1377" y="200">ColaComandosMemoria</text>
+  <text class="box-text" x="1377" y="225">Encola solicitud</text>
+  <text class="box-text" x="1377" y="247">Fire-and-forget</text>
+  <text class="small" x="1377" y="270">Persistencia antes de memoria</text>
+
+  <path class="arrow" d="M 305 230 L 370 230" />
+  <text class="label" x="320" y="214">guarda</text>
+  <path class="arrow-memory" d="M 620 230 L 685 230" />
+  <text class="label" x="635" y="214">encola</text>
+  <path class="arrow-memory" d="M 955 230 L 1020 230" />
+  <text class="label" x="970" y="214">lee</text>
+  <path class="arrow" d="M 1290 230 L 1355 230" />
+  <text class="label" x="1305" y="214">comando</text>
+  <path class="arrow-soft" d="M 495 290 L 495 325 L 820 325 L 820 290" />
+  <text class="label" x="560" y="318">inicio: carga eventos pendientes</text>
+
+  <text class="lane-title" x="60" y="370">2. Flujo por programados y llamada manual</text>
+
+  <rect class="box source" x="60" y="395" width="245" height="130" />
+  <text class="box-title" x="82" y="425">Disparadores programados</text>
+  <text class="box-text" x="82" y="450">Registro de manejadores</text>
+  <text class="box-text" x="82" y="472">Expresion de programacion</text>
+  <text class="small" x="82" y="497">Se recalcula al ejecutar</text>
+
+  <rect class="box memory" x="370" y="395" width="250" height="130" />
+  <text class="box-title" x="392" y="425">CoordinadorTareasProgramadas</text>
+  <text class="box-text" x="392" y="450">Planificador en memoria</text>
+  <text class="box-text" x="392" y="472">Timers / delays</text>
+  <text class="small" x="392" y="497">Al vencer crea solicitud</text>
+
+  <rect class="box source" x="685" y="395" width="270" height="130" />
+  <text class="box-title" x="707" y="425">Llamada manual / contexto</text>
+  <text class="box-text" x="707" y="450">EncolarAsync(solicitud)</text>
+  <text class="box-text" x="707" y="472">EsperarComandoAsync(id)</text>
+  <text class="small" x="707" y="497">Retorna ComandoEncolado</text>
+
+  <rect class="box db" x="1020" y="395" width="270" height="130" />
+  <text class="box-title" x="1042" y="425">per_cola_comandos</text>
+  <text class="box-text" x="1042" y="450">pendiente / procesando</text>
+  <text class="box-text" x="1042" y="472">completado / fallido</text>
+  <text class="small" x="1042" y="497">Fuente durable del comando</text>
+
+  <rect class="box memory" x="1355" y="395" width="270" height="130" />
+  <text class="box-title" x="1377" y="425">ColaComandosMemoria</text>
+  <text class="box-text" x="1377" y="450">Channel&lt;ComandoEnCola&gt;</text>
+  <text class="box-text" x="1377" y="472">_esperas[comandoId]</text>
+  <text class="small" x="1377" y="497">TaskCompletionSource</text>
+
+  <path class="arrow" d="M 305 460 L 370 460" />
+  <text class="label" x="316" y="444">vence</text>
+  <path class="arrow" d="M 620 460 L 685 460" />
+  <text class="label" x="635" y="444">solicitud</text>
+  <path class="arrow" d="M 955 460 L 1020 460" />
+  <text class="label" x="970" y="444">persistir</text>
+  <path class="arrow-memory" d="M 1290 460 L 1355 460" />
+  <text class="label" x="1305" y="444">encolar</text>
+  <path class="arrow-soft" d="M 1155 525 L 1155 560 L 1490 560 L 1490 525" />
+  <text class="label" x="1200" y="553">inicio: carga comandos pendientes y crea espera</text>
+
+  <text class="lane-title" x="60" y="615">3. Ejecucion de comandos y persistencia de resultados</text>
+
+  <rect class="box memory" x="60" y="640" width="270" height="140" />
+  <text class="box-title" x="82" y="670">ColaComandosMemoria</text>
+  <text class="box-text" x="82" y="695">Lee desde Channel</text>
+  <text class="box-text" x="82" y="717">Expone CompletarResultado</text>
+  <text class="small" x="82" y="742">Limpia espera al completar</text>
+
+  <rect class="box worker" x="395" y="640" width="270" height="140" />
+  <text class="box-title" x="417" y="670">ProcesadorColaComandos</text>
+  <text class="box-text" x="417" y="695">Marca procesando</text>
+  <text class="box-text" x="417" y="717">FactoriaComandos.Crear</text>
+  <text class="box-text" x="417" y="739">EjecutarAsync(datos)</text>
+  <text class="small" x="417" y="762">Persiste antes de completar espera</text>
+
+  <rect class="box result" x="730" y="640" width="270" height="140" />
+  <text class="box-title" x="752" y="670">Procesador de resultado</text>
+  <text class="box-text" x="752" y="695">IProcesadorResultadoComando</text>
+  <text class="box-text" x="752" y="717">SerializarAsync(salida)</text>
+  <text class="box-text" x="752" y="739">tipo / version / formato</text>
+  <text class="small" x="752" y="762">Registro por ruta del comando</text>
+
+  <rect class="box result" x="1065" y="640" width="270" height="140" />
+  <text class="box-title" x="1087" y="670">AlmacenamientoPayload</text>
+  <text class="box-text" x="1087" y="695">Menor o igual 256KB: payload</text>
+  <text class="box-text" x="1087" y="717">Mayor: archivo externo</text>
+  <text class="small" x="1087" y="742">Ruta relativa en BD</text>
+
+  <rect class="box result" x="1400" y="640" width="270" height="140" />
+  <text class="box-title" x="1422" y="670">Resultado durable</text>
+  <text class="box-text" x="1422" y="695">per_cola_comandos_resultados</text>
+  <text class="box-text" x="1422" y="717">payload o ruta_payload</text>
+  <text class="small" x="1422" y="742">Archivo: {tipo}/v{version}</text>
+
+  <path class="arrow-memory" d="M 330 710 L 395 710" />
+  <text class="label" x="344" y="694">lee</text>
+  <path class="arrow-result" d="M 665 710 L 730 710" />
+  <text class="label" x="678" y="694">salida</text>
+  <path class="arrow-result" d="M 1000 710 L 1065 710" />
+  <text class="label" x="1014" y="694">payload</text>
+  <path class="arrow-result" d="M 1335 710 L 1400 710" />
+  <text class="label" x="1348" y="694">guardar</text>
+  <path class="arrow-memory" d="M 395 760 L 330 760" />
+  <text class="label" x="332" y="790">CompletarResultado</text>
+
+  <text class="lane-title" x="60" y="865">4. Recuperacion de espera y resultado</text>
+
+  <rect class="box source" x="60" y="890" width="270" height="150" />
+  <text class="box-title" x="82" y="920">Caller / contexto</text>
+  <text class="box-text" x="82" y="945">Conserva comandoId</text>
+  <text class="box-text" x="82" y="967">Espera Task si existe</text>
+  <text class="box-text" x="82" y="989">Recupera despues de reinicio</text>
+
+  <rect class="box memory" x="395" y="890" width="270" height="150" />
+  <text class="box-title" x="417" y="920">EsperarComandoAsync(id)</text>
+  <text class="box-text" x="417" y="945">Si existe _esperas: reclama</text>
+  <text class="box-text" x="417" y="967">Si no existe: consulta durable</text>
+  <text class="small" x="417" y="992">No hace polling interno</text>
+
+  <rect class="box result" x="730" y="890" width="270" height="150" />
+  <text class="box-title" x="752" y="920">ResultadosComandos</text>
+  <text class="box-text" x="752" y="945">ObtenerResultadoAsync(id)</text>
+  <text class="box-text" x="752" y="967">Lee estado y resultado</text>
+  <text class="small" x="752" y="992">pendiente/procesando: null</text>
+
+  <rect class="box db" x="1065" y="890" width="270" height="150" />
+  <text class="box-title" x="1087" y="920">BD de resultados</text>
+  <text class="box-text" x="1087" y="945">per_cola_comandos</text>
+  <text class="box-text" x="1087" y="967">per_cola_comandos_resultados</text>
+  <text class="small" x="1087" y="992">tipo / version / payload / ruta</text>
+
+  <rect class="box result" x="1400" y="890" width="270" height="150" />
+  <text class="box-title" x="1422" y="920">Deserializacion</text>
+  <text class="box-text" x="1422" y="945">Leer payload o archivo</text>
+  <text class="box-text" x="1422" y="967">Convertidor por tipo/version</text>
+  <text class="small" x="1422" y="992">Retorna ResultadoComando</text>
+
+  <path class="arrow" d="M 330 965 L 395 965" />
+  <path class="arrow-result" d="M 665 965 L 730 965" />
+  <path class="arrow-result" d="M 1000 965 L 1065 965" />
+  <path class="arrow-result" d="M 1335 965 L 1400 965" />
+  <path class="arrow-memory" d="M 530 1040 L 530 1075 L 195 1075 L 195 1040" />
+  <text class="label" x="310" y="1100">Task vivo</text>
+  <path class="arrow-result" d="M 1535 1040 L 1535 1095 L 195 1095 L 195 1040" />
+  <text class="label" x="790" y="1120">Task completado desde resultado durable</text>
+
+  <text class="lane-title" x="60" y="1160">5. Contratos principales</text>
+
+  <rect class="box contract" x="60" y="1185" width="300" height="130" />
+  <text class="box-title" x="82" y="1215">ComandoEncolado</text>
+  <text class="box-text" x="82" y="1240">ComandoId</text>
+  <text class="box-text" x="82" y="1262">Task&lt;ResultadoComando&gt;</text>
+  <text class="small" x="82" y="1287">Handle para esperar o recuperar</text>
+
+  <rect class="box contract" x="410" y="1185" width="300" height="130" />
+  <text class="box-title" x="432" y="1215">ResultadoComando</text>
+  <text class="box-text" x="432" y="1240">Exitoso / Salida object?</text>
+  <text class="box-text" x="432" y="1262">MensajeError / Duracion</text>
+  <text class="small" x="432" y="1287">Resultado en caliente o durable</text>
+
+  <rect class="box contract" x="760" y="1185" width="300" height="130" />
+  <text class="box-title" x="782" y="1215">PayloadResultadoComando</text>
+  <text class="box-text" x="782" y="1240">Tipo / Version / Formato</text>
+  <text class="box-text" x="782" y="1262">Contenido o RutaPayload</text>
+  <text class="small" x="782" y="1287">Solo uno guarda el contenido</text>
+
+  <rect class="box rule" x="1110" y="1185" width="560" height="130" />
+  <text class="box-title" x="1132" y="1215">Regla de espera recuperable</text>
+  <text class="box-text" x="1132" y="1240">Antes de terminar: el caller recibe el Task vivo de _esperas.</text>
+  <text class="box-text" x="1132" y="1262">Si nadie reclama: CompletarResultado remueve la espera.</text>
+  <text class="box-text" x="1132" y="1284">Despues de terminar: se reconstruye desde BD/archivo.</text>
+</svg>

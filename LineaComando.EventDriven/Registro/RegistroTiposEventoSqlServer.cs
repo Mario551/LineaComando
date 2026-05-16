@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Dapper;
 using Microsoft.Data.SqlClient;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.EventDriven.DAO;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Registro
@@ -8,13 +9,20 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
     public class RegistroTiposEventoSqlServer : IRegistroTiposEvento
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
         private ConcurrentDictionary<string, TipoEvento> _tiposEventosRegistrados;
 
         public IDictionary<string, TipoEvento> TiposEventosRegistrados => _tiposEventosRegistrados;
 
         public RegistroTiposEventoSqlServer(string connectionString)
+            : this(connectionString, "dbo")
+        {
+        }
+
+        public RegistroTiposEventoSqlServer(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.SqlServer(esquema);
             _tiposEventosRegistrados = new ConcurrentDictionary<string, TipoEvento>();
         }
 
@@ -22,14 +30,14 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
         {
             _tiposEventosRegistrados.TryAdd(tipoEvento.Codigo, tipoEvento);
 
-            const string sql = @"
+            string sql = $@"
                 DECLARE @ResultId INT;
 
-                SELECT @ResultId = id FROM per_tipos_evento WHERE codigo = @Codigo;
+                SELECT @ResultId = id FROM {_nombres.TiposEvento} WHERE codigo = @Codigo;
 
                 IF @ResultId IS NULL
                 BEGIN
-                    INSERT INTO per_tipos_evento (
+                    INSERT INTO {_nombres.TiposEvento} (
                         codigo,
                         nombre,
                         descripcion,
@@ -69,7 +77,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
 
         public async Task<TipoEvento?> ObtenerTipoEventoPorCodigoAsync(string codigo, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id,
                     codigo,
@@ -77,7 +85,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     descripcion,
                     activo,
                     creado_en
-                FROM per_tipos_evento
+                FROM {_nombres.TiposEvento}
                 WHERE codigo = @Codigo;";
 
             using var connection = new SqlConnection(_connectionString);
@@ -95,7 +103,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
 
         public async Task<TipoEvento?> ObtenerTipoEventoPorIdAsync(int id, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id,
                     codigo,
@@ -103,7 +111,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     descripcion,
                     activo,
                     creado_en
-                FROM per_tipos_evento
+                FROM {_nombres.TiposEvento}
                 WHERE id = @Id;";
 
             using var connection = new SqlConnection(_connectionString);
@@ -121,7 +129,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
 
         public async Task<IEnumerable<TipoEvento>> ObtenerTiposEventosActivosAsync(CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id,
                     codigo,
@@ -129,7 +137,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
                     descripcion,
                     activo,
                     creado_en
-                FROM per_tipos_evento
+                FROM {_nombres.TiposEvento}
                 WHERE activo = 1
                 ORDER BY codigo;";
 
@@ -148,8 +156,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
 
         public async Task ActualizarTipoEventoAsync(TipoEvento tipoEvento, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_tipos_evento
+            string sql = $@"
+                UPDATE {_nombres.TiposEvento}
                 SET
                     codigo = @Codigo,
                     nombre = @Nombre,
@@ -172,8 +180,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Registro
 
         public async Task DesactivarTipoEventoAsync(int id, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_tipos_evento
+            string sql = $@"
+                UPDATE {_nombres.TiposEvento}
                 SET activo = 0
                 WHERE id = @Id;";
 

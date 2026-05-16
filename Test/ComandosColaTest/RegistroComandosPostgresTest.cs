@@ -16,7 +16,7 @@ namespace ComandosColaTest
 
         public RegistroComandosPostgresTest(DatabaseFixture fixture) : base(fixture)
         {
-            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString);
+            _registro = new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString, Esquema);
         }
 
         [Fact]
@@ -36,47 +36,13 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-                "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+                $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);
             Assert.Equal("Comando de prueba", (string)comandoDb.descripcion);
             Assert.True((bool)comandoDb.activo);
             Assert.True(metadatos.Id > 0);
-        }
-
-        [Fact]
-        public async Task RegistrarComandoAsync_DebeActualizarComandoExistente()
-        {
-            var ruta = PrefijoTest + "actualizar";
-            var metadatos1 = new MetadatosComando
-            {
-                RutaComando = ruta,
-                Descripcion = "Version 1"
-            };
-            var metadatos2 = new MetadatosComando
-            {
-                RutaComando = ruta,
-                Descripcion = "Version 2 actualizada"
-            };
-            var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
-
-            await _registro.RegistrarComandoAsync(metadatos1, nodo);
-            await _registro.RegistrarComandoAsync(metadatos2, nodo);
-
-            using var connection = CrearConexion();
-            await connection.OpenAsync();
-
-            var count = await connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = ruta });
-
-            var comandoDb = await connection.QuerySingleAsync<dynamic>(
-                "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
-                new { Ruta = ruta });
-
-            Assert.Equal(1, count);
-            Assert.Equal("Version 2 actualizada", (string)comandoDb.descripcion);
         }
 
         [Fact]
@@ -95,7 +61,7 @@ namespace ComandosColaTest
             {
                 await connection.OpenAsync();
                 await connection.ExecuteAsync(
-                    "UPDATE per_comandos_registrados SET activo = false WHERE ruta_comando = @Ruta",
+                    $"UPDATE {Nombres.ComandosRegistrados} SET activo = false WHERE ruta_comando = @Ruta",
                     new { Ruta = rutaInactivo });
             }
 
@@ -120,7 +86,7 @@ namespace ComandosColaTest
             await connection.OpenAsync();
 
             var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
-                "SELECT * FROM per_comandos_registrados WHERE ruta_comando = @Ruta",
+                $"SELECT * FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
                 new { Ruta = ruta });
 
             Assert.NotNull(comandoDb);

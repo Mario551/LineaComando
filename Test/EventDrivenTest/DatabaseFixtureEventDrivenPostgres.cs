@@ -5,6 +5,8 @@ namespace EventDrivenTest;
 
 public class DatabaseFixtureEventDrivenPostgres : IAsyncLifetime
 {
+    public string Esquema { get; } = $"test_{Guid.NewGuid():N}";
+
     public string ConnectionString { get; }
 
     public DatabaseFixtureEventDrivenPostgres()
@@ -16,10 +18,10 @@ public class DatabaseFixtureEventDrivenPostgres : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString);
+        var inicializadorCola = new InicializadorEsquemaPostgres(ConnectionString, Esquema);
         await inicializadorCola.InicializarAsync();
 
-        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenPostgres(ConnectionString);
+        var inicializadorEventDriven = new InicializadorEsquemaEventDrivenPostgres(ConnectionString, Esquema);
         await inicializadorEventDriven.InicializarAsync();
     }
 

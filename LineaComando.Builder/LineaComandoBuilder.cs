@@ -2,18 +2,21 @@ using System.Linq.Expressions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.BuilderComando;
 using PER.Comandos.LineaComandos.BuilderInicializador;
 using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Procesadores;
 using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.Cola.Resultados;
+using PER.Comandos.LineaComandos.EventDriven.Colas;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
 using PER.Comandos.LineaComandos.EventDriven.Registro;
 using PER.Comandos.LineaComandos.EventDriven.Servicio;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Registro;
-using PER.Comandos.LineaComandos.Stream;
 
 namespace PER.Comandos.LineaComandos.Builder
 {
@@ -21,6 +24,8 @@ namespace PER.Comandos.LineaComandos.Builder
     {
         private readonly IServiceCollection _services;
         private string? _connectionString;
+        private string? _esquemaBaseDatos;
+        private string? _rutaResultadosComandos;
 
         internal TimeSpan TiempoRefrescoCola { get; private set; } = TimeSpan.FromSeconds(1);
         internal TimeSpan TiempoRefrescoEventos { get; private set; } = TimeSpan.FromSeconds(1);
@@ -30,6 +35,8 @@ namespace PER.Comandos.LineaComandos.Builder
         internal Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> ConfiguracionLineaComandos;
 
         internal string ConnectionString => _connectionString ?? "";
+        internal string EsquemaBaseDatos => _esquemaBaseDatos ?? EsquemaPredeterminado();
+        internal string? RutaResultadosComandos => _rutaResultadosComandos;
         internal IServiceCollection Services => _services;
 
         public const int NONE = 0;
@@ -50,20 +57,49 @@ namespace PER.Comandos.LineaComandos.Builder
         {
             TipoBaseDatos = POSTGRESQL;
             _connectionString = connectionString;
+            _esquemaBaseDatos ??= "public";
             return this;
+        }
+
+        public LineaComandoBuilder UsePostgresql(string connectionString, string esquema)
+        {
+            return UsePostgresql(connectionString)
+                .SetEsquemaBaseDatos(esquema);
         }
 
         public LineaComandoBuilder UseSqlServer(string connectionString)
         {
             TipoBaseDatos = SQLSERVER;
             _connectionString = connectionString;
+            _esquemaBaseDatos ??= "dbo";
             return this;
+        }
+
+        public LineaComandoBuilder UseSqlServer(string connectionString, string esquema)
+        {
+            return UseSqlServer(connectionString)
+                .SetEsquemaBaseDatos(esquema);
         }
 
         public LineaComandoBuilder UseSqlite(string connectionString)
         {
             TipoBaseDatos = SQLITE;
             _connectionString = connectionString;
+            return this;
+        }
+
+        public LineaComandoBuilder SetEsquemaBaseDatos(string esquema)
+        {
+            _esquemaBaseDatos = NombresBaseDatos.NormalizarEsquema(esquema, EsquemaPredeterminado());
+            return this;
+        }
+
+        public LineaComandoBuilder SetRutaResultadosComandos(string rutaBase)
+        {
+            if (string.IsNullOrWhiteSpace(rutaBase))
+                throw new ArgumentException("La ruta base de resultados de comandos no puede estar vacía.", nameof(rutaBase));
+
+            _rutaResultadosComandos = rutaBase;
             return this;
         }
 
@@ -103,44 +139,51 @@ namespace PER.Comandos.LineaComandos.Builder
 
             if (TipoBaseDatos == POSTGRESQL)
             {
-                _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(_connectionString));
-                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosPostgres<string, ResultadoComando>(_connectionString));
-                _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresPostgres(_connectionString));
-                _services.AddTransient<IColaEventos>(sp => new ColaEventosPostgres(_connectionString));
-                _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoPostgres(_connectionString));
+                _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(_connectionString, EsquemaBaseDatos));
+                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosPostgres<string, ResultadoComando>(_connectionString, EsquemaBaseDatos));
+                _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresPostgres(_connectionString, EsquemaBaseDatos));
+                _services.AddTransient<IColaEventos>(sp => new ColaEventosPostgres(_connectionString, EsquemaBaseDatos));
+                _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoPostgres(_connectionString, EsquemaBaseDatos));
             }
             else if (TipoBaseDatos == SQLSERVER)
             {
-                _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosSqlServer(_connectionString));
-                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosSqlServer<string, ResultadoComando>(_connectionString));
-                _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresSqlServer(_connectionString));
-                _services.AddTransient<IColaEventos>(sp => new ColaEventosSqlServer(_connectionString));
-                _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoSqlServer(_connectionString));
+                _services.AddTransient<IAlmacenColaComandos>(sp => new AlmacenColaComandosSqlServer(_connectionString, EsquemaBaseDatos));
+                _services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(sp => new RegistroComandosSqlServer<string, ResultadoComando>(_connectionString, EsquemaBaseDatos));
+                _services.AddTransient<IRegistroManejadores>(sp => new RegistroManejadoresSqlServer(_connectionString, EsquemaBaseDatos));
+                _services.AddTransient<IColaEventos>(sp => new ColaEventosSqlServer(_connectionString, EsquemaBaseDatos));
+                _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoSqlServer(_connectionString, EsquemaBaseDatos));
             }
 
-            _services.AddTransient<IRegistroEventoBuilder, RegistroEventoBuilder>();
-            _services.AddSingleton<CoordinadorTareasProgramadas>();
-            _services.AddHostedService<ServicioTareasProgramadas>();
-            _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>, FactoriaComandos<string, ResultadoComando>>(c =>
-            {
-                var registro = c.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
-                var factoria = new FactoriaComandos<string, ResultadoComando>();
-                registro.ConstruirFactoriaAsync(factoria).GetAwaiter();
+              _services.AddTransient<IRegistrarEventoBuilder>(sp => new RegistrarEventoBuilder(sp));
+              _services.AddSingleton<IColaComandosMemoria, ColaComandosMemoria>();
+              _services.AddSingleton(new OpcionesResultadosComandos { RutaBase = RutaResultadosComandos });
+              _services.AddSingleton<IAlmacenamientoPayloadResultadoComando, AlmacenamientoPayloadResultadoComando>();
+              _services.AddSingleton<IRegistroProcesadoresResultadoComando, RegistroProcesadoresResultadoComando>();
+              _services.AddTransient<IResultadosComandos, ResultadosComandos>();
+              _services.AddSingleton<IColaEventosMemoria, ColaEventosMemoria>();
+              _services.AddSingleton<CoordinadorTareasProgramadas>();
+              _services.AddSingleton<IPlanificadorTareasProgramadas>(
+                  sp => sp.GetRequiredService<CoordinadorTareasProgramadas>());
+              _services.AddHostedService<ServicioTareasProgramadas>();
+              _services.AddSingleton<FactoriaComandos<string, ResultadoComando>>();
+              _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(
+                  sp => sp.GetRequiredService<FactoriaComandos<string, ResultadoComando>>());
 
-                return factoria;
-            });
-
-            _services.AddSingleton(sp =>
-                new ProcesadorColaComandos(
-                    sp.GetRequiredService<IServiceScopeFactory>(),
-                    MaxParalelismoCola,
-                    TiempoRefrescoCola,
-                    sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
+              _services.AddSingleton(sp =>
+                  new ProcesadorColaComandos(
+                      sp.GetRequiredService<IServiceScopeFactory>(),
+                      sp.GetRequiredService<IColaComandosMemoria>(),
+                      MaxParalelismoCola,
+                      sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
 
             _services.AddHostedService<ServicioColaComandos>();
-            _services.AddTransient<IRegistrarEvento>(sp => new RegistrarEvento(sp));
             _services.AddScoped<ProcesadorEventos>();
             _services.AddHostedService<ServicioProcesadorEventos>();
+        }
+
+        private string EsquemaPredeterminado()
+        {
+            return TipoBaseDatos == SQLSERVER ? "dbo" : "public";
         }
     }
 }

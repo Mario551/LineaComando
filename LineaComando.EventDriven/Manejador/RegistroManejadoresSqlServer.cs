@@ -1,5 +1,6 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
+using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.EventDriven.DAO;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Manejador
@@ -7,22 +8,29 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
     public class RegistroManejadoresSqlServer : IRegistroManejadores
     {
         private readonly string _connectionString;
+        private readonly NombresBaseDatos _nombres;
 
         public RegistroManejadoresSqlServer(string connectionString)
+            : this(connectionString, "dbo")
+        {
+        }
+
+        public RegistroManejadoresSqlServer(string connectionString, string esquema)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _nombres = NombresBaseDatos.SqlServer(esquema);
         }
 
         public async Task<int> RegistrarManejadorAsync(ManejadorEvento manejador, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 DECLARE @ResultId INT;
 
-                SELECT @ResultId = id FROM per_manejadores_evento WHERE codigo = @Codigo;
+                SELECT @ResultId = id FROM {_nombres.ManejadoresEvento} WHERE codigo = @Codigo;
 
                 IF @ResultId IS NULL
                 BEGIN
-                    INSERT INTO per_manejadores_evento (
+                    INSERT INTO {_nombres.ManejadoresEvento} (
                         codigo,
                         nombre,
                         descripcion,
@@ -71,7 +79,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<ManejadorEvento?> ObtenerManejadorPorIdAsync(int id, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id,
                     codigo,
@@ -82,7 +90,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     argumentos_comando,
                     activo,
                     creado_en
-                FROM per_manejadores_evento
+                FROM {_nombres.ManejadoresEvento}
                 WHERE id = @Id;";
 
             using var connection = new SqlConnection(_connectionString);
@@ -100,7 +108,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<ManejadorEvento?> ObtenerManejadorPorCodigoAsync(string codigo, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id,
                     codigo,
@@ -111,7 +119,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     argumentos_comando,
                     activo,
                     creado_en
-                FROM per_manejadores_evento
+                FROM {_nombres.ManejadoresEvento}
                 WHERE codigo = @Codigo;";
 
             using var connection = new SqlConnection(_connectionString);
@@ -129,7 +137,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<IEnumerable<ManejadorEvento>> ObtenerManejadoresActivosAsync(CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     id,
                     codigo,
@@ -140,7 +148,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     argumentos_comando,
                     activo,
                     creado_en
-                FROM per_manejadores_evento
+                FROM {_nombres.ManejadoresEvento}
                 WHERE activo = 1
                 ORDER BY codigo;";
 
@@ -159,8 +167,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task ActualizarManejadorAsync(ManejadorEvento manejador, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_manejadores_evento
+            string sql = $@"
+                UPDATE {_nombres.ManejadoresEvento}
                 SET
                     codigo = @Codigo,
                     nombre = @Nombre,
@@ -189,8 +197,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task DesactivarManejadorAsync(int id, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_manejadores_evento
+            string sql = $@"
+                UPDATE {_nombres.ManejadoresEvento}
                 SET activo = 0
                 WHERE id = @Id;";
 
@@ -202,14 +210,14 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task<int> RegistrarDisparadorAsync(DisparadorManejador disparador, CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 DECLARE @ResultId INT;
 
-                SELECT @ResultId = id FROM per_disparadores_manejador WHERE codigo = @Codigo;
+                SELECT @ResultId = id FROM {_nombres.DisparadoresManejador} WHERE codigo = @Codigo;
 
                 IF @ResultId IS NULL
                 BEGIN
-                    INSERT INTO per_disparadores_manejador (
+                    INSERT INTO {_nombres.DisparadoresManejador} (
                         manejador_evento_id,
                         codigo,
                         modo_disparo,
@@ -259,7 +267,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
             string tipoEvento,
             CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     d.id,
                     d.manejador_evento_id,
@@ -273,9 +281,9 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     d.activo,
                     d.prioridad,
                     d.creado_en
-                FROM per_disparadores_manejador d
-                INNER JOIN per_manejadores_evento m ON d.manejador_evento_id = m.id
-                INNER JOIN per_tipos_evento te ON d.tipo_evento_id = te.id
+                FROM {_nombres.DisparadoresManejador} d
+                INNER JOIN {_nombres.ManejadoresEvento} m ON d.manejador_evento_id = m.id
+                INNER JOIN {_nombres.TiposEvento} te ON d.tipo_evento_id = te.id
                 WHERE te.codigo = @TipoEvento
                     AND d.activo = 1
                     AND m.activo = 1
@@ -297,7 +305,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
         public async Task<IEnumerable<ConfiguracionManejador>> ObtenerManejadoresProgramadosAsync(
             CancellationToken token = default)
         {
-            const string sql = @"
+            string sql = $@"
                 SELECT
                     d.id,
                     d.manejador_evento_id,
@@ -311,8 +319,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
                     d.prioridad,
                     d.creado_en,
                     d.ultima_ejecucion
-                FROM per_disparadores_manejador d
-                INNER JOIN per_manejadores_evento m ON d.manejador_evento_id = m.id
+                FROM {_nombres.DisparadoresManejador} d
+                INNER JOIN {_nombres.ManejadoresEvento} m ON d.manejador_evento_id = m.id
                 WHERE d.modo_disparo = 'Programado'
                     AND d.activo = 1
                     AND m.activo = 1
@@ -333,8 +341,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task ActualizarConfiguracionAsync(ConfiguracionManejador configuracion, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_disparadores_manejador
+            string sql = $@"
+                UPDATE {_nombres.DisparadoresManejador}
                 SET
                     modo_disparo = @ModoDisparo,
                     expresion = @Expresion,
@@ -358,8 +366,8 @@ namespace PER.Comandos.LineaComandos.EventDriven.Manejador
 
         public async Task ActualizarUltimaEjecucionAsync(int disparadorId, DateTime ultimaEjecucion, CancellationToken token = default)
         {
-            const string sql = @"
-                UPDATE per_disparadores_manejador
+            string sql = $@"
+                UPDATE {_nombres.DisparadoresManejador}
                 SET ultima_ejecucion = @UltimaEjecucion
                 WHERE id = @Id;";
 
