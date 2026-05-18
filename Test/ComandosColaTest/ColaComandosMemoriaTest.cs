@@ -42,6 +42,37 @@ namespace ComandosColaTest
         }
 
         [Fact]
+        public async Task EncolarAsync_DebePublicarComandoConIdPersistido()
+        {
+            Mock<IAlmacenColaComandos> almacen = new Mock<IAlmacenColaComandos>();
+            almacen
+                .Setup(a => a.EncolarAsync(It.IsAny<ComandoEnCola>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(10);
+
+            ServiceProvider serviceProvider = new ServiceCollection()
+                .AddSingleton(almacen.Object)
+                .BuildServiceProvider();
+
+            ColaComandosMemoria cola = new ColaComandosMemoria(
+                serviceProvider.GetRequiredService<IServiceScopeFactory>());
+
+            ComandoEncolado comando = await cola.EncolarAsync(new SolicitudComando
+            {
+                RutaComando = "test ejecutar",
+                Argumentos = "--origen=test",
+                DatosDeComando = "{}"
+            });
+
+            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+            await using IAsyncEnumerator<ComandoEnCola> enumerador = cola.LeerAsync(cts.Token).GetAsyncEnumerator();
+
+            Assert.True(await enumerador.MoveNextAsync());
+            Assert.Equal(10, comando.ComandoId);
+            Assert.Equal(10, enumerador.Current.Id);
+            Assert.Equal("test ejecutar", enumerador.Current.RutaComando);
+        }
+
+        [Fact]
         public async Task CargarPendientesDesdeBaseDatosAsync_DebeEncolarPendientesEnMemoria()
         {
             ComandoEnCola pendiente = new ComandoEnCola

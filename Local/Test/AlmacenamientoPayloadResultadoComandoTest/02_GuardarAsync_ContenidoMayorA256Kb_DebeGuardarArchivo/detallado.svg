@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="1378" viewBox="0 0 1300 1378">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="34" y="32" width="1232" height="1314" fill="none" stroke="#1f2937" stroke-width="2"/>
+<text x="60" y="66" font-size="18" fill="#111827" font-weight="800">GuardarAsync_ContenidoMayorA256Kb_DebeGuardarArchivo</text>
+<text x="60" y="96" font-size="14" fill="#4b5563" font-weight="600">AlmacenamientoPayloadResultadoComandoTest - diagrama detallado de flujo del test</text>
+<rect x="910" y="54" width="300" height="42" rx="6" fill="#e8f5ee" stroke="#1f6b3a" stroke-width="2"/>
+<text x="1060.0" y="82.0" text-anchor="middle" font-size="15" fill="#1f6b3a" font-weight="800">Estado: CORRECTO</text>
+<ellipse cx="655.0" cy="133.0" rx="105.0" ry="33.0" fill="#050505" stroke="#000" stroke-width="2"/>
+<text x="655.0" y="138.0" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Inicio</text>
+<line x1="655.0" y1="166" x2="655.0" y2="212" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,212 662.0,212 655.0,224" fill="#1f2937"/>
+<rect x="460" y="224" width="390" height="108" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="283.0" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Crear RutaBase temporal unica</text>
+<path d="M910,221.0 H1210 V317.0 C1150,331.0 970,303.0 910,321.0 Z" fill="#eef6fb" stroke="#16415b" stroke-width="2"/>
+<text x="1060.0" y="253.0" text-anchor="middle" font-size="13" fill="#183548" font-weight="700">RutaBase</text>
+<text x="928" y="277.0" font-size="12" fill="#263244" font-weight="500">Path.GetTempPath()</text>
+<text x="928" y="293.0" font-size="12" fill="#263244" font-weight="500">Guid nuevo</text>
+<path d="M850,278.0 H880.0 V278.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,271.0 898,285.0 910,278.0" fill="#1f2937"/>
+<text x="888.0" y="270.0" font-size="13" fill="#1f2937" font-weight="700">datos</text>
+<line x1="655.0" y1="332" x2="655.0" y2="378" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,378 662.0,378 655.0,390" fill="#1f2937"/>
+<rect x="460" y="390" width="390" height="84" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="427.5" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Crear contenido de 256KB + 1 byte</text>
+<text x="655.0" y="446.5" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">y payload texto v1</text>
+<line x1="655.0" y1="474" x2="655.0" y2="520" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,520 662.0,520 655.0,532" fill="#1f2937"/>
+<rect x="460" y="532" width="390" height="84" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="579.0" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Ejecutar GuardarAsync(10, payload)</text>
+<line x1="655.0" y1="616" x2="655.0" y2="662" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,662 662.0,662 655.0,674" fill="#1f2937"/>
+<polygon points="655.0,674 825,738.0 655.0,802 485,738.0" fill="#205872" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="734.5" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">¿Contenido UTF8 supera 256</text>
+<text x="655.0" y="751.5" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">KB?</text>
+<rect x="910" y="700.0" width="300" height="76" rx="6" fill="#fff0f0" stroke="#8a1f1f" stroke-width="2"/>
+<text x="1060.0" y="742.0" text-anchor="middle" font-size="13" fill="#8a1f1f" font-weight="700">Falla el test</text>
+<path d="M825,738.0 H867.5 V738.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,731.0 898,745.0 910,738.0" fill="#1f2937"/>
+<text x="875.5" y="730.0" font-size="13" fill="#1f2937" font-weight="700">No</text>
+<line x1="655.0" y1="802" x2="655.0" y2="848" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,848 662.0,848 655.0,860" fill="#1f2937"/>
+<text x="667.0" y="831.0" font-size="13" fill="#1f2937" font-weight="700">Si</text>
+<rect x="460" y="860" width="390" height="108" fill="#17445f" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="909.5" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">Guardar archivo externo y retornar</text>
+<text x="655.0" y="928.5" text-anchor="middle" font-size="15" fill="#fff" font-weight="700">RutaPayload relativa</text>
+<path d="M910,857.0 H1210 V953.0 C1150,967.0 970,939.0 910,957.0 Z" fill="#eef6fb" stroke="#16415b" stroke-width="2"/>
+<text x="1060.0" y="889.0" text-anchor="middle" font-size="13" fill="#183548" font-weight="700">Archivo payload</text>
+<text x="928" y="913.0" font-size="12" fill="#263244" font-weight="500">texto/v1/10.{guid}.payload</text>
+<text x="928" y="929.0" font-size="12" fill="#263244" font-weight="500">Contenido escrito en disco</text>
+<path d="M850,914.0 H880.0 V914.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,907.0 898,921.0 910,914.0" fill="#1f2937"/>
+<text x="888.0" y="906.0" font-size="13" fill="#1f2937" font-weight="700">datos</text>
+<line x1="655.0" y1="968" x2="655.0" y2="1014" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,1014 662.0,1014 655.0,1026" fill="#1f2937"/>
+<polygon points="655.0,1026 825,1090.0 655.0,1154 485,1090.0" fill="#205872" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="1069.5" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">¿Contenido queda null,</text>
+<text x="655.0" y="1086.5" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">RutaPayload matchea patron</text>
+<text x="655.0" y="1103.5" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">y archivo existe con mismo</text>
+<text x="655.0" y="1120.5" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">texto?</text>
+<rect x="910" y="1052.0" width="300" height="76" rx="6" fill="#fff0f0" stroke="#8a1f1f" stroke-width="2"/>
+<text x="1060.0" y="1094.0" text-anchor="middle" font-size="13" fill="#8a1f1f" font-weight="700">Falla el test</text>
+<path d="M825,1090.0 H867.5 V1090.0 H898" fill="none" stroke="#1f2937" stroke-width="2.2"/>
+<polygon points="898,1083.0 898,1097.0 910,1090.0" fill="#1f2937"/>
+<text x="875.5" y="1082.0" font-size="13" fill="#1f2937" font-weight="700">No</text>
+<line x1="655.0" y1="1154" x2="655.0" y2="1200" stroke="#1f2937" stroke-width="2.5"/>
+<polygon points="648.0,1200 662.0,1200 655.0,1212" fill="#1f2937"/>
+<text x="667.0" y="1183.0" font-size="13" fill="#1f2937" font-weight="700">Si</text>
+<ellipse cx="655.0" cy="1245.0" rx="105.0" ry="33.0" fill="#1f6b3a" stroke="#0e2f42" stroke-width="2"/>
+<text x="655.0" y="1250.0" text-anchor="middle" font-size="14" fill="#fff" font-weight="700">Fin correcto</text>
+<text x="60" y="1336" font-size="13" fill="#6b7280">Formato: ovalo inicio/fin, rectangulo accion, cilindro BD/mock, documento datos, rombo decision/assert.</text>
+</svg>
