@@ -15,7 +15,7 @@ namespace ComandosColaTest
         protected BaseIntegracionSqlServerTest(DatabaseFixtureSqlServer fixture)
         {
             ConnectionString = fixture.ConnectionString;
-            Esquema = DatabaseFixtureSqlServer.Esquema;
+            Esquema = fixture.Esquema;
             Nombres = NombresBaseDatos.SqlServer(Esquema);
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }

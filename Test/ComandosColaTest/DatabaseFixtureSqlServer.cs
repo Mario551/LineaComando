@@ -5,7 +5,7 @@ namespace ComandosColaTest;
 
 public class DatabaseFixtureSqlServer : IAsyncLifetime
 {
-    public const string Esquema = "test";
+    public string Esquema { get; } = $"test_{Guid.NewGuid():N}";
 
     public string ConnectionString { get; }
 

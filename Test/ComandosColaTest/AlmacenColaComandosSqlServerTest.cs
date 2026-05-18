@@ -3,6 +3,7 @@ using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.Registro;
 using Microsoft.Data.SqlClient;
 
@@ -245,6 +246,83 @@ namespace ComandosColaTest
             Assert.NotNull(comandoDb.fecha_ejecucion);
             Assert.Equal(150, (long)comandoDb.duracion_ms);
             Assert.Null(comandoDb.mensaje_error);
+        }
+
+        [Fact]
+        public async Task MarcarComoProcesadoAsync_ConPayloadResultado_DebePersistirResultado()
+        {
+            string ruta = PrefijoTest + "resultado_payload";
+            await PrepararTestAsync(ruta);
+
+            ComandoEnCola comando = new ComandoEnCola
+            {
+                RutaComando = ruta,
+                FechaCreacion = DateTime.Now,
+                Estado = "pendiente",
+                Intentos = 0
+            };
+
+            long id = await _almacen.EncolarAsync(comando);
+            await _almacen.MarcarComandosProcesandoAsync(new[] { id });
+
+            ResultadoComando resultado = ResultadoComando.Exito("salida durable", TimeSpan.FromMilliseconds(75));
+            PayloadResultadoComando payload = new PayloadResultadoComando
+            {
+                Tipo = "texto",
+                Version = 1,
+                Formato = "text/plain",
+                Contenido = "salida durable"
+            };
+
+            await _almacen.MarcarComoProcesadoAsync(id, resultado, payload);
+
+            ResultadoComandoPersistido? resultadoPersistido = await _almacen.ObtenerResultadoPersistidoAsync(id);
+
+            Assert.NotNull(resultadoPersistido);
+            Assert.Equal("completado", resultadoPersistido.Estado);
+            Assert.Equal(TimeSpan.FromMilliseconds(75), resultadoPersistido.Duracion);
+            Assert.NotNull(resultadoPersistido.PayloadResultado);
+            Assert.Equal("texto", resultadoPersistido.PayloadResultado.Tipo);
+            Assert.Equal(1, resultadoPersistido.PayloadResultado.Version);
+            Assert.Equal("text/plain", resultadoPersistido.PayloadResultado.Formato);
+            Assert.Equal("salida durable", resultadoPersistido.PayloadResultado.Contenido);
+            Assert.Null(resultadoPersistido.PayloadResultado.RutaPayload);
+        }
+
+        [Fact]
+        public async Task MarcarComoProcesadoAsync_ConRutaPayloadResultado_DebePersistirRuta()
+        {
+            string ruta = PrefijoTest + "resultado_ruta_payload";
+            await PrepararTestAsync(ruta);
+
+            ComandoEnCola comando = new ComandoEnCola
+            {
+                RutaComando = ruta,
+                FechaCreacion = DateTime.Now,
+                Estado = "pendiente",
+                Intentos = 0
+            };
+
+            long id = await _almacen.EncolarAsync(comando);
+            await _almacen.MarcarComandosProcesandoAsync(new[] { id });
+
+            ResultadoComando resultado = ResultadoComando.Exito("salida durable", TimeSpan.FromMilliseconds(75));
+            PayloadResultadoComando payload = new PayloadResultadoComando
+            {
+                Tipo = "texto",
+                Version = 1,
+                Formato = "text/plain",
+                RutaPayload = "texto/v1/10.11111111111111111111111111111111.payload"
+            };
+
+            await _almacen.MarcarComoProcesadoAsync(id, resultado, payload);
+
+            ResultadoComandoPersistido? resultadoPersistido = await _almacen.ObtenerResultadoPersistidoAsync(id);
+
+            Assert.NotNull(resultadoPersistido);
+            Assert.NotNull(resultadoPersistido.PayloadResultado);
+            Assert.Null(resultadoPersistido.PayloadResultado.Contenido);
+            Assert.Equal("texto/v1/10.11111111111111111111111111111111.payload", resultadoPersistido.PayloadResultado.RutaPayload);
         }
 
         [Fact]

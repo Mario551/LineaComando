@@ -15,7 +15,7 @@ namespace EventDrivenTest
         protected BaseIntegracionTestEventDrivenSqlServer(DatabaseFixtureEventDrivenSqlServer fixture)
         {
             ConnectionString = fixture.ConnectionString;
-            Esquema = DatabaseFixtureEventDrivenSqlServer.Esquema;
+            Esquema = fixture.Esquema;
             Nombres = NombresBaseDatos.SqlServer(Esquema);
             Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         }

@@ -1,9 +1,9 @@
 -- Tabla: per_tipos_evento
 -- Catálogo de tipos de eventos disponibles en el sistema
 
-IF OBJECT_ID('per_tipos_evento', 'U') IS NULL
+IF OBJECT_ID('dbo.per_tipos_evento', 'U') IS NULL
 BEGIN
-    CREATE TABLE per_tipos_evento (
+    CREATE TABLE dbo.per_tipos_evento (
         id INT IDENTITY(1,1) PRIMARY KEY,
         codigo NVARCHAR(255) NOT NULL UNIQUE,
         nombre NVARCHAR(255) NOT NULL,
@@ -12,19 +12,19 @@ BEGIN
         creado_en DATETIME2 NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE INDEX idx_per_tipos_evento_codigo 
-        ON per_tipos_evento(codigo);
+    CREATE INDEX idx_per_tipos_evento_codigo
+        ON dbo.per_tipos_evento(codigo);
 
-    CREATE INDEX idx_per_tipos_evento_activo 
-        ON per_tipos_evento(activo);
+    CREATE INDEX idx_per_tipos_evento_activo
+        ON dbo.per_tipos_evento(activo);
 END
 
 -- Tabla: per_manejadores_evento
 -- Manejadores de eventos vinculados a comandos registrados
 
-IF OBJECT_ID('per_manejadores_evento', 'U') IS NULL
+IF OBJECT_ID('dbo.per_manejadores_evento', 'U') IS NULL
 BEGIN
-    CREATE TABLE per_manejadores_evento (
+    CREATE TABLE dbo.per_manejadores_evento (
         id INT IDENTITY(1,1) PRIMARY KEY,
         codigo NVARCHAR(255) NOT NULL UNIQUE,
         nombre NVARCHAR(255) NOT NULL,
@@ -37,26 +37,26 @@ BEGIN
 
         CONSTRAINT fk_manejador_comando
             FOREIGN KEY (id_comando_registrado)
-            REFERENCES per_comandos_registrados(id)
+            REFERENCES dbo.per_comandos_registrados(id)
             ON DELETE NO ACTION
     );
 
-    CREATE INDEX idx_per_manejadores_evento_codigo 
-        ON per_manejadores_evento(codigo);
+    CREATE INDEX idx_per_manejadores_evento_codigo
+        ON dbo.per_manejadores_evento(codigo);
 
-    CREATE INDEX idx_per_manejadores_evento_activo 
-        ON per_manejadores_evento(activo);
+    CREATE INDEX idx_per_manejadores_evento_activo
+        ON dbo.per_manejadores_evento(activo);
 
-    CREATE INDEX idx_per_manejadores_evento_comando 
-        ON per_manejadores_evento(id_comando_registrado);
+    CREATE INDEX idx_per_manejadores_evento_comando
+        ON dbo.per_manejadores_evento(id_comando_registrado);
 END
 
 -- Tabla: per_disparadores_manejador
 -- Disparadores que activan los manejadores (por evento o programado)
 
-IF OBJECT_ID('per_disparadores_manejador', 'U') IS NULL
+IF OBJECT_ID('dbo.per_disparadores_manejador', 'U') IS NULL
 BEGIN
-    CREATE TABLE per_disparadores_manejador (
+    CREATE TABLE dbo.per_disparadores_manejador (
         id INT IDENTITY(1,1) PRIMARY KEY,
         codigo NVARCHAR(255) NOT NULL UNIQUE,
         manejador_evento_id INT NOT NULL,
@@ -70,12 +70,12 @@ BEGIN
 
         CONSTRAINT fk_disparador_manejador
             FOREIGN KEY (manejador_evento_id)
-            REFERENCES per_manejadores_evento(id)
+            REFERENCES dbo.per_manejadores_evento(id)
             ON DELETE CASCADE,
 
         CONSTRAINT fk_disparador_tipo_evento
             FOREIGN KEY (tipo_evento_id)
-            REFERENCES per_tipos_evento(id)
+            REFERENCES dbo.per_tipos_evento(id)
             ON DELETE CASCADE,
 
         CONSTRAINT chk_modo_disparo
@@ -88,27 +88,27 @@ BEGIN
             )
     );
 
-    CREATE INDEX idx_per_disparadores_manejador_evento_id 
-        ON per_disparadores_manejador(manejador_evento_id);
+    CREATE INDEX idx_per_disparadores_manejador_evento_id
+        ON dbo.per_disparadores_manejador(manejador_evento_id);
 
-    CREATE INDEX idx_disparadores_tipo_evento 
-        ON per_disparadores_manejador(tipo_evento_id) 
+    CREATE INDEX idx_disparadores_tipo_evento
+        ON dbo.per_disparadores_manejador(tipo_evento_id)
         WHERE tipo_evento_id IS NOT NULL;
 
-    CREATE INDEX idx_disparadores_modo 
-        ON per_disparadores_manejador(modo_disparo, activo);
+    CREATE INDEX idx_disparadores_modo
+        ON dbo.per_disparadores_manejador(modo_disparo, activo);
 
-    CREATE INDEX idx_disparadores_programados 
-        ON per_disparadores_manejador(modo_disparo, activo, expresion) 
+    CREATE INDEX idx_disparadores_programados
+        ON dbo.per_disparadores_manejador(modo_disparo, activo, expresion)
         WHERE modo_disparo = 'Programado';
 END
 
 -- Tabla: per_eventos_outbox
 -- Cola de eventos pendientes de procesar (patrón Outbox)
 
-IF OBJECT_ID('per_eventos_outbox', 'U') IS NULL
+IF OBJECT_ID('dbo.per_eventos_outbox', 'U') IS NULL
 BEGIN
-    CREATE TABLE per_eventos_outbox (
+    CREATE TABLE dbo.per_eventos_outbox (
         id BIGINT IDENTITY(1,1) PRIMARY KEY,
         codigo_tipo_evento NVARCHAR(255) NOT NULL,
         agregado_id BIGINT NULL,
@@ -117,23 +117,25 @@ BEGIN
         procesado_en DATETIME2 NULL
     );
 
-    CREATE INDEX idx_per_eventos_outbox_tipo 
-        ON per_eventos_outbox(codigo_tipo_evento);
+    CREATE INDEX idx_per_eventos_outbox_tipo
+        ON dbo.per_eventos_outbox(codigo_tipo_evento);
 
-    CREATE INDEX idx_per_eventos_outbox_procesado 
-        ON per_eventos_outbox(procesado_en) 
+    CREATE INDEX idx_per_eventos_outbox_procesado
+        ON dbo.per_eventos_outbox(procesado_en)
         WHERE procesado_en IS NULL;
 
-    CREATE INDEX idx_per_eventos_outbox_creado 
-        ON per_eventos_outbox(creado_en);
+    CREATE INDEX idx_per_eventos_outbox_creado
+        ON dbo.per_eventos_outbox(creado_en);
 
-    CREATE INDEX idx_per_eventos_outbox_pendientes 
-        ON per_eventos_outbox(codigo_tipo_evento, creado_en) 
+    CREATE INDEX idx_per_eventos_outbox_pendientes
+        ON dbo.per_eventos_outbox(codigo_tipo_evento, creado_en)
         WHERE procesado_en IS NULL;
 END
 
+GO
+
 -- Función para obtener eventos pendientes del outbox
-CREATE OR ALTER FUNCTION obtener_eventos_pendientes(
+CREATE OR ALTER FUNCTION dbo.obtener_eventos_pendientes(
     @tamanio_lote INT = 50
 )
 RETURNS TABLE
@@ -146,6 +148,8 @@ RETURN
         datos_evento,
         creado_en,
         procesado_en
-    FROM per_eventos_outbox
+    FROM dbo.per_eventos_outbox
     WHERE procesado_en IS NULL
     ORDER BY creado_en;
+
+GO
