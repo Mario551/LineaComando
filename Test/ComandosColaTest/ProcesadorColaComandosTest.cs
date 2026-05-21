@@ -26,7 +26,7 @@ namespace ComandosColaTest
             _logger = NullLogger<ProcesadorColaComandos>.Instance;
         }
 
-        public override async Task InitializeAsync()
+        public override async ValueTask InitializeAsync()
         {
             await base.InitializeAsync();
             ComandoPrueba.ResetearContador();

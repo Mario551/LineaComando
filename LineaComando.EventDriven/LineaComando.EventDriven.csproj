@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>LineaComando.EventDriven</PackageId>
@@ -20,8 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="dapper" Version="2.1.66" />
-    <PackageReference Include="npgsql" Version="10.0.0" />
+    <PackageReference Include="dapper" Version="2.1.79" />
+    <PackageReference Include="npgsql" Version="10.0.2" />
   </ItemGroup>
 
   <ItemGroup>

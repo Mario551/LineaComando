@@ -16,7 +16,7 @@ public class DatabaseFixtureSqlServer : IAsyncLifetime
                 "La variable de entorno LINEA_COMANDOS_CONEXION_SQLSERVER no está configurada");
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var inicializadorCola = new InicializadorEsquemaSqlServer(ConnectionString, Esquema);
         await inicializadorCola.InicializarAsync();
@@ -25,9 +25,9 @@ public class DatabaseFixtureSqlServer : IAsyncLifetime
         await inicializadorEventDriven.InicializarAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 

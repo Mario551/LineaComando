@@ -21,7 +21,7 @@ namespace ComandosColaTest
             _almacen = new AlmacenColaComandosSqlServer(ConnectionString, Esquema);
         }
 
-        public override async Task InitializeAsync()
+        public override async ValueTask InitializeAsync()
         {
             await base.InitializeAsync();
             ComandoPrueba.ResetearContador();

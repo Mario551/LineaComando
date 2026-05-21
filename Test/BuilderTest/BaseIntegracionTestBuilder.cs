@@ -21,12 +21,12 @@ public abstract class BaseIntegracionTestBuilder : IAsyncLifetime
         Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
     }
 
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         await LimpiarDatosDelTestAsync();
     }
 
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         await LimpiarDatosDelTestAsync();
     }
