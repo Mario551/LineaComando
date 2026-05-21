@@ -27,9 +27,6 @@ namespace PER.Comandos.LineaComandos.Builder
         private string? _esquemaBaseDatos;
         private string? _rutaResultadosComandos;
 
-        internal TimeSpan TiempoRefrescoCola { get; private set; } = TimeSpan.FromSeconds(1);
-        internal TimeSpan TiempoRefrescoEventos { get; private set; } = TimeSpan.FromSeconds(1);
-        internal TimeSpan TiempoRefrescoTareas { get; private set; } = TimeSpan.FromSeconds(1);
         internal int MaxParalelismoCola { get; private set; } = 4;
 
         internal Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> ConfiguracionLineaComandos;
@@ -106,24 +103,6 @@ namespace PER.Comandos.LineaComandos.Builder
         public LineaComandoBuilder SetMaxParalelismoCola(int max)
         {
             MaxParalelismoCola = max;
-            return this;
-        }
-
-        public LineaComandoBuilder SetTiempoRefrescoColaComandos(TimeSpan tiempoRefresco)
-        {
-            TiempoRefrescoCola = tiempoRefresco;
-            return this;
-        }
-
-        public LineaComandoBuilder SetTiempoRefrescoColaEventos(TimeSpan tiempoRefresco)
-        {
-            TiempoRefrescoEventos = tiempoRefresco;
-            return this;
-        }
-
-        public LineaComandoBuilder SetTiempoRefrescoColaTareas(TimeSpan tiempoRefresco)
-        {
-            TiempoRefrescoTareas = tiempoRefresco;
             return this;
         }
 

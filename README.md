@@ -1,16 +1,18 @@
 # PER.Comandos.LineaComandos
 
-Sistema de procesamiento de comandos y eventos para aplicaciones .NET. Incluye cola de comandos asincronos y arquitectura event-driven con outbox pattern.
+Sistema de comandos para aplicaciones .NET con cola asincrona, procesamiento event-driven, tareas programadas y resultados durables.
+
+El sistema usa base de datos como fuente de verdad y colas en memoria para activar el procesamiento dentro del proceso actual.
 
 ## Dependencias
 
 - .NET 8.0+
-- PostgreSQL (Npgsql), SQL Server (Microsoft.Data.SqlClient) o SQLite
+- PostgreSQL con Npgsql o SQL Server con Microsoft.Data.SqlClient
 - Dapper
 - Microsoft.Extensions.Hosting
 - Microsoft.Extensions.DependencyInjection
 
-## Configuracion con el Builder
+## Configuracion Con El Builder
 
 ### ASP.NET Core
 
@@ -20,133 +22,135 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddLineaComando(async (sp, builderInicializador, token) =>
     {
-        // IBuilderComando, IBuilderManejador, etc. se obtienen de ServiceProvider
-        // Usa builderInicializador.NewBuilderComando() para crear nuevos builders
-        // Usa builderInicializador.NewBuilderTipoEvento() para crear builders de tipos de evento
-
         IBuilderComando builderComando = builderInicializador.NewBuilderComando();
 
         IBuilderManejador builderManejador = await builderComando
             .Argumentos("orden pagar", "Procesa el pago de una orden")
             .Accion(new PagarOrdenComando())
+            .Resultado(new PagoOrdenResultadoProcesador())
             .RegistrarAsync();
 
         IBuilderTipoEvento builderTipoEvento = builderInicializador.NewBuilderTipoEvento();
         ITipoEvento tipoEvento = await builderTipoEvento
-            .Argumentos("ORDEN_CREADA", "Orden Creada", "Se emite cuando se crea una nueva orden")
+            .Argumentos("ORDEN_CREADA", "Orden creada", "Se emite cuando se crea una orden")
             .RegistrarAsync();
 
         IBuilderDisparador builderDisparador = await builderManejador
-            .Argumentos("NOTIFICAR_ORDEN_CREADA", "Notificar orden creada", string.Empty, "Envia notificacion al crear una orden")
+            .Argumentos(
+                "NOTIFICAR_ORDEN_CREADA",
+                "Notificar orden creada",
+                string.Empty,
+                "Envia notificacion al crear una orden")
             .RegistrarAsync();
 
         await builderDisparador
             .Argumentos("DISPARADOR_ORDEN_CREADA", 1, tipoEvento)
             .RegistrarAsync();
     })
-    .UseSqlServer(builder.Configuration.GetConnectionString("Default")!)
-    .SetTiempoRefrescoColaComandos(TimeSpan.FromSeconds(1))
+    .UseSqlServer(builder.Configuration.GetConnectionString("Default")!, "linea_comando")
+    .SetRutaResultadosComandos("/var/app/resultados-comandos")
     .SetMaxParalelismoCola(4)
     .Build();
 
 var app = builder.Build();
 
-await app.InicializarLineaComandoAsync();
+await app.Services.InicializarLineaComandoAsync();
 
 app.Run();
 ```
 
-### Aplicacion de Consola con Host
+### Aplicacion De Consola Con Host
 
 ```csharp
-var host = Host.CreateDefaultBuilder(args)
+IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
         services
             .AddLineaComando(async (sp, builderInicializador, token) =>
             {
-                // Configura comandos, manejadores, eventos usando los builders
-                IBuilderComando builderComando = builderInicializador.NewBuilderComando();
-
-                await builderComando
+                await builderInicializador
+                    .NewBuilderComando()
                     .Argumentos("orden pagar", "Procesa el pago de una orden")
                     .Accion(new PagarOrdenComando())
                     .RegistrarAsync();
             })
-            .UsePostgresql(context.Configuration.GetConnectionString("Default")!)
-            .SetTiempoRefrescoColaComandos(TimeSpan.FromSeconds(1))
+            .UsePostgresql(context.Configuration.GetConnectionString("Default")!, "linea_comando")
             .SetMaxParalelismoCola(4)
             .Build();
     })
     .Build();
 
-await host.InicializarLineaComandoAsync();
+await host.Services.InicializarLineaComandoAsync();
 await host.RunAsync();
 ```
 
-### Seleccion de Base de Datos
+## Base De Datos Y Esquemas
 
-El builder permite elegir entre PostgreSQL, SQL Server o SQLite mediante los metodos:
+El soporte operativo documentado es:
 
-- `.UsePostgresql(connectionString)` - Para PostgreSQL
-- `.UseSqlServer(connectionString)` - Para SQL Server
-- `.UseSqlite(connectionString)` - Para SQLite
+- `.UsePostgresql(connectionString)` o `.UsePostgresql(connectionString, esquema)`
+- `.UseSqlServer(connectionString)` o `.UseSqlServer(connectionString, esquema)`
+- `.SetEsquemaBaseDatos(esquema)` si se quiere configurar el esquema despues de elegir motor
 
-La implementacion concreta de las interfaces se registra automaticamente en el contenedor de dependencias segun la base de datos seleccionada.
+Esquemas predeterminados:
 
-### Configuracion de Parametros
+| Motor | Esquema predeterminado |
+|-------|------------------------|
+| PostgreSQL | `public` |
+| SQL Server | `dbo` |
 
-| Metodo | Descripcion | Valor por Defecto |
+`InicializarLineaComandoAsync()` crea las tablas, funciones y procedimientos necesarios para el esquema configurado.
+
+## Parametros Del Builder
+
+| Metodo | Descripcion | Valor por defecto |
 |--------|-------------|-------------------|
-| `SetTiempoRefrescoColaComandos(TimeSpan)` | Intervalo de escaneo de la cola de comandos | 1 segundo |
-| `SetTiempoRefrescoColaEventos(TimeSpan)` | Intervalo de escaneo de eventos pendientes | 1 segundo |
-| `SetTiempoRefrescoColaTareas(TimeSpan)` | Intervalo de verificacion de tareas programadas | 1 segundo |
-| `SetMaxParalelismoCola(int)` | Maximo de comandos ejecutandose en paralelo | 4 |
+| `SetMaxParalelismoCola(int)` | Maximo de comandos ejecutandose en paralelo | `4` |
+| `SetRutaResultadosComandos(string)` | Ruta base para payloads de resultado mayores a 256KB | `null` |
 
-## Servicios en Segundo Plano
+## Servicios En Segundo Plano
 
-Al llamar `Build()`, se registran automaticamente los siguientes `BackgroundService`:
+`Build()` registra estos servicios:
 
-| Servicio | Descripcion |
-|----------|-------------|
-| `ServicioColaComandos` | Escanea la tabla `per_cola_comandos`, obtiene comandos pendientes y los ejecuta en paralelo |
-| `ServicioProcesadorEventos` | Escanea la tabla `per_eventos_outbox`, lee eventos pendientes y encola comandos asociados a sus manejadores |
-| `ServicioTareasProgramadas` | Verifica manejadores con expresiones cron y encola comandos cuando corresponde |
+| Servicio | Responsabilidad |
+|----------|-----------------|
+| `ServicioColaComandos` | Inicia `ProcesadorColaComandos`, carga comandos pendientes desde BD y consume `IColaComandosMemoria` |
+| `ServicioProcesadorEventos` | Carga eventos pendientes desde BD, consume `IColaEventosMemoria` y encola comandos asociados |
+| `ServicioTareasProgramadas` | Inicia el planificador de disparadores programados |
 
----
+## Comandos
 
-## Cola de Comandos
+### Crear Un Comando
 
-### Crear un Comando
-
-Un comando hereda de `ComandoBase<TRead, TWrite>`:
+Un comando hereda de `ComandoBase<TRead, TWrite>`. La ejecucion retorna el resultado directamente.
 
 ```csharp
-public class PagarOrdenComando : ComandoBase<string, ResultadoComando>
+public sealed class PagarOrdenComando : ComandoBase<string, ResultadoComando>
 {
-    private PagarOrdenParametros _parametros;
+    private PagarOrdenParametros _parametros = new();
 
-    public override void Preparar(
-        ICollection<Parametro> parametros,
-        IConfiguracion configuracion,
-        ILogger logger)
+    public override void Preparar(ICollection<Parametro> parametros)
     {
         _parametros = Parametro.New<PagarOrdenParametros>(parametros);
     }
 
-    public override async Task EjecutarAsync(
-        IStream<string, ResultadoComando> stream,
+    public override Task<ResultadoComando> EjecutarAsync(
+        string entrada,
         CancellationToken token = default)
     {
-        var datos = stream.ObtenerEntrada();
+        PagoOrden datos = JsonSerializer.Deserialize<PagoOrden>(entrada)!;
 
-        // Logica del comando...
+        object salida = new
+        {
+            datos.OrdenId,
+            Estado = "pagada"
+        };
 
-        stream.Escribir(ResultadoComando.Exito("Orden pagada"));
+        return Task.FromResult(ResultadoComando.Exito(salida));
     }
 }
 
-public class PagarOrdenParametros : IParametro
+public sealed class PagarOrdenParametros : IParametro
 {
     [Nombre("ordenId")]
     public long OrdenId { get; set; }
@@ -156,12 +160,19 @@ public class PagarOrdenParametros : IParametro
 }
 ```
 
-### Registrar un Comando
+### Registrar Un Comando
 
 ```csharp
-// IRegistroComandos se obtiene via ServiceProvider (inyeccion de dependencias)
-IRegistroComandos<string, ResultadoComando> registroComandos = /* desde DI */;
+await builderInicializador
+    .NewBuilderComando()
+    .Argumentos("orden pagar", "Procesa el pago de una orden")
+    .Accion(new PagarOrdenComando())
+    .RegistrarAsync();
+```
 
+Tambien se puede registrar directamente con `IRegistroComandos<string, ResultadoComando>`:
+
+```csharp
 await registroComandos.RegistrarComandoAsync(
     new MetadatosComando
     {
@@ -172,165 +183,122 @@ await registroComandos.RegistrarComandoAsync(
     token);
 ```
 
-### Encolar un Comando
+## Cola De Comandos En Memoria
 
-Usa `IAlmacenColaComandos` para encolar comandos:
+La base de datos persiste la solicitud. La cola en memoria activa el worker del proceso actual.
+
+Flujo normal:
+
+```text
+IColaComandosMemoria.EncolarAsync(SolicitudComando)
+-> IAlmacenColaComandos.EncolarAsync(ComandoEnCola)
+-> per_cola_comandos
+-> Channel<ComandoEnCola>
+-> ProcesadorColaComandos
+-> comando.EjecutarAsync(entrada)
+-> persistir estado/resultado
+-> completar Task local si alguien espera
+```
+
+Ejemplo:
 
 ```csharp
-public class MiServicio
+public sealed class PagoServicio
 {
-    private readonly IAlmacenColaComandos _almacenCola;
+    private readonly IColaComandosMemoria _colaComandos;
 
-    public MiServicio(IAlmacenColaComandos almacenCola)
+    public PagoServicio(IColaComandosMemoria colaComandos)
     {
-        _almacenCola = almacenCola;
+        _colaComandos = colaComandos;
     }
 
-    public async Task ProcesarPagoAsync(long ordenId, decimal monto)
+    public async Task<ResultadoComando> ProcesarPagoAsync(long ordenId, decimal monto)
     {
-        var comando = new ComandoEnCola
+        ComandoEncolado comando = await _colaComandos.EncolarAsync(new SolicitudComando
         {
             RutaComando = "orden pagar",
             Argumentos = $"--ordenId={ordenId} --monto={monto}",
             DatosDeComando = JsonSerializer.Serialize(new { OrdenId = ordenId, Monto = monto })
-        };
+        });
 
-        await _almacenCola.EncolarAsync(comando);
+        return await comando.Resultado;
     }
 }
 ```
 
-El `ServicioColaComandos` recogera automaticamente el comando y lo ejecutara.
+### Recuperar Una Espera
 
----
+Si el proceso sigue vivo, `ComandoEncolado.Resultado` se completa desde memoria. Si el comando ya termino y la espera fue limpiada, `EsperarComandoAsync` recupera el resultado durable desde BD o archivo.
+
+```csharp
+ComandoEncolado comando = await colaComandos.EsperarComandoAsync(comandoId);
+ResultadoComando resultado = await comando.Resultado;
+```
+
+## Resultados Durables
+
+`ResultadoComando.Salida` es `object?`. Para hacer durable la salida de un comando se registra un procesador de resultado:
+
+```csharp
+await builderInicializador
+    .NewBuilderComando()
+    .Argumentos("orden pagar", "Procesa el pago de una orden")
+    .Accion(new PagarOrdenComando())
+    .Resultado(new PagoOrdenResultadoProcesador())
+    .RegistrarAsync();
+```
+
+```csharp
+public sealed class PagoOrdenResultadoProcesador : IProcesadorResultadoComando
+{
+    public string Tipo => "pago_orden";
+
+    public int Version => 1;
+
+    public string Formato => "application/json";
+
+    public Task<string?> SerializarAsync(object? salida, CancellationToken token = default)
+    {
+        return Task.FromResult<string?>(JsonSerializer.Serialize(salida));
+    }
+
+    public Task<object?> DeserializarAsync(string? contenido, CancellationToken token = default)
+    {
+        PagoOrdenResultado? resultado = JsonSerializer.Deserialize<PagoOrdenResultado>(contenido ?? "{}");
+        return Task.FromResult<object?>(resultado);
+    }
+}
+```
+
+Reglas de almacenamiento:
+
+- Si el payload serializado ocupa hasta `256 * 1024` bytes UTF-8, se guarda en `per_cola_comandos_resultados.payload`.
+- Si supera ese limite, se guarda en archivo externo y la tabla guarda `ruta_payload`.
+- La ruta del archivo sigue el patron `{RutaBase}/{tipo}/v{version}/{comandoId}.{guid}.payload`.
+- Para payloads grandes se debe configurar `.SetRutaResultadosComandos(rutaBase)`.
 
 ## Event-Driven
 
-### Flujo de Eventos
+### Flujo De Eventos
 
-```
-[Tu Codigo] -> IRegistroEventoBuilder.Argumentos(tipoEvento, datos, agregadoId).RegistrarEnColaAsync()
-                                                              |
-                                                              v
-[ServicioProcesadorEventos] <- ObtenerEventosPendientesAsync() lee EventoOutbox
-            |
-            v
-    Agrega parametros automaticos:
-    --origen=evento
-    --codigo={CodigoTipoEvento}
-    --agregado-id={valor} (solo si AgregadoId tiene valor)
-            |
-            v
-    ObtenerManejadoresParaEventoAsync() por CodigoTipoEvento
-            |
-            v
-    Por cada manejador -> IAlmacenColaComandos.EncolarAsync(ComandoEnCola)
-            |
-            v
-[ServicioColaComandos] ejecuta el comando con todos los argumentos
+```text
+Tu codigo
+-> IRegistroEventoBuilder.Argumentos(...).RegistrarEnColaAsync()
+-> per_eventos_outbox
+-> IColaEventosMemoria
+-> ServicioProcesadorEventos
+-> ProcesadorEventos
+-> IRegistroManejadores.ObtenerManejadoresParaEventoAsync()
+-> IColaComandosMemoria.EncolarAsync(SolicitudComando)
+-> ProcesadorColaComandos
 ```
 
-**Parametros Automaticos**: Cuando un comando se ejecuta a traves del sistema event-driven, se agregan automaticamente los siguientes parametros:
+Al iniciar, `ServicioProcesadorEventos` carga desde BD los eventos pendientes y los encola en memoria.
 
-| Parametro | Descripcion | Ejemplo |
-|-----------|-------------|---------|
-| `--origen` | Indica el origen: `evento` o `disparador` | `--origen=evento` |
-| `--codigo` | Codigo del tipo de evento o del disparador | `--codigo=ORDEN_CREADA` |
-| `--agregado-id` | ID del agregado (solo para eventos con AgregadoId) | `--agregado-id=123` |
-
-Estos parametros se antepone a los argumentos configurados en el manejador, permitiendo al comando conocer su contexto de ejecucion.
-
-### Modelo de Datos Event-Driven
-
-El sistema event-driven utiliza tres tablas relacionadas:
-
-```
-+------------------+       +-----------------------+       +----------------------------+
-|per_tipos_evento  |       | per_manejadores_evento|       | per_disparadores_manejador |
-+------------------+       +-----------------------+       +----------------------------+
-| id (PK)          |       | id (PK)               |       | id (PK)                    |
-| codigo           |       | codigo                |       | manejador_evento_id(FK)    |---> per_manejadores_evento
-| nombre           |       | nombre                |       | tipo_evento_id (FK)        |---> per_tipos_evento
-| descripcion      |       | descripcion           |       | modo_disparo               |
-| activo           |       | ruta_comando          |       | expresion                  |
-| creado_en        |       | argumentos_comando    |       | activo                     |
-+------------------+       | activo                |       | prioridad                  |
-                           | creado_en             |       | ultima_ejecucion           |
-                           +-----------------------+       | creado_en                  |
-                                                           +----------------------------+
-```
-
-**per_tipos_evento**: Catalogo de eventos que pueden ocurrir en tu sistema. Define QUE cosas pueden pasar (ej: "ORDEN_CREADA", "PAGO_RECIBIDO", "USUARIO_REGISTRADO").
-
-**per_manejadores_evento**: Define QUE COMANDO ejecutar como reaccion. Cada manejador tiene una `ruta_comando` que apunta a un comando registrado en la cola.
-
-**per_disparadores_manejador**: Es el PUENTE que conecta todo. Define CUANDO se dispara un manejador:
-- `modo_disparo = "Evento"`: Se dispara cuando ocurre un tipo de evento especifico (requiere `tipo_evento_id`)
-- `modo_disparo = "Programado"`: Se dispara segun una expresion de intervalo (requiere `expresion`)
-
-**Relacion**: Un tipo de evento puede tener multiples manejadores (1:N a traves de disparadores). Un manejador puede reaccionar a multiples tipos de evento (1:N). El disparador es la tabla intermedia que establece estas relaciones.
-
-### Registrar un Tipo de Evento
+### Publicar Un Evento
 
 ```csharp
-// IRegistroTiposEvento se obtiene via ServiceProvider (inyeccion de dependencias)
-IRegistroTiposEvento registroTipos = /* desde DI */;
-
-await registroTipos.RegistrarTipoEventoAsync(new TipoEvento
-{
-    Codigo = "ORDEN_CREADA",
-    Nombre = "Orden Creada",
-    Descripcion = "Se emite cuando se crea una nueva orden",
-    Activo = true,
-    CreadoEn = DateTime.Now
-});
-```
-
-### Registrar un Manejador de Eventos
-
-Un manejador vincula un tipo de evento con un comando a ejecutar:
-
-```csharp
-// IRegistroManejadores se obtiene via ServiceProvider (inyeccion de dependencias)
-IRegistroManejadores registroManejadores = /* desde DI */;
-
-var manejadorId = await registroManejadores.RegistrarManejadorAsync(new ManejadorEvento
-{
-    Codigo = "NOTIFICAR_ORDEN_CREADA",
-    Nombre = "Notificar orden creada",
-    Descripcion = "Envia notificacion al crear una orden",
-    RutaComando = "notificacion enviar",
-    ArgumentosComando = "--tipo=email",
-    Activo = true,
-    CreadoEn = DateTime.Now
-});
-```
-
-### Configurar el Disparador
-
-Vincula el manejador con el tipo de evento:
-
-```csharp
-var tipoEvento = await registroTipos.ObtenerTipoEventoPorCodigoAsync("ORDEN_CREADA");
-
-await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
-{
-    ManejadorEventoId = manejadorId,
-    Nombre = "Disparador Orden Creada",
-    TipoEventoId = tipoEvento.Id,
-    ModoDisparo = "Evento",
-    Activo = true,
-    Prioridad = 1,
-    CreadoEn = DateTime.Now
-});
-```
-
-### Publicar un Evento
-
-Para publicar un evento, utiliza `IRegistroEventoBuilder`. Este builder permite registrar eventos en la cola de manera fluida y tipada:
-
-```csharp
-public class OrdenServicio
+public sealed class OrdenServicio
 {
     private readonly IRegistroEventoBuilder _registroEventoBuilder;
 
@@ -341,8 +309,6 @@ public class OrdenServicio
 
     public async Task CrearOrdenAsync(Orden orden)
     {
-        // Guardar orden...
-
         await _registroEventoBuilder
             .Argumentos("ORDEN_CREADA", orden, orden.Id)
             .RegistrarEnColaAsync();
@@ -350,197 +316,129 @@ public class OrdenServicio
 }
 ```
 
-Cuando el `ServicioProcesadorEventos` procesa el evento, agrega automaticamente los parametros `--origen=evento`, `--codigo={tipoEvento}` y opcionalmente `--agregado-id={valor}` al comando. Estos parametros se antepone a los argumentos configurados en el manejador.
+Cuando el evento encola un comando, se agregan parametros automaticos:
 
-El comando puede recibir estos parametros mediante la clase de parametros:
-
-```csharp
-public class NotificarOrdenComando : ComandoBase<string, ResultadoComando>
-{
-    private NotificarParametros _parametros;
-
-    public override void Preparar(
-        ICollection<Parametro> parametros,
-        IConfiguracion configuracion,
-        ILogger logger)
-    {
-        _parametros = Parametro.New<NotificarParametros>(parametros);
-    }
-
-    public override async Task EjecutarAsync(
-        IStream<string, ResultadoComando> stream,
-        CancellationToken token = default)
-    {
-        // _parametros.Origen indica si viene de "evento" o "disparador"
-        // _parametros.Codigo contiene el codigo del evento o disparador
-        // _parametros.AgregadoId contiene el ID del agregado (si aplica)
-        var datos = stream.ObtenerEntrada();
-
-        if (_parametros.Origen == "evento")
-        {
-            stream.Escribir(ResultadoComando.Exito(
-                $"Notificacion por evento {_parametros.Codigo} para agregado {_parametros.AgregadoId}"));
-        }
-    }
-}
-
-public class NotificarParametros : IParametro
-{
-    [Nombre("origen")]
-    public string Origen { get; set; } = string.Empty;
-    
-    [Nombre("codigo")]
-    public string Codigo { get; set; } = string.Empty;
-    
-    [Nombre("agregado-id")]
-    public long? AgregadoId { get; set; }
-}
-```
-
----
+| Parametro | Descripcion |
+|-----------|-------------|
+| `--origen=evento` | Indica que el comando viene de evento |
+| `--codigo={tipoEvento}` | Codigo del tipo de evento |
+| `--agregado-id={valor}` | ID del agregado, si existe |
 
 ## Tareas Programadas
 
-Las tareas programadas permiten ejecutar comandos en intervalos definidos.
+Las tareas programadas se definen como disparadores con `modo_disparo = "Programado"` y expresion `dd:hh:mm:ss`.
 
-El sistema rastrea la ultima ejecucion de cada tarea mediante el campo `ultima_ejecucion` en `per_disparadores_manejador`. Al evaluar si una tarea debe ejecutarse, calcula la proxima ejecucion sumando el intervalo a `ultima_ejecucion`. Si no existe una ejecucion previa, la tarea se ejecuta inmediatamente.
-
-### Registrar una Tarea Programada
+Al iniciar, `ServicioTareasProgramadas` carga los disparadores activos y `CoordinadorTareasProgramadas` programa cada ejecucion en memoria. Cuando una ejecucion vence, se encola el comando en `IColaComandosMemoria` y se actualiza `ultima_ejecucion`.
 
 ```csharp
-// IRegistroManejadores se obtiene via ServiceProvider (inyeccion de dependencias)
-IRegistroManejadores registroManejadores = /* desde DI */;
+IBuilderDisparador builderDisparador = await builderManejador
+    .Argumentos("LIMPIAR_LOGS", "Limpieza de logs", string.Empty, "Limpia logs antiguos")
+    .RegistrarAsync();
 
-var manejadorId = await registroManejadores.RegistrarManejadorAsync(new ManejadorEvento
-{
-    Codigo = "LIMPIAR_LOGS",
-    Nombre = "Limpieza de logs",
-    RutaComando = "sistema limpiar-logs",
-    Activo = true,
-    CreadoEn = DateTime.Now
-});
-
-await registroManejadores.RegistrarDisparadorAsync(new DisparadorManejador
-{
-    ManejadorEventoId = manejadorId,
-    Nombre = "Disparador Limpieza Logs",
-    ModoDisparo = "Programado",
-    Expresion = "00:01:00:00",
-    Activo = true,
-    Prioridad = 1,
-    CreadoEn = DateTime.Now
-});
+await builderDisparador
+    .Argumentos(
+        codigo: "DISPARADOR_LIMPIAR_LOGS",
+        prioridad: 1,
+        expresion: "00:01:00:00")
+    .RegistrarAsync();
 ```
 
-**Parametros en Tareas Programadas**: Al igual que los eventos, las tareas programadas tambien reciben parametros automaticos:
-- `--origen=disparador`
-- `--codigo={codigoDelDisparador}`
-
-Esto permite que el mismo comando pueda distinguir si se ejecuta por un evento o por una tarea programada.
-
-### Expresiones de Intervalo
-
-Formato: `dd:hh:mm:ss` (dias:horas:minutos:segundos)
+Ejemplos de expresion:
 
 | Expresion | Frecuencia |
 |-----------|------------|
 | `00:00:01:00` | Cada minuto |
-| `00:00:30:00` | Cada 30 minutos |
 | `00:01:00:00` | Cada hora |
-| `00:06:00:00` | Cada 6 horas |
 | `01:00:00:00` | Cada dia |
 | `07:00:00:00` | Cada semana |
 
----
+Los comandos disparados por tareas programadas reciben:
 
-## Esquema de Base de Datos
+- `--origen=disparador`
+- `--codigo={codigoDelDisparador}`
 
-Los esquemas se inicializan automaticamente con `InicializarLineaComandoAsync()`.
+## Esquema De Base De Datos
 
-### Tablas de Cola de Comandos
+### Cola De Comandos
 
-- `per_comandos_registrados`: Catalogo de comandos disponibles
-- `per_cola_comandos`: Comandos encolados pendientes de ejecucion
+| Tabla | Descripcion |
+|-------|-------------|
+| `per_comandos_registrados` | Catalogo de comandos registrados |
+| `per_cola_comandos_estados` | Catalogo de estados validos |
+| `per_cola_comandos` | Solicitudes de comandos encoladas |
+| `per_cola_comandos_resultados` | Resultado durable y metadata de payload |
 
-### Tablas de Event-Driven
+Estados oficiales:
 
-- `per_tipos_evento`: Catalogo de tipos de eventos
-- `per_manejadores_evento`: Manejadores que responden a eventos
-- `per_disparadores_manejador`: Configuracion de cuando se dispara cada manejador
-- `per_eventos_outbox`: Eventos publicados pendientes de procesar
+- `pendiente`
+- `procesando`
+- `completado`
+- `fallido`
 
-> **Nota**: El esquema de base de datos es compatible con PostgreSQL, SQL Server y SQLite. Los tipos de datos se adaptan automaticamente segun el motor de base de datos seleccionado.
+### Event-Driven
 
----
+| Tabla | Descripcion |
+|-------|-------------|
+| `per_tipos_evento` | Catalogo de eventos |
+| `per_manejadores_evento` | Manejadores asociados a comandos |
+| `per_disparadores_manejador` | Disparadores por evento o por programacion |
+| `per_eventos_outbox` | Eventos pendientes o procesados |
 
-## Comportamiento en Conflictos (Insert-Only)
+## Comportamiento En Conflictos
 
-Las clases de registro utilizan una estrategia **insert-only**. Esto significa que:
+Las clases de registro usan comportamiento insert-only:
 
-- Si el registro **no existe**: Se inserta con los valores proporcionados por el codigo
-- Si el registro **ya existe**: Se retorna el ID existente **sin modificar ningun campo**
+- Si el registro no existe, se inserta.
+- Si el registro ya existe, se retorna el ID existente sin sobrescribir sus campos.
 
-### Prioridad a la Base de Datos
+Esto permite que la base de datos tenga prioridad sobre los valores definidos en codigo.
 
-**La base de datos tiene prioridad sobre el codigo.** Una vez que un registro existe, sus valores no se sobrescriben automaticamente. Esto permite:
-
-- Modificar configuraciones directamente en base de datos sin que el codigo las restaure
-- Mantener consistencia entre lo definido en BD y el comportamiento real del sistema
-- Evitar confusiones sobre que valores estan activos
-
-### Tablas Afectadas
-
-| Tabla | Clave Unica | Comportamiento en Conflicto |
-|-------|-------------|----------------------------|
-| `per_comandos_registrados` | `ruta_comando` | No actualiza nada, retorna ID existente |
-| `per_tipos_evento` | `codigo` | No actualiza nada, retorna ID existente |
-| `per_manejadores_evento` | `codigo` | No actualiza nada, retorna ID existente |
-| `per_disparadores_manejador` | `nombre` | No actualiza nada, retorna ID existente |
-
----
+| Tabla | Clave unica | Comportamiento |
+|-------|-------------|----------------|
+| `per_comandos_registrados` | `ruta_comando` | Retorna ID existente |
+| `per_tipos_evento` | `codigo` | Retorna ID existente |
+| `per_manejadores_evento` | `codigo` | Retorna ID existente |
+| `per_disparadores_manejador` | `codigo` | Retorna ID existente |
 
 ## Arquitectura
 
-```
-                    +-------------------+
-                    |   Tu Aplicación   |
-                    +-------------------+
-                           |
-          +----------------+----------------+
-          |                                 |
-          v                                 v
-+----------------------+         +-------------------+
-| IAlmacenColaComandos |         | IRegistroEventoBuilder |
-| (Encolar comandos)   |         | (Publicar eventos)|
-+----------------------+         +-------------------+
-          |                                 |
-          v                                 v
-+-------------------+            +-------------------+
-| per_cola_comandos |            | per_eventos_outbox|
-| (Tabla de BD)     |            | (Tabla de BD)     |
-+-------------------+            +-------------------+
-          ^                                 |
-          |                                 v
-          |                    +-------------------------+
-          |                    |ServicioProcesadorEventos|
-          |                    | (BackgroundService)     |
-          |                    +-------------------------+
-          |                                 |
-          |                 Encola comandos segun manejadores
-          |                                 |
-          +<--------------------------------+
-          |
-          v
-+-------------------+
-|ServicioColaComandos|
-| (BackgroundService)|
-+-------------------+
-          |
-          v
-+-------------------+
-| Ejecuta comandos  |
-| en paralelo       |
-+-------------------+
+```text
+Canal externo / aplicacion
+        |
+        v
+IRegistroEventoBuilder o IColaComandosMemoria
+        |
+        v
+Base de datos durable
+  - per_eventos_outbox
+  - per_cola_comandos
+  - per_cola_comandos_resultados
+        |
+        v
+Colas en memoria
+  - IColaEventosMemoria
+  - IColaComandosMemoria
+        |
+        v
+Servicios en segundo plano
+  - ServicioProcesadorEventos
+  - ServicioTareasProgramadas
+  - ServicioColaComandos
+        |
+        v
+ProcesadorColaComandos
+        |
+        v
+Comando.EjecutarAsync(entrada)
+        |
+        v
+ResultadoComando
+        |
+        +--> resultado pequeno: per_cola_comandos_resultados.payload
+        |
+        +--> resultado grande: archivo externo + ruta_payload
+        |
+        +--> espera local: ComandoEncolado.Resultado
 ```
 
----
+La base de datos es la fuente de verdad. Las colas en memoria activan el procesamiento y permiten esperas locales rapidas, pero no reemplazan la persistencia.
