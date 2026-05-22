@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Comandos\Comandos.csproj" />
+    <ProjectReference Include="..\LineaComando.Builder\LineaComando.Builder.csproj" />
+    <ProjectReference Include="..\LineaComando.EventDriven\LineaComando.EventDriven.csproj" />
+    <ProjectReference Include="..\LineaComando.Cola\LineaComando.Cola.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    
+    <!-- Metadatos del paquete NuGet -->
+    <PackageId>PER.Comandos</PackageId>
+    <Version>4.0</Version>
+    <Title>PER.Comandos</Title>
+    <Authors>Mario Fernando</Authors>
+    <Description>Librería de comandos con builder, colas y event-driven</Description>
+    <PackageProjectUrl>https://github.com/Mario551/LineaComando</PackageProjectUrl>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    
+    <!-- Configuración para incluir ensamblados referenciados físicamente -->
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeProjectReferences</TargetsForTfmSpecificContentInPackage>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <!-- Dependencias de paquetes NuGet que usan los proyectos referenciados -->
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+
+  <!-- Target para incluir los ensamblados de los proyectos referenciados en el paquete -->
+  <Target Name="IncludeProjectReferences">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(OutputPath)Comandos.dll">
+        <PackagePath>lib/$(TargetFramework)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(OutputPath)LineaComando.Cola.dll">
+        <PackagePath>lib/$(TargetFramework)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(OutputPath)LineaComando.EventDriven.dll">
+        <PackagePath>lib/$(TargetFramework)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(OutputPath)LineaComando.Builder.dll">
+        <PackagePath>lib/$(TargetFramework)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
+</Project>

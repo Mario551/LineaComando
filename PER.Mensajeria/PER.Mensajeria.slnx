@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="API/API.csproj" />
+  <Project Path="Aplicacion/Aplicacion.csproj" />
+  <Project Path="Datos/Datos.csproj" />
+  <Project Path="Entidad/Entidad.csproj" />
+  <Project Path="Servicio/Servicio.csproj" />
+</Solution>

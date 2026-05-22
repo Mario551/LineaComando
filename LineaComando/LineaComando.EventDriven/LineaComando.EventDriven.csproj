@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>LineaComando.EventDriven</PackageId>
+    <Version>4.0</Version>
+    <Authors>Mario Fernando</Authors>
+    <Company></Company>
+    <PackageProjectUrl>https://github.com/Mario551/LineaComando</PackageProjectUrl>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="dapper" Version="2.1.79" />
+    <PackageReference Include="npgsql" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LineaComando.Cola\LineaComando.Cola.csproj" />
+  </ItemGroup>
+
+</Project>
