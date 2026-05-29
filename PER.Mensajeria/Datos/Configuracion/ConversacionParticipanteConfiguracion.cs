@@ -8,7 +8,7 @@ public class ConversacionParticipanteConfiguracion : IEntityTypeConfiguration<DA
 {
     public void Configure(EntityTypeBuilder<DAOConversacionParticipante> builder)
     {
-        builder.ToTable("conversaciones_participantes");
+        builder.ToTable("per_conversaciones_participantes");
         builder.HasKey(conversacionParticipante => conversacionParticipante.ID);
         builder.Property(conversacionParticipante => conversacionParticipante.ID).HasColumnName("id");
         builder.Property(conversacionParticipante => conversacionParticipante.IDConversacion).HasColumnName("id_conversacion");

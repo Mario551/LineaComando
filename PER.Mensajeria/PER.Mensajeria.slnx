@@ -1,6 +1,15 @@
 <Solution>
+  <Folder Name="/Test/">
+    <Project Path="Test/APITest/APITest.csproj" />
+    <Project Path="Test/AplicacionTest/AplicacionTest.csproj" />
+    <Project Path="Test/CoreTest/CoreTest.csproj" />
+    <Project Path="Test/DatosTest/DatosTest.csproj" />
+    <Project Path="Test/EntidadTest/EntidadTest.csproj" />
+    <Project Path="Test/ServicioTest/ServicioTest.csproj" />
+  </Folder>
   <Project Path="API/API.csproj" />
   <Project Path="Aplicacion/Aplicacion.csproj" />
+  <Project Path="Core/Core.csproj" />
   <Project Path="Datos/Datos.csproj" />
   <Project Path="Entidad/Entidad.csproj" />
   <Project Path="Servicio/Servicio.csproj" />

@@ -8,7 +8,7 @@ public class MensajeConfiguracion : IEntityTypeConfiguration<DAOMensaje>
 {
     public void Configure(EntityTypeBuilder<DAOMensaje> builder)
     {
-        builder.ToTable("mensajes");
+        builder.ToTable("per_mensajes");
         builder.HasKey(mensaje => mensaje.ID);
         builder.Property(mensaje => mensaje.ID).HasColumnName("id");
         builder.Property(mensaje => mensaje.IDLineaConversacion).HasColumnName("id_linea_conversacion");

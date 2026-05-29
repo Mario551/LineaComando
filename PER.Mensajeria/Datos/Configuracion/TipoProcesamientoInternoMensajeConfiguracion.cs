@@ -8,7 +8,7 @@ public class TipoProcesamientoInternoMensajeConfiguracion : IEntityTypeConfigura
 {
     public void Configure(EntityTypeBuilder<DAOTipoProcesamientoInternoMensaje> builder)
     {
-        builder.ToTable("tipos_procesamiento_interno_mensaje");
+        builder.ToTable("per_tipos_procesamiento_interno_mensaje");
         builder.HasKey(tipoProcesamientoInternoMensaje => tipoProcesamientoInternoMensaje.ID);
         builder.Property(tipoProcesamientoInternoMensaje => tipoProcesamientoInternoMensaje.ID).HasColumnName("id").HasMaxLength(128);
         builder.Property(tipoProcesamientoInternoMensaje => tipoProcesamientoInternoMensaje.Descripcion).HasColumnName("descripcion");

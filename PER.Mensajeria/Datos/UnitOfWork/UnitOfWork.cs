@@ -1,7 +1,13 @@
 using PER.Mensajeria.Datos.Contexto;
+using PER.Mensajeria.Datos.Repositorio.ArchivoMensaje;
+using PER.Mensajeria.Datos.Repositorio.CanalComunicacion;
 using PER.Mensajeria.Datos.Repositorio.Conversacion;
+using PER.Mensajeria.Datos.Repositorio.ConversacionParticipante;
+using PER.Mensajeria.Datos.Repositorio.CuentaCanal;
 using PER.Mensajeria.Datos.Repositorio.EnvioMensaje;
+using PER.Mensajeria.Datos.Repositorio.LineaConversacion;
 using PER.Mensajeria.Datos.Repositorio.Mensaje;
+using PER.Mensajeria.Datos.Repositorio.ParticipanteConversacion;
 using PER.Mensajeria.Datos.Repositorio.ProcesamientoInternoMensaje;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -15,6 +21,12 @@ public class UnitOfWork : IUnitOfWork
     private IConversacionRepositorio? conversacionRepositorio;
     private IProcesamientoInternoMensajeRepositorio? procesamientoInternoMensajeRepositorio;
     private IEnvioMensajeRepositorio? envioMensajeRepositorio;
+    private ICanalComunicacionRepositorio? canalComunicacionRepositorio;
+    private ICuentaCanalRepositorio? cuentaCanalRepositorio;
+    private IParticipanteConversacionRepositorio? participanteConversacionRepositorio;
+    private IConversacionParticipanteRepositorio? conversacionParticipanteRepositorio;
+    private ILineaConversacionRepositorio? lineaConversacionRepositorio;
+    private IArchivoMensajeRepositorio? archivoMensajeRepositorio;
 
     public UnitOfWork(MensajeriaContextoDB contexto)
     {
@@ -50,6 +62,54 @@ public class UnitOfWork : IUnitOfWork
         get
         {
             return envioMensajeRepositorio ??= new EnvioMensajeRepositorio(contexto);
+        }
+    }
+
+    public ICanalComunicacionRepositorio CanalComunicacionRepositorio
+    {
+        get
+        {
+            return canalComunicacionRepositorio ??= new CanalComunicacionRepositorio(contexto);
+        }
+    }
+
+    public ICuentaCanalRepositorio CuentaCanalRepositorio
+    {
+        get
+        {
+            return cuentaCanalRepositorio ??= new CuentaCanalRepositorio(contexto);
+        }
+    }
+
+    public IParticipanteConversacionRepositorio ParticipanteConversacionRepositorio
+    {
+        get
+        {
+            return participanteConversacionRepositorio ??= new ParticipanteConversacionRepositorio(contexto);
+        }
+    }
+
+    public IConversacionParticipanteRepositorio ConversacionParticipanteRepositorio
+    {
+        get
+        {
+            return conversacionParticipanteRepositorio ??= new ConversacionParticipanteRepositorio(contexto);
+        }
+    }
+
+    public ILineaConversacionRepositorio LineaConversacionRepositorio
+    {
+        get
+        {
+            return lineaConversacionRepositorio ??= new LineaConversacionRepositorio(contexto);
+        }
+    }
+
+    public IArchivoMensajeRepositorio ArchivoMensajeRepositorio
+    {
+        get
+        {
+            return archivoMensajeRepositorio ??= new ArchivoMensajeRepositorio(contexto);
         }
     }
 

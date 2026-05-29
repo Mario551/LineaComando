@@ -8,7 +8,7 @@ public class EnvioMensajeConfiguracion : IEntityTypeConfiguration<DAOEnvioMensaj
 {
     public void Configure(EntityTypeBuilder<DAOEnvioMensaje> builder)
     {
-        builder.ToTable("envios_mensaje");
+        builder.ToTable("per_envios_mensaje");
         builder.HasKey(envioMensaje => envioMensaje.ID);
         builder.Property(envioMensaje => envioMensaje.ID).HasColumnName("id");
         builder.Property(envioMensaje => envioMensaje.IDMensaje).HasColumnName("id_mensaje");

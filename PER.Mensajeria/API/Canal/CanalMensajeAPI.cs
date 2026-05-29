@@ -1,9 +1,11 @@
 namespace PER.Mensajeria.API.Canal;
 
+using PER.Mensajeria.Entidad.DTO;
+
 public class CanalMensajeAPI : ICanalMensajeAPI
 {
-    public Task EnviarAsync(CancellationToken cancellationToken)
+    public Task<DTOResultadoEnvioMensaje> EnviarAsync(DTOMensajeSaliente mensaje, CancellationToken cancellationToken)
     {
-        return Task.CompletedTask;
+        return Task.FromResult(new DTOResultadoEnvioMensaje());
     }
 }

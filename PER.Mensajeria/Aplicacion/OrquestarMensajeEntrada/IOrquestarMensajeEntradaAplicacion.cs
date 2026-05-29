@@ -2,5 +2,5 @@ namespace PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 
 public interface IOrquestarMensajeEntradaAplicacion
 {
-    Task EjecutarAsync(CancellationToken cancellationToken);
+    Task EjecutarAsync(long idProcesamientoInternoMensaje, CancellationToken cancellationToken);
 }

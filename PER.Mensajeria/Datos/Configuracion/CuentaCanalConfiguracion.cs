@@ -8,7 +8,7 @@ public class CuentaCanalConfiguracion : IEntityTypeConfiguration<DAOCuentaCanal>
 {
     public void Configure(EntityTypeBuilder<DAOCuentaCanal> builder)
     {
-        builder.ToTable("cuentas_canal");
+        builder.ToTable("per_cuentas_canal");
         builder.HasKey(cuentaCanal => cuentaCanal.ID);
         builder.Property(cuentaCanal => cuentaCanal.ID).HasColumnName("id");
         builder.Property(cuentaCanal => cuentaCanal.IDCanalComunicacion).HasColumnName("id_canal_comunicacion");

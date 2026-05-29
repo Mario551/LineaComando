@@ -8,7 +8,7 @@ public class DireccionMensajeConfiguracion : IEntityTypeConfiguration<DAODirecci
 {
     public void Configure(EntityTypeBuilder<DAODireccionMensaje> builder)
     {
-        builder.ToTable("direcciones_mensaje");
+        builder.ToTable("per_direcciones_mensaje");
         builder.HasKey(direccionMensaje => direccionMensaje.ID);
         builder.Property(direccionMensaje => direccionMensaje.ID).HasColumnName("id").HasMaxLength(32);
         builder.Property(direccionMensaje => direccionMensaje.Descripcion).HasColumnName("descripcion");

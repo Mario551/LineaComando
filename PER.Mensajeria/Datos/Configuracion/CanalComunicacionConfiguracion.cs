@@ -8,7 +8,7 @@ public class CanalComunicacionConfiguracion : IEntityTypeConfiguration<DAOCanalC
 {
     public void Configure(EntityTypeBuilder<DAOCanalComunicacion> builder)
     {
-        builder.ToTable("canales_comunicacion");
+        builder.ToTable("per_canales_comunicacion");
         builder.HasKey(canalComunicacion => canalComunicacion.ID);
         builder.Property(canalComunicacion => canalComunicacion.ID).HasColumnName("id");
         builder.Property(canalComunicacion => canalComunicacion.Canal).HasColumnName("canal").HasMaxLength(64);

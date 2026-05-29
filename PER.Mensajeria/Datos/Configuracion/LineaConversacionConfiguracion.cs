@@ -8,7 +8,7 @@ public class LineaConversacionConfiguracion : IEntityTypeConfiguration<DAOLineaC
 {
     public void Configure(EntityTypeBuilder<DAOLineaConversacion> builder)
     {
-        builder.ToTable("lineas_conversacion");
+        builder.ToTable("per_lineas_conversacion");
         builder.HasKey(lineaConversacion => lineaConversacion.ID);
         builder.Property(lineaConversacion => lineaConversacion.ID).HasColumnName("id");
         builder.Property(lineaConversacion => lineaConversacion.IDConversacion).HasColumnName("id_conversacion");

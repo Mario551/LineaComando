@@ -8,7 +8,7 @@ public class TipoParticipanteConversacionConfiguracion : IEntityTypeConfiguratio
 {
     public void Configure(EntityTypeBuilder<DAOTipoParticipanteConversacion> builder)
     {
-        builder.ToTable("tipos_participante_conversacion");
+        builder.ToTable("per_tipos_participante_conversacion");
         builder.HasKey(tipoParticipanteConversacion => tipoParticipanteConversacion.ID);
         builder.Property(tipoParticipanteConversacion => tipoParticipanteConversacion.ID).HasColumnName("id").HasMaxLength(32);
         builder.Property(tipoParticipanteConversacion => tipoParticipanteConversacion.Descripcion).HasColumnName("descripcion");

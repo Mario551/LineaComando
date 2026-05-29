@@ -1,6 +1,8 @@
 namespace PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
 
+using PER.Mensajeria.Entidad.DTO;
+
 public interface IRegistrarMensajeEntranteAplicacion
 {
-    Task EjecutarAsync(CancellationToken cancellationToken);
+    Task<DTORegistrarMensajeEntranteRespuesta> EjecutarAsync(DTORegistrarMensajeEntranteSolicitud solicitud, CancellationToken cancellationToken);
 }

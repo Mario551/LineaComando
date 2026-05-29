@@ -8,7 +8,7 @@ public class ArchivoMensajeConfiguracion : IEntityTypeConfiguration<DAOArchivoMe
 {
     public void Configure(EntityTypeBuilder<DAOArchivoMensaje> builder)
     {
-        builder.ToTable("archivos_mensaje");
+        builder.ToTable("per_archivos_mensaje");
         builder.HasKey(archivoMensaje => archivoMensaje.ID);
         builder.Property(archivoMensaje => archivoMensaje.ID).HasColumnName("id");
         builder.Property(archivoMensaje => archivoMensaje.IDMensaje).HasColumnName("id_mensaje");
