@@ -40,6 +40,24 @@ public class ColaEventosMensajeriaServicioTest
     }
 
     [Fact]
+    public async Task Publicar_MismoProcesamientoDosVeces_DebeEvitarDuplicadoEnCola()
+    {
+        ColaEventosMensajeriaServicio cola = new();
+        EventoMensajeria primero = CrearEvento(1);
+        EventoMensajeria duplicado = CrearEvento(2);
+        duplicado.IDProcesamientoInternoMensaje = primero.IDProcesamientoInternoMensaje;
+
+        cola.Publicar(primero);
+        cola.Publicar(duplicado);
+
+        EventoMensajeria consumido = await cola.ConsumirAsync(CancellationToken.None);
+
+        Assert.Equal(primero.IDMensaje, consumido.IDMensaje);
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromMilliseconds(200));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cola.ConsumirAsync(cancellationTokenSource.Token));
+    }
+
+    [Fact]
     public async Task ConsumirAsync_SinEventos_DebeEsperarHastaPublicar()
     {
         ColaEventosMensajeriaServicio cola = new();

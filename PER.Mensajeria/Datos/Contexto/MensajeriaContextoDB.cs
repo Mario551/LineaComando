@@ -1,13 +1,22 @@
 using PER.Mensajeria.Datos.Configuracion;
 using PER.Mensajeria.Entidad.DAO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace PER.Mensajeria.Datos.Contexto;
 
 public class MensajeriaContextoDB : DbContext
 {
-    public MensajeriaContextoDB(DbContextOptions<MensajeriaContextoDB> options) : base(options)
+    private readonly ConfiguracionMensajeriaContextoDB configuracion;
+
+    public MensajeriaContextoDB(DbContextOptions<MensajeriaContextoDB> options)
+        : this(options, null)
     {
+    }
+
+    public MensajeriaContextoDB(DbContextOptions<MensajeriaContextoDB> options, ConfiguracionMensajeriaContextoDB? configuracion) : base(options)
+    {
+        this.configuracion = configuracion ?? new ConfiguracionMensajeriaContextoDB();
     }
 
     public DbSet<DAOCanalComunicacion> CanalesComunicacion { get; set; }
@@ -30,6 +39,11 @@ public class MensajeriaContextoDB : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        if (!string.IsNullOrWhiteSpace(configuracion.Esquema))
+        {
+            modelBuilder.HasDefaultSchema(configuracion.Esquema);
+        }
+
         modelBuilder.ApplyConfiguration(new CanalComunicacionConfiguracion());
         modelBuilder.ApplyConfiguration(new CuentaCanalConfiguracion());
         modelBuilder.ApplyConfiguration(new ConversacionConfiguracion());
@@ -47,5 +61,34 @@ public class MensajeriaContextoDB : DbContext
         modelBuilder.ApplyConfiguration(new EstadoProcesamientoInternoMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new EnvioMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new EstadoEnvioMensajeConfiguracion());
+
+        ConfigurarFechasPorProveedor(modelBuilder);
+    }
+
+    private void ConfigurarFechasPorProveedor(ModelBuilder modelBuilder)
+    {
+        bool esSqlServer = Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true;
+        string tipoFecha = esSqlServer ? "datetime2" : "timestamp without time zone";
+        string fechaActual = esSqlServer ? "GETDATE()" : "LOCALTIMESTAMP";
+
+        foreach (IMutableEntityType entidad in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (IMutableProperty propiedad in entidad.GetProperties())
+            {
+                Type tipoClr = Nullable.GetUnderlyingType(propiedad.ClrType) ?? propiedad.ClrType;
+
+                if (tipoClr != typeof(DateTime))
+                {
+                    continue;
+                }
+
+                propiedad.SetColumnType(tipoFecha);
+
+                if (propiedad.Name == "FechaCreacion")
+                {
+                    propiedad.SetDefaultValueSql(fechaActual);
+                }
+            }
+        }
     }
 }

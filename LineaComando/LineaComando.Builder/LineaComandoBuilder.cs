@@ -31,10 +31,11 @@ namespace PER.Comandos.LineaComandos.Builder
 
         internal Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> ConfiguracionLineaComandos;
 
-        internal string ConnectionString => _connectionString ?? "";
-        internal string EsquemaBaseDatos => _esquemaBaseDatos ?? EsquemaPredeterminado();
+        public string ConnectionString => _connectionString ?? "";
+        public string EsquemaBaseDatos => _esquemaBaseDatos ?? EsquemaPredeterminado();
         internal string? RutaResultadosComandos => _rutaResultadosComandos;
-        internal IServiceCollection Services => _services;
+        public IServiceCollection Services => _services;
+        public List<Func<IServiceProvider, LineaComandoBuilder, CancellationToken, Task>> InicializadoresExternos { get; } = new();
 
         public const int NONE = 0;
         public const int POSTGRESQL = 1;
@@ -97,6 +98,12 @@ namespace PER.Comandos.LineaComandos.Builder
                 throw new ArgumentException("La ruta base de resultados de comandos no puede estar vacía.", nameof(rutaBase));
 
             _rutaResultadosComandos = rutaBase;
+            return this;
+        }
+
+        public LineaComandoBuilder AgregarInicializadorExterno(Func<IServiceProvider, LineaComandoBuilder, CancellationToken, Task> inicializador)
+        {
+            InicializadoresExternos.Add(inicializador ?? throw new ArgumentNullException(nameof(inicializador)));
             return this;
         }
 

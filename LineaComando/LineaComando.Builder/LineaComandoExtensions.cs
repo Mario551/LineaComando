@@ -48,6 +48,11 @@ namespace PER.Comandos.LineaComandos.Builder
                 await inicializadorEventDriven.InicializarAsync(token);
             }
 
+            foreach (Func<IServiceProvider, LineaComandoBuilder, CancellationToken, Task> inicializadorExterno in builder.InicializadoresExternos)
+            {
+                await inicializadorExterno(services, builder, token);
+            }
+
             await builder.ConfiguracionLineaComandos(services, new BuilderInicializador.BuilderInicializador(services), token);
 
             var registroComandos = services.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();

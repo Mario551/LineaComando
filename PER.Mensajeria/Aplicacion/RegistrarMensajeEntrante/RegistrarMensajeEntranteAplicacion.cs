@@ -8,25 +8,27 @@ using PER.Mensajeria.Entidad.DTO;
 public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplicacion
 {
     private readonly IUnitOfWork unitOfWork;
+    private readonly ConfiguracionLineaConversacion configuracionLineaConversacion;
 
-    public RegistrarMensajeEntranteAplicacion(IUnitOfWork unitOfWork)
+    public RegistrarMensajeEntranteAplicacion(
+        IUnitOfWork unitOfWork,
+        ConfiguracionLineaConversacion configuracionLineaConversacion)
     {
         this.unitOfWork = unitOfWork;
+        this.configuracionLineaConversacion = configuracionLineaConversacion;
     }
 
     public async Task<DTORegistrarMensajeEntranteRespuesta> EjecutarAsync(DTORegistrarMensajeEntranteSolicitud solicitud, CancellationToken cancellationToken)
     {
         DTOMensajeEntrante mensajeSolicitud = solicitud.Mensaje;
         DAOCuentaCanal cuentaCanal = await ObtenerCuentaCanalAsync(mensajeSolicitud, cancellationToken);
-        DTORegistrarMensajeEntranteRespuesta? respuestaExistente = await ObtenerRespuestaExistenteAsync(
+        DTORegistrarMensajeEntranteRespuesta? respuestaExistente = await EvitarDuplicadosMensajesEntrantesAsync(
             cuentaCanal.ID,
             mensajeSolicitud.IdentificadorExternoMensaje,
             cancellationToken);
 
         if (respuestaExistente is not null)
-        {
             return respuestaExistente;
-        }
 
         bool transaccionIniciada = false;
 
@@ -103,9 +105,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
         catch
         {
             if (transaccionIniciada)
-            {
                 await unitOfWork.RollbackTransactionAsync(cancellationToken);
-            }
 
             throw;
         }
@@ -132,7 +132,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
         return cuentaCanal;
     }
 
-    private async Task<DTORegistrarMensajeEntranteRespuesta?> ObtenerRespuestaExistenteAsync(
+    private async Task<DTORegistrarMensajeEntranteRespuesta?> EvitarDuplicadosMensajesEntrantesAsync(
         long idCuentaCanal,
         string? identificadorExternoMensaje,
         CancellationToken cancellationToken)
@@ -223,9 +223,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             .FirstOrDefaultAsync(cancellationToken);
 
         if (conversacion is not null)
-        {
             return conversacion;
-        }
 
         conversacion = new DAOConversacion
         {
@@ -260,9 +258,14 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             .OrderByDescending(lineaActual => lineaActual.FechaUltimaActividad)
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (linea is not null && fecha - linea.FechaUltimaActividad <= configuracionLineaConversacion.TiempoMaximoInactividad)
+            return linea;
+
         if (linea is not null)
         {
-            return linea;
+            linea.Activa = false;
+            unitOfWork.LineaConversacionRepositorio.Actualizar(linea);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
         linea = new DAOLineaConversacion

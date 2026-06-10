@@ -33,6 +33,8 @@ public class MensajeServicioTest
         Assert.True(respuesta.Registrado);
         Assert.NotNull(cola.EventoPublicado);
         Assert.Equal(respuesta.IDMensaje, cola.EventoPublicado.IDMensaje);
+        Assert.Equal(respuesta.IDConversacion, cola.EventoPublicado.IDConversacion);
+        Assert.Equal(respuesta.IDLineaConversacion, cola.EventoPublicado.IDLineaConversacion);
         Assert.Equal(respuesta.IDProcesamientoInternoMensaje, cola.EventoPublicado.IDProcesamientoInternoMensaje);
     }
 }
