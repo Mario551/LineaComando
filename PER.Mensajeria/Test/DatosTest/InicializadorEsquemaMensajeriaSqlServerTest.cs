@@ -1,9 +1,9 @@
-using Npgsql;
+using Microsoft.Data.SqlClient;
 using PER.Mensajeria.Datos.Esquema;
 
 namespace DatosTest;
 
-public class InicializadorEsquemaMensajeriaPostgresTest
+public class InicializadorEsquemaMensajeriaSqlServerTest
 {
     private static readonly string[] TablasEsperadas =
     [
@@ -30,21 +30,21 @@ public class InicializadorEsquemaMensajeriaPostgresTest
     public async Task InicializarAsync_DebeCrearTablasIndicesYCatalogosBaseEnEsquemaIndicado()
     {
         string connectionString = LeerConnectionString();
-        string esquema = $"test_mensajeria_init_{Guid.NewGuid():N}";
-        NombresBaseDatosMensajeria nombres = NombresBaseDatosMensajeria.Postgres(esquema);
+        string esquema = $"test_mensajeria_sql_{Guid.NewGuid():N}";
+        NombresBaseDatosMensajeria nombres = NombresBaseDatosMensajeria.SqlServer(esquema);
 
-        InicializadorEsquemaMensajeriaPostgres inicializador = new(connectionString, esquema);
+        InicializadorEsquemaMensajeriaSqlServer inicializador = new(connectionString, esquema);
         await inicializador.InicializarAsync();
         await inicializador.InicializarAsync();
 
             int esquemaCreado = await ConsultarEnteroAsync(
                 connectionString,
-                "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = @esquema;",
+                "SELECT COUNT(*) FROM sys.schemas WHERE name = @esquema;",
                 comando => comando.Parameters.AddWithValue("esquema", esquema));
 
             int tablas = await ConsultarEnteroAsync(
                 connectionString,
-                $"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = @esquema AND table_name IN ({CrearParametrosIn(TablasEsperadas, "tabla")});",
+                $"SELECT COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID(@esquema) AND name IN ({CrearParametrosIn(TablasEsperadas, "tabla")});",
                 comando =>
                 {
                     comando.Parameters.AddWithValue("esquema", esquema);
@@ -61,8 +61,13 @@ public class InicializadorEsquemaMensajeriaPostgresTest
 
             int indices = await ConsultarEnteroAsync(
                 connectionString,
-                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = @esquema AND indexname IN ('ux_mensajes_idempotencia', 'ix_procesamientos_internos_mensaje_estado_fecha', 'ix_envios_mensaje_estado_fecha');",
-                comando => comando.Parameters.AddWithValue("esquema", esquema));
+                "SELECT COUNT(*) FROM sys.indexes WHERE object_id IN (OBJECT_ID(@mensajes), OBJECT_ID(@procesamientos), OBJECT_ID(@envios)) AND name IN ('ux_mensajes_idempotencia', 'ix_procesamientos_internos_mensaje_estado_fecha', 'ix_envios_mensaje_estado_fecha');",
+                comando =>
+                {
+                    comando.Parameters.AddWithValue("mensajes", $"{esquema}.per_mensajes");
+                    comando.Parameters.AddWithValue("procesamientos", $"{esquema}.per_procesamientos_internos_mensaje");
+                    comando.Parameters.AddWithValue("envios", $"{esquema}.per_envios_mensaje");
+                });
 
             int totalDirecciones = await ConsultarEnteroAsync(connectionString, $"SELECT COUNT(*) FROM {nombres.DireccionesMensaje};");
             int totalEstadosProcesamiento = await ConsultarEnteroAsync(connectionString, $"SELECT COUNT(*) FROM {nombres.EstadosProcesamientoInternoMensaje};");
@@ -78,20 +83,20 @@ public class InicializadorEsquemaMensajeriaPostgresTest
 
     private static string LeerConnectionString()
     {
-        string? connectionString = Environment.GetEnvironmentVariable("MENSAJERIA_COMANDOS_CONEXION_POSTGRESQL");
+        string? connectionString = Environment.GetEnvironmentVariable("MENSAJERIA_COMANDOS_CONEXION_SQLSERVER");
 
         Assert.False(
             string.IsNullOrWhiteSpace(connectionString),
-            "La variable de entorno MENSAJERIA_COMANDOS_CONEXION_POSTGRESQL es obligatoria para validar el inicializador PostgreSQL.");
+            "La variable de entorno MENSAJERIA_COMANDOS_CONEXION_SQLSERVER es obligatoria para validar el inicializador SQL Server.");
 
         return connectionString!;
     }
 
-    private static async Task<int> ConsultarEnteroAsync(string connectionString, string sql, Action<NpgsqlCommand>? configurar = null)
+    private static async Task<int> ConsultarEnteroAsync(string connectionString, string sql, Action<SqlCommand>? configurar = null)
     {
-        await using NpgsqlConnection conexion = new(connectionString);
+        await using SqlConnection conexion = new(connectionString);
         await conexion.OpenAsync();
-        await using NpgsqlCommand comando = new(sql, conexion);
+        await using SqlCommand comando = new(sql, conexion);
         configurar?.Invoke(comando);
         object? resultado = await comando.ExecuteScalarAsync();
         return Convert.ToInt32(resultado);
@@ -102,7 +107,7 @@ public class InicializadorEsquemaMensajeriaPostgresTest
         return string.Join(", ", Enumerable.Range(0, valores.Count).Select(indice => $"@{prefijo}{indice}"));
     }
 
-    private static void AgregarParametros(NpgsqlCommand comando, string prefijo, IReadOnlyList<string> valores)
+    private static void AgregarParametros(SqlCommand comando, string prefijo, IReadOnlyList<string> valores)
     {
         for (int indice = 0; indice < valores.Count; indice++)
         {

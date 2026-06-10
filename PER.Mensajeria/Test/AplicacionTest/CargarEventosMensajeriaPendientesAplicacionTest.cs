@@ -9,10 +9,11 @@ namespace AplicacionTest;
 
 public class CargarEventosMensajeriaPendientesAplicacionTest
 {
-    [Fact]
-    public async Task EjecutarAsync_ProcesamientoPendiente_DebeCrearEventoMensajeria()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ProcesamientoPendiente_DebeCrearEventoMensajeria(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await CrearProcesamientoAsync(baseDatos, "pendiente", DateTime.Now);
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
 
@@ -25,10 +26,11 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         Assert.True(evento.IDConversacion > 0);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ProcesamientoEnProceso_DebeCrearEventoMensajeria()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ProcesamientoEnProceso_DebeCrearEventoMensajeria(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await CrearProcesamientoAsync(baseDatos, "en_proceso", DateTime.Now);
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
 
@@ -39,10 +41,11 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         Assert.Equal(procesamiento.ID, evento.IDProcesamientoInternoMensaje);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ProcesadoYError_NoDebeCrearEventosMensajeria()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ProcesadoYError_NoDebeCrearEventosMensajeria(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         await CrearProcesamientoAsync(baseDatos, "procesado", DateTime.Now.AddMinutes(-2));
         await CrearProcesamientoAsync(baseDatos, "error", DateTime.Now.AddMinutes(-1));
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
@@ -52,10 +55,11 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         Assert.Empty(eventos);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ProcesamientosPendientes_DebeConservarOrdenPorFechaEId()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ProcesamientosPendientes_DebeConservarOrdenPorFechaEId(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         DateTime fecha = DateTime.Now.AddMinutes(-10);
         (DAOMensaje mensajePrimero, DAOProcesamientoInternoMensaje procesamientoPrimero) = await CrearProcesamientoAsync(baseDatos, "pendiente", fecha);
         (DAOMensaje mensajeSegundo, DAOProcesamientoInternoMensaje procesamientoSegundo) = await CrearProcesamientoAsync(baseDatos, "pendiente", fecha);
@@ -71,7 +75,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
             evento => Assert.Equal(procesamientoTercero.ID, evento.IDProcesamientoInternoMensaje));
     }
 
-    private static ICargarEventosMensajeriaPendientesAplicacion CrearAplicacion(PostgreSqlPrueba baseDatos)
+    private static ICargarEventosMensajeriaPendientesAplicacion CrearAplicacion(BaseDatosPrueba baseDatos)
     {
         MensajeriaContextoDB contexto = baseDatos.CrearContexto();
         IUnitOfWork unitOfWork = new UnitOfWork(contexto);
@@ -79,7 +83,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
     }
 
     private static async Task<(DAOMensaje Mensaje, DAOProcesamientoInternoMensaje Procesamiento)> CrearProcesamientoAsync(
-        PostgreSqlPrueba baseDatos,
+        BaseDatosPrueba baseDatos,
         string estado,
         DateTime fechaCreacion)
     {

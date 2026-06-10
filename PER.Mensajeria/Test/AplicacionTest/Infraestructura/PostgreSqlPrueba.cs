@@ -1,61 +1,58 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
+using PER.Mensajeria.Datos.Configuracion;
 using PER.Mensajeria.Datos.Contexto;
+using PER.Mensajeria.Datos.Esquema;
 using PER.Mensajeria.Entidad.DAO;
 
 namespace AplicacionTest.Infraestructura;
 
-public sealed class PostgreSqlPrueba : IAsyncDisposable
+public enum MotorBaseDatosPrueba
 {
-    private readonly string connectionStringBase;
-    private readonly string esquema;
+    PostgreSql,
+    SqlServer
+}
 
-    private PostgreSqlPrueba(string connectionStringBase, string esquema)
+public abstract class BaseDatosPrueba : IAsyncDisposable
+{
+    protected BaseDatosPrueba(string connectionString, string esquema, MotorBaseDatosPrueba motor)
     {
-        this.connectionStringBase = connectionStringBase;
-        this.esquema = esquema;
-
-        NpgsqlConnectionStringBuilder builder = new(connectionStringBase)
-        {
-            SearchPath = esquema
-        };
-
-        ConnectionString = builder.ConnectionString;
+        ConnectionString = connectionString;
+        Esquema = esquema;
+        Motor = motor;
     }
 
     public string ConnectionString { get; }
 
-    public static async Task<PostgreSqlPrueba> CrearAsync()
-    {
-        string connectionStringBase = LeerConnectionString();
-        string esquema = $"test_mensajeria_{Guid.NewGuid():N}";
-        PostgreSqlPrueba prueba = new(connectionStringBase, esquema);
+    public string Esquema { get; }
 
-        try
+    public MotorBaseDatosPrueba Motor { get; }
+
+    public static IEnumerable<object[]> Motores
+    {
+        get
         {
-            await EjecutarSqlAsync(connectionStringBase, $"CREATE SCHEMA \"{esquema}\";");
-            await EjecutarSqlAsync(connectionStringBase, $"SET search_path TO \"{esquema}\";{Environment.NewLine}{LeerTablasSql()}");
-            return prueba;
-        }
-        catch
-        {
-            await prueba.DisposeAsync();
-            throw;
+            yield return new object[] { MotorBaseDatosPrueba.PostgreSql };
+            yield return new object[] { MotorBaseDatosPrueba.SqlServer };
         }
     }
 
-    public MensajeriaContextoDB CrearContexto()
+    public static async Task<BaseDatosPrueba> CrearAsync(MotorBaseDatosPrueba motor)
     {
-        DbContextOptions<MensajeriaContextoDB> opciones = new DbContextOptionsBuilder<MensajeriaContextoDB>()
-            .UseNpgsql(ConnectionString)
-            .Options;
-
-        return new MensajeriaContextoDB(opciones);
+        return motor switch
+        {
+            MotorBaseDatosPrueba.PostgreSql => await PostgreSqlPrueba.CrearAsync(),
+            MotorBaseDatosPrueba.SqlServer => await SqlServerPrueba.CrearAsync(),
+            _ => throw new NotSupportedException($"Motor de base de datos no soportado: {motor}.")
+        };
     }
 
-    public async ValueTask DisposeAsync()
+    public abstract MensajeriaContextoDB CrearContexto();
+
+    public ValueTask DisposeAsync()
     {
-        await EjecutarSqlAsync(connectionStringBase, $"DROP SCHEMA IF EXISTS \"{esquema}\" CASCADE;");
+        return ValueTask.CompletedTask;
     }
 
     public async Task<DAOCuentaCanal> CrearCuentaCanalAsync(string cuenta)
@@ -187,6 +184,39 @@ public sealed class PostgreSqlPrueba : IAsyncDisposable
 
         return (conversacion, linea, mensaje, envio);
     }
+}
+
+public sealed class PostgreSqlPrueba : BaseDatosPrueba
+{
+    private PostgreSqlPrueba(string connectionString, string esquema)
+        : base(connectionString, esquema, MotorBaseDatosPrueba.PostgreSql)
+    {
+    }
+
+    public static async Task<PostgreSqlPrueba> CrearAsync()
+    {
+        string connectionStringBase = LeerConnectionString();
+        string esquema = $"test_mensajeria_{Guid.NewGuid():N}";
+        InicializadorEsquemaMensajeriaPostgres inicializador = new(connectionStringBase, esquema);
+        await inicializador.InicializarAsync();
+
+        NpgsqlConnectionStringBuilder builder = new(connectionStringBase)
+        {
+            SearchPath = esquema
+        };
+
+        return new PostgreSqlPrueba(builder.ConnectionString, esquema);
+    }
+
+    public override MensajeriaContextoDB CrearContexto()
+    {
+        DbContextOptions<MensajeriaContextoDB> opciones = new DbContextOptionsBuilder<MensajeriaContextoDB>()
+            .UseNpgsql(ConnectionString)
+            .ReplaceService<IModelCacheKeyFactory, ModeloCachePorContextoPrueba>()
+            .Options;
+
+        return new MensajeriaContextoDB(opciones);
+    }
 
     private static string LeerConnectionString()
     {
@@ -198,31 +228,52 @@ public sealed class PostgreSqlPrueba : IAsyncDisposable
 
         return connectionString!;
     }
+}
 
-    private static async Task EjecutarSqlAsync(string connectionString, string sql)
+public sealed class SqlServerPrueba : BaseDatosPrueba
+{
+    private SqlServerPrueba(string connectionString, string esquema)
+        : base(connectionString, esquema, MotorBaseDatosPrueba.SqlServer)
     {
-        await using NpgsqlConnection conexion = new(connectionString);
-        await conexion.OpenAsync();
-        await using NpgsqlCommand comando = new(sql, conexion);
-        await comando.ExecuteNonQueryAsync();
     }
 
-    private static string LeerTablasSql()
+    public static async Task<SqlServerPrueba> CrearAsync()
     {
-        DirectoryInfo? directorio = new(AppContext.BaseDirectory);
+        string connectionString = LeerConnectionString();
+        string esquema = $"test_mensajeria_sql_{Guid.NewGuid():N}";
+        InicializadorEsquemaMensajeriaSqlServer inicializador = new(connectionString, esquema);
+        await inicializador.InicializarAsync();
 
-        while (directorio is not null)
-        {
-            string ruta = Path.Combine(directorio.FullName, "Datos", "Sql", "tablas.sql");
+        return new SqlServerPrueba(connectionString, esquema);
+    }
 
-            if (File.Exists(ruta))
-            {
-                return File.ReadAllText(ruta);
-            }
+    public override MensajeriaContextoDB CrearContexto()
+    {
+        DbContextOptions<MensajeriaContextoDB> opciones = new DbContextOptionsBuilder<MensajeriaContextoDB>()
+            .UseSqlServer(ConnectionString)
+            .ReplaceService<IModelCacheKeyFactory, ModeloCachePorContextoPrueba>()
+            .Options;
 
-            directorio = directorio.Parent;
-        }
+        return new MensajeriaContextoDB(opciones, new ConfiguracionMensajeriaContextoDB { Esquema = Esquema });
+    }
 
-        throw new FileNotFoundException("No se encontro Datos/Sql/tablas.sql.");
+    private static string LeerConnectionString()
+    {
+        string? connectionString = Environment.GetEnvironmentVariable("MENSAJERIA_COMANDOS_CONEXION_SQLSERVER");
+
+        Assert.False(
+            string.IsNullOrWhiteSpace(connectionString),
+            "La variable de entorno MENSAJERIA_COMANDOS_CONEXION_SQLSERVER es obligatoria para los tests funcionales con SQL Server.");
+
+        return connectionString!;
+    }
+}
+
+
+public sealed class ModeloCachePorContextoPrueba : IModelCacheKeyFactory
+{
+    public object Create(DbContext context, bool designTime)
+    {
+        return (context.GetType(), context.ContextId.InstanceId, designTime);
     }
 }

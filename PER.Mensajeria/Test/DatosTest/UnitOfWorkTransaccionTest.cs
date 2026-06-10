@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Npgsql;
+using PER.Mensajeria.Datos.Configuracion;
 using PER.Mensajeria.Datos.Contexto;
+using PER.Mensajeria.Datos.Esquema;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
 
@@ -8,132 +11,148 @@ namespace DatosTest;
 
 public class UnitOfWorkTransaccionTest
 {
-    [Fact]
-    public async Task BeginTransactionAsync_ConTransaccionActiva_DebeFallar()
+    public static IEnumerable<object[]> Motores
     {
-        string connectionString = LeerConnectionString();
-
-        string esquema = CrearNombreEsquema();
-        string connectionStringEsquema = await CrearBaseDePruebaAsync(connectionString, esquema);
-
-        try
+        get
         {
-            await using MensajeriaContextoDB contexto = CrearContexto(connectionStringEsquema);
-            UnitOfWork unitOfWork = new(contexto);
+            yield return new object[] { MotorBaseDatosTransaccionPrueba.PostgreSql };
+            yield return new object[] { MotorBaseDatosTransaccionPrueba.SqlServer };
+        }
+    }
 
-            await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+    [Theory]
+    [MemberData(nameof(Motores))]
+    public async Task BeginTransactionAsync_ConTransaccionActiva_DebeFallar(MotorBaseDatosTransaccionPrueba motor)
+    {
+        BaseDatosTransaccionPrueba baseDatos = await CrearBaseDePruebaAsync(motor);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        UnitOfWork unitOfWork = new(contexto);
+
+        await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 unitOfWork.BeginTransactionAsync(CancellationToken.None));
 
-            await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
-        }
-        finally
-        {
-            await EliminarEsquemaAsync(connectionString, esquema);
-        }
+        await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task CommitTransactionAsync_DebePersistirCambios()
+    [Theory]
+    [MemberData(nameof(Motores))]
+    public async Task CommitTransactionAsync_DebePersistirCambios(MotorBaseDatosTransaccionPrueba motor)
     {
-        string connectionString = LeerConnectionString();
-
-        string esquema = CrearNombreEsquema();
-        string connectionStringEsquema = await CrearBaseDePruebaAsync(connectionString, esquema);
+        BaseDatosTransaccionPrueba baseDatos = await CrearBaseDePruebaAsync(motor);
         string cuenta = $"commit_{Guid.NewGuid():N}";
 
-        try
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        DAOCanalComunicacion canal = await contexto.CanalesComunicacion.SingleAsync(canalActual => canalActual.Canal == "whatsapp");
+        UnitOfWork unitOfWork = new(contexto);
+        await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+
+        DAOCuentaCanal cuentaCanal = new()
         {
-            await using MensajeriaContextoDB contexto = CrearContexto(connectionStringEsquema);
-            UnitOfWork unitOfWork = new(contexto);
-            await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+            IDCanalComunicacion = canal.ID,
+            Cuenta = cuenta,
+            Descripcion = "Cuenta commit",
+            Activa = true
+        };
 
-            DAOCuentaCanal cuentaCanal = new()
-            {
-                IDCanalComunicacion = 1,
-                Cuenta = cuenta,
-                Descripcion = "Cuenta commit",
-                Activa = true
-            };
+        contexto.CuentasCanal.Add(cuentaCanal);
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
 
-            contexto.CuentasCanal.Add(cuentaCanal);
-            await unitOfWork.SaveChangesAsync(CancellationToken.None);
-
-            DAOConversacion conversacion = new()
-            {
-                IDCuentaCanal = cuentaCanal.ID,
-                FechaCreacion = DateTime.Now,
-                FechaActualizacion = DateTime.Now
-            };
-
-            await unitOfWork.ConversacionRepositorio.AgregarAsync(conversacion, CancellationToken.None);
-            await unitOfWork.SaveChangesAsync(CancellationToken.None);
-            await unitOfWork.CommitTransactionAsync(CancellationToken.None);
-
-            await using MensajeriaContextoDB contextoVerificacion = CrearContexto(connectionStringEsquema);
-            bool existe = await contextoVerificacion.Conversaciones.AnyAsync(
-                conversacionActual => conversacionActual.ID == conversacion.ID,
-                CancellationToken.None);
-
-            Assert.True(existe);
-        }
-        finally
+        DAOConversacion conversacion = new()
         {
-            await EliminarEsquemaAsync(connectionString, esquema);
-        }
+            IDCuentaCanal = cuentaCanal.ID,
+            FechaCreacion = DateTime.Now,
+            FechaActualizacion = DateTime.Now
+        };
+
+        await unitOfWork.ConversacionRepositorio.AgregarAsync(conversacion, CancellationToken.None);
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        await unitOfWork.CommitTransactionAsync(CancellationToken.None);
+
+        await using MensajeriaContextoDB contextoVerificacion = baseDatos.CrearContexto();
+        bool existe = await contextoVerificacion.Conversaciones.AnyAsync(
+            conversacionActual => conversacionActual.ID == conversacion.ID,
+            CancellationToken.None);
+
+        Assert.True(existe);
     }
 
-    [Fact]
-    public async Task RollbackTransactionAsync_DebeRevertirCambios()
+    [Theory]
+    [MemberData(nameof(Motores))]
+    public async Task RollbackTransactionAsync_DebeRevertirCambios(MotorBaseDatosTransaccionPrueba motor)
     {
-        string connectionString = LeerConnectionString();
-
-        string esquema = CrearNombreEsquema();
-        string connectionStringEsquema = await CrearBaseDePruebaAsync(connectionString, esquema);
+        BaseDatosTransaccionPrueba baseDatos = await CrearBaseDePruebaAsync(motor);
         string cuenta = $"rollback_{Guid.NewGuid():N}";
 
-        try
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        DAOCanalComunicacion canal = await contexto.CanalesComunicacion.SingleAsync(canalActual => canalActual.Canal == "whatsapp");
+        UnitOfWork unitOfWork = new(contexto);
+        await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+
+        DAOCuentaCanal cuentaCanal = new()
         {
-            await using MensajeriaContextoDB contexto = CrearContexto(connectionStringEsquema);
-            UnitOfWork unitOfWork = new(contexto);
-            await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+            IDCanalComunicacion = canal.ID,
+            Cuenta = cuenta,
+            Descripcion = "Cuenta rollback",
+            Activa = true
+        };
 
-            DAOCuentaCanal cuentaCanal = new()
-            {
-                IDCanalComunicacion = 1,
-                Cuenta = cuenta,
-                Descripcion = "Cuenta rollback",
-                Activa = true
-            };
+        contexto.CuentasCanal.Add(cuentaCanal);
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
 
-            contexto.CuentasCanal.Add(cuentaCanal);
-            await unitOfWork.SaveChangesAsync(CancellationToken.None);
-            await unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+        await using MensajeriaContextoDB contextoVerificacion = baseDatos.CrearContexto();
+        bool existe = await contextoVerificacion.CuentasCanal.AnyAsync(
+            cuentaActual => cuentaActual.Cuenta == cuenta,
+            CancellationToken.None);
 
-            await using MensajeriaContextoDB contextoVerificacion = CrearContexto(connectionStringEsquema);
-            bool existe = await contextoVerificacion.CuentasCanal.AnyAsync(
-                cuentaActual => cuentaActual.Cuenta == cuenta,
-                CancellationToken.None);
-
-            Assert.False(existe);
-        }
-        finally
-        {
-            await EliminarEsquemaAsync(connectionString, esquema);
-        }
+        Assert.False(existe);
     }
 
-    private static MensajeriaContextoDB CrearContexto(string connectionString)
+    private static Task<BaseDatosTransaccionPrueba> CrearBaseDePruebaAsync(MotorBaseDatosTransaccionPrueba motor)
     {
-        DbContextOptions<MensajeriaContextoDB> opciones = new DbContextOptionsBuilder<MensajeriaContextoDB>()
-            .UseNpgsql(connectionString)
-            .Options;
-
-        return new MensajeriaContextoDB(opciones);
+        return motor switch
+        {
+            MotorBaseDatosTransaccionPrueba.PostgreSql => CrearPostgreSqlPruebaAsync(),
+            MotorBaseDatosTransaccionPrueba.SqlServer => CrearSqlServerPruebaAsync(),
+            _ => throw new NotSupportedException($"Motor de base de datos no soportado: {motor}.")
+        };
     }
 
-    private static string LeerConnectionString()
+    private static async Task<BaseDatosTransaccionPrueba> CrearPostgreSqlPruebaAsync()
+    {
+        string connectionString = LeerConnectionStringPostgreSql();
+        string esquema = $"test_mensajeria_{Guid.NewGuid():N}";
+        InicializadorEsquemaMensajeriaPostgres inicializador = new(connectionString, esquema);
+        await inicializador.InicializarAsync();
+
+        NpgsqlConnectionStringBuilder builder = new(connectionString)
+        {
+            SearchPath = esquema
+        };
+
+        return new BaseDatosTransaccionPrueba(
+            MotorBaseDatosTransaccionPrueba.PostgreSql,
+            builder.ConnectionString,
+            esquema);
+    }
+
+    private static async Task<BaseDatosTransaccionPrueba> CrearSqlServerPruebaAsync()
+    {
+        string connectionString = LeerConnectionStringSqlServer();
+        string esquema = $"test_mensajeria_sql_{Guid.NewGuid():N}";
+        InicializadorEsquemaMensajeriaSqlServer inicializador = new(connectionString, esquema);
+        await inicializador.InicializarAsync();
+
+        return new BaseDatosTransaccionPrueba(
+            MotorBaseDatosTransaccionPrueba.SqlServer,
+            connectionString,
+            esquema);
+    }
+
+    private static string LeerConnectionStringPostgreSql()
     {
         string? connectionString = Environment.GetEnvironmentVariable("MENSAJERIA_COMANDOS_CONEXION_POSTGRESQL");
 
@@ -144,53 +163,61 @@ public class UnitOfWorkTransaccionTest
         return connectionString!;
     }
 
-    private static async Task<string> CrearBaseDePruebaAsync(string connectionString, string esquema)
+    private static string LeerConnectionStringSqlServer()
     {
-        await EjecutarSqlAsync(connectionString, $"CREATE SCHEMA \"{esquema}\";");
-        await EjecutarSqlAsync(connectionString, $"SET search_path TO \"{esquema}\";{Environment.NewLine}{LeerTablasSql()}");
+        string? connectionString = Environment.GetEnvironmentVariable("MENSAJERIA_COMANDOS_CONEXION_SQLSERVER");
 
-        NpgsqlConnectionStringBuilder builder = new(connectionString)
+        Assert.False(
+            string.IsNullOrWhiteSpace(connectionString),
+            "La variable de entorno MENSAJERIA_COMANDOS_CONEXION_SQLSERVER es obligatoria para los tests funcionales con SQL Server.");
+
+        return connectionString!;
+    }
+
+    public enum MotorBaseDatosTransaccionPrueba
+    {
+        PostgreSql,
+        SqlServer
+    }
+
+    private sealed class BaseDatosTransaccionPrueba
+    {
+        public BaseDatosTransaccionPrueba(MotorBaseDatosTransaccionPrueba motor, string connectionString, string esquema)
         {
-            SearchPath = esquema
-        };
-
-        return builder.ConnectionString;
-    }
-
-    private static async Task EliminarEsquemaAsync(string connectionString, string esquema)
-    {
-        await EjecutarSqlAsync(connectionString, $"DROP SCHEMA IF EXISTS \"{esquema}\" CASCADE;");
-    }
-
-    private static async Task EjecutarSqlAsync(string connectionString, string sql)
-    {
-        await using NpgsqlConnection conexion = new(connectionString);
-        await conexion.OpenAsync();
-        await using NpgsqlCommand comando = new(sql, conexion);
-        await comando.ExecuteNonQueryAsync();
-    }
-
-    private static string CrearNombreEsquema()
-    {
-        return $"test_mensajeria_{Guid.NewGuid():N}";
-    }
-
-    private static string LeerTablasSql()
-    {
-        DirectoryInfo? directorio = new(AppContext.BaseDirectory);
-
-        while (directorio is not null)
-        {
-            string ruta = Path.Combine(directorio.FullName, "Datos", "Sql", "tablas.sql");
-
-            if (File.Exists(ruta))
-            {
-                return File.ReadAllText(ruta);
-            }
-
-            directorio = directorio.Parent;
+            Motor = motor;
+            ConnectionString = connectionString;
+            Esquema = esquema;
         }
 
-        throw new FileNotFoundException("No se encontro Datos/Sql/tablas.sql.");
+        public MotorBaseDatosTransaccionPrueba Motor { get; }
+
+        public string ConnectionString { get; }
+
+        public string Esquema { get; }
+
+        public MensajeriaContextoDB CrearContexto()
+        {
+            DbContextOptionsBuilder<MensajeriaContextoDB> builder = new();
+            builder.ReplaceService<IModelCacheKeyFactory, ModeloCachePorContextoTransaccionPrueba>();
+
+            if (Motor == MotorBaseDatosTransaccionPrueba.PostgreSql)
+            {
+                builder.UseNpgsql(ConnectionString);
+                return new MensajeriaContextoDB(builder.Options);
+            }
+
+            builder.UseSqlServer(ConnectionString);
+            return new MensajeriaContextoDB(
+                builder.Options,
+                new ConfiguracionMensajeriaContextoDB { Esquema = Esquema });
+        }
+    }
+
+    private sealed class ModeloCachePorContextoTransaccionPrueba : IModelCacheKeyFactory
+    {
+        public object Create(DbContext context, bool designTime)
+        {
+            return (context.GetType(), context.ContextId.InstanceId, designTime);
+        }
     }
 }

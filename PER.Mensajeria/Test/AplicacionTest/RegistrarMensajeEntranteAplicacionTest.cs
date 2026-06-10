@@ -10,10 +10,11 @@ namespace AplicacionTest;
 
 public class RegistrarMensajeEntranteAplicacionTest
 {
-    [Fact]
-    public async Task EjecutarAsync_MensajeNuevo_DebePersistirMensajeYCrearProcesamientoPendiente()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_MensajeNuevo_DebePersistirMensajeYCrearProcesamientoPendiente(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         string cuenta = $"cuenta_{Guid.NewGuid():N}";
         await baseDatos.CrearCuentaCanalAsync(cuenta);
         IRegistrarMensajeEntranteAplicacion aplicacion = CrearAplicacion(baseDatos);
@@ -38,10 +39,11 @@ public class RegistrarMensajeEntranteAplicacionTest
         Assert.Equal(1, await contexto.ConversacionesParticipantes.CountAsync());
     }
 
-    [Fact]
-    public async Task EjecutarAsync_MensajeDuplicado_NoDebeDuplicarMensajeNiProcesamiento()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_MensajeDuplicado_NoDebeDuplicarMensajeNiProcesamiento(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         string cuenta = $"cuenta_{Guid.NewGuid():N}";
         await baseDatos.CrearCuentaCanalAsync(cuenta);
         IRegistrarMensajeEntranteAplicacion aplicacion = CrearAplicacion(baseDatos);
@@ -60,10 +62,11 @@ public class RegistrarMensajeEntranteAplicacionTest
         Assert.Equal(1, await contexto.ProcesamientosInternosMensaje.CountAsync());
     }
 
-    [Fact]
-    public async Task EjecutarAsync_MensajeMultimedia_DebeRegistrarReferenciaDeArchivo()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_MensajeMultimedia_DebeRegistrarReferenciaDeArchivo(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         string cuenta = $"cuenta_{Guid.NewGuid():N}";
         await baseDatos.CrearCuentaCanalAsync(cuenta);
         IRegistrarMensajeEntranteAplicacion aplicacion = CrearAplicacion(baseDatos);
@@ -88,10 +91,11 @@ public class RegistrarMensajeEntranteAplicacionTest
         Assert.Equal("s3", archivo.ProveedorAlmacenamiento);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_LineaActivaDentroDelUmbral_DebeReutilizarLinea()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_LineaActivaDentroDelUmbral_DebeReutilizarLinea(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         string cuenta = $"cuenta_{Guid.NewGuid():N}";
         await baseDatos.CrearCuentaCanalAsync(cuenta);
         IRegistrarMensajeEntranteAplicacion primeraAplicacion = CrearAplicacion(baseDatos, TimeSpan.FromHours(1));
@@ -111,10 +115,11 @@ public class RegistrarMensajeEntranteAplicacionTest
         Assert.Equal(1, await contexto.LineasConversacion.CountAsync(lineaActual => lineaActual.Activa));
     }
 
-    [Fact]
-    public async Task EjecutarAsync_LineaActivaFueraDelUmbral_DebeInactivarLineaAnteriorYCrearNueva()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_LineaActivaFueraDelUmbral_DebeInactivarLineaAnteriorYCrearNueva(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         string cuenta = $"cuenta_{Guid.NewGuid():N}";
         await baseDatos.CrearCuentaCanalAsync(cuenta);
         IRegistrarMensajeEntranteAplicacion primeraAplicacion = CrearAplicacion(baseDatos, TimeSpan.FromMinutes(30));
@@ -139,7 +144,7 @@ public class RegistrarMensajeEntranteAplicacionTest
     }
 
     private static IRegistrarMensajeEntranteAplicacion CrearAplicacion(
-        PostgreSqlPrueba baseDatos,
+        BaseDatosPrueba baseDatos,
         TimeSpan? tiempoMaximoInactividad = null)
     {
         MensajeriaContextoDB contexto = baseDatos.CrearContexto();
@@ -153,7 +158,7 @@ public class RegistrarMensajeEntranteAplicacionTest
     }
 
     private static async Task CambiarFechaUltimaActividadLineaAsync(
-        PostgreSqlPrueba baseDatos,
+        BaseDatosPrueba baseDatos,
         long idLineaConversacion,
         DateTime fechaUltimaActividad)
     {

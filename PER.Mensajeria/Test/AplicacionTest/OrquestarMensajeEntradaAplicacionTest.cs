@@ -13,10 +13,11 @@ namespace AplicacionTest;
 
 public class OrquestarMensajeEntradaAplicacionTest
 {
-    [Fact]
-    public async Task EjecutarAsync_ContextoDevuelveSalidas_DebeRegistrarSalidaEnvioYMarcarProcesado()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ContextoDevuelveSalidas_DebeRegistrarSalidaEnvioYMarcarProcesado(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConSalidas(mensajeSaliente);
@@ -35,10 +36,11 @@ public class OrquestarMensajeEntradaAplicacionTest
         Assert.True(await contexto.EnviosMensaje.CountAsync(envioActual => envioActual.IDEstadoEnvioMensaje == "pendiente") > 0);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ContextoDevuelveSinSalidas_DebeNoRegistrarSalidaNiEnvioYMarcarProcesado()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ContextoDevuelveSinSalidas_DebeNoRegistrarSalidaNiEnvioYMarcarProcesado(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.SinSalidas();
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion);
@@ -56,10 +58,11 @@ public class OrquestarMensajeEntradaAplicacionTest
         Assert.Equal(0, await contexto.EnviosMensaje.CountAsync());
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ContextoDevuelveError_DebeNoCrearSalidaYMarcarProcesamientoError()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ContextoDevuelveError_DebeNoCrearSalidaYMarcarProcesamientoError(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConError("Error final del contexto.");
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion);
@@ -77,10 +80,11 @@ public class OrquestarMensajeEntradaAplicacionTest
         Assert.Equal(0, await contexto.EnviosMensaje.CountAsync());
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ContextoLanzaExcepcion_DebeNoCrearSalidaYMarcarProcesamientoError()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ContextoLanzaExcepcion_DebeNoCrearSalidaYMarcarProcesamientoError(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConExcepcion(new InvalidOperationException("Fallo contexto fake."));
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion);
@@ -98,10 +102,11 @@ public class OrquestarMensajeEntradaAplicacionTest
         Assert.Equal(0, await contexto.EnviosMensaje.CountAsync());
     }
 
-    [Fact]
-    public async Task EjecutarAsync_DebeEnviarSolicitudContextoConIDsYDatosCargadosDesdeBD()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_DebeEnviarSolicitudContextoConIDsYDatosCargadosDesdeBD(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.SinSalidas();
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion);
@@ -120,10 +125,11 @@ public class OrquestarMensajeEntradaAplicacionTest
         Assert.Equal(mensaje.FechaMensaje, solicitud.FechaMensaje);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ContextoSimulaComandoIntermedio_DebeProcesarSoloResultadoFinal()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ContextoSimulaComandoIntermedio_DebeProcesarSoloResultadoFinal(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConComandoIntermedio(mensajeSaliente);
@@ -137,10 +143,11 @@ public class OrquestarMensajeEntradaAplicacionTest
         Assert.Equal(1, await contexto.EnviosMensaje.CountAsync());
     }
 
-    [Fact]
-    public async Task EjecutarAsync_ContextoSimulaHistorialIntermedio_DebeProcesarSoloResultadoFinal()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ContextoSimulaHistorialIntermedio_DebeProcesarSoloResultadoFinal(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConHistorialIntermedio(mensajeSaliente);
@@ -155,7 +162,7 @@ public class OrquestarMensajeEntradaAplicacionTest
     }
 
     private static IOrquestarMensajeEntradaAplicacion CrearAplicacion(
-        PostgreSqlPrueba baseDatos,
+        BaseDatosPrueba baseDatos,
         IContextoConversacionServicio contextoConversacionServicio)
     {
         MensajeriaContextoDB contexto = baseDatos.CrearContexto();
@@ -169,7 +176,7 @@ public class OrquestarMensajeEntradaAplicacionTest
     }
 
     private static async Task<DTOMensajeSaliente> CrearMensajeSalienteDesdeEntradaAsync(
-        PostgreSqlPrueba baseDatos,
+        BaseDatosPrueba baseDatos,
         DAOMensaje mensajeEntrada)
     {
         await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();

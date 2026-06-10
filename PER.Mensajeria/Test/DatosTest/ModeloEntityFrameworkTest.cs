@@ -49,6 +49,21 @@ public class ModeloEntityFrameworkTest
         Assert.Equal("timestamp without time zone", entidadEnvio.FindProperty(nameof(DAOEnvioMensaje.FechaEnviado))?.GetColumnType());
     }
 
+    [Fact]
+    public void ModeloSqlServer_DebeUsarEsquemaTiposFechaYDefaultSqlServer()
+    {
+        using MensajeriaContextoDB contexto = CrearContextoSqlServer("mensajeria_sql_test");
+        IEntityType entidadMensaje = ObtenerEntidad(contexto, typeof(DAOMensaje));
+        IEntityType entidadEnvio = ObtenerEntidad(contexto, typeof(DAOEnvioMensaje));
+
+        Assert.Contains("SqlServer", contexto.Database.ProviderName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("mensajeria_sql_test", contexto.Model.GetDefaultSchema());
+        Assert.Equal("datetime2", entidadMensaje.FindProperty(nameof(DAOMensaje.FechaMensaje))?.GetColumnType());
+        Assert.Equal("datetime2", entidadMensaje.FindProperty(nameof(DAOMensaje.FechaCreacion))?.GetColumnType());
+        Assert.Equal("GETDATE()", entidadMensaje.FindProperty(nameof(DAOMensaje.FechaCreacion))?.GetDefaultValueSql());
+        Assert.Equal("datetime2", entidadEnvio.FindProperty(nameof(DAOEnvioMensaje.FechaEnviado))?.GetColumnType());
+    }
+
     private static MensajeriaContextoDB CrearContexto()
     {
         DbContextOptions<MensajeriaContextoDB> opciones = new DbContextOptionsBuilder<MensajeriaContextoDB>()
@@ -56,6 +71,15 @@ public class ModeloEntityFrameworkTest
             .Options;
 
         return new MensajeriaContextoDB(opciones);
+    }
+
+    private static MensajeriaContextoDB CrearContextoSqlServer(string esquema)
+    {
+        DbContextOptions<MensajeriaContextoDB> opciones = new DbContextOptionsBuilder<MensajeriaContextoDB>()
+            .UseSqlServer("Server=localhost;Database=per_mensajeria_modelo;User Id=sa;Password=Pass123!;TrustServerCertificate=True")
+            .Options;
+
+        return new MensajeriaContextoDB(opciones, new ConfiguracionMensajeriaContextoDB { Esquema = esquema });
     }
 
     private static IEntityType ObtenerEntidad(MensajeriaContextoDB contexto, Type tipo)

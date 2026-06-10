@@ -12,10 +12,11 @@ namespace AplicacionTest;
 
 public class EnviarMensajeAplicacionTest
 {
-    [Fact]
-    public async Task EjecutarAsync_EnvioPendiente_DebeLlamarCanalYMarcarEnviado()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_EnvioPendiente_DebeLlamarCanalYMarcarEnviado(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOConversacion conversacion, DAOLineaConversacion linea, DAOMensaje mensaje, DAOEnvioMensaje envio) = await baseDatos.CrearEnvioPendienteAsync();
         FakeCanalMensajeAPI canalMensajeAPI = new(new DTOResultadoEnvioMensaje
         {
@@ -41,10 +42,11 @@ public class EnviarMensajeAplicacionTest
         Assert.NotNull(envioActualizado.FechaEnviado);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_FalloCanal_DebeMarcarFallidoSinFechaEnviado()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_FalloCanal_DebeMarcarFallidoSinFechaEnviado(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOConversacion conversacion, DAOLineaConversacion linea, DAOMensaje mensaje, DAOEnvioMensaje envio) = await baseDatos.CrearEnvioPendienteAsync();
         FakeCanalMensajeAPI canalMensajeAPI = new(new DTOResultadoEnvioMensaje
         {
@@ -72,7 +74,7 @@ public class EnviarMensajeAplicacionTest
         Assert.Null(envioActualizado.FechaEnviado);
     }
 
-    private static IEnviarMensajeAplicacion CrearAplicacion(PostgreSqlPrueba baseDatos, ICanalMensajeAPI canalMensajeAPI)
+    private static IEnviarMensajeAplicacion CrearAplicacion(BaseDatosPrueba baseDatos, ICanalMensajeAPI canalMensajeAPI)
     {
         MensajeriaContextoDB contexto = baseDatos.CrearContexto();
         UnitOfWork unitOfWork = new(contexto);

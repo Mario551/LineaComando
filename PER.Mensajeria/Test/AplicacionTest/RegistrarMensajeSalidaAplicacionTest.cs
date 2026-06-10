@@ -10,10 +10,11 @@ namespace AplicacionTest;
 
 public class RegistrarMensajeSalidaAplicacionTest
 {
-    [Fact]
-    public async Task EjecutarAsync_MensajeSalida_DebeCrearMensajeSalidaYEnvioPendiente()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_MensajeSalida_DebeCrearMensajeSalidaYEnvioPendiente(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOCuentaCanal cuenta, DAOConversacion conversacion, DAOLineaConversacion linea) = await baseDatos.CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         IRegistrarMensajeSalidaAplicacion aplicacion = CrearAplicacion(baseDatos);
         DTORegistrarMensajeSalidaSolicitud solicitud = CrearSolicitud(conversacion.ID, linea.ID);
@@ -32,10 +33,11 @@ public class RegistrarMensajeSalidaAplicacionTest
         Assert.Equal("pendiente", envio.IDEstadoEnvioMensaje);
     }
 
-    [Fact]
-    public async Task EjecutarAsync_LineaNoPerteneceAConversacion_DebeFallar()
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_LineaNoPerteneceAConversacion_DebeFallar(MotorBaseDatosPrueba motor)
     {
-        await using PostgreSqlPrueba baseDatos = await PostgreSqlPrueba.CrearAsync();
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOCuentaCanal primeraCuenta, DAOConversacion conversacion, DAOLineaConversacion primeraLinea) = await baseDatos.CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         (DAOCuentaCanal segundaCuenta, DAOConversacion segundaConversacion, DAOLineaConversacion lineaAjena) = await baseDatos.CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         IRegistrarMensajeSalidaAplicacion aplicacion = CrearAplicacion(baseDatos);
@@ -49,7 +51,7 @@ public class RegistrarMensajeSalidaAplicacionTest
         Assert.Empty(await contexto.EnviosMensaje.ToListAsync());
     }
 
-    private static IRegistrarMensajeSalidaAplicacion CrearAplicacion(PostgreSqlPrueba baseDatos)
+    private static IRegistrarMensajeSalidaAplicacion CrearAplicacion(BaseDatosPrueba baseDatos)
     {
         MensajeriaContextoDB contexto = baseDatos.CrearContexto();
         UnitOfWork unitOfWork = new(contexto);
