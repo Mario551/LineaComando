@@ -17,9 +17,9 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await CrearProcesamientoAsync(baseDatos, "pendiente", DateTime.Now);
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
 
-        List<DTOEventoMensajeria> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
+        List<EventoMensajeriaPendiente> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
 
-        DTOEventoMensajeria evento = Assert.Single(eventos);
+        EventoMensajeriaPendiente evento = Assert.Single(eventos);
         Assert.Equal(mensaje.ID, evento.IDMensaje);
         Assert.Equal(procesamiento.ID, evento.IDProcesamientoInternoMensaje);
         Assert.Equal(mensaje.IDLineaConversacion, evento.IDLineaConversacion);
@@ -34,9 +34,9 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await CrearProcesamientoAsync(baseDatos, "en_proceso", DateTime.Now);
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
 
-        List<DTOEventoMensajeria> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
+        List<EventoMensajeriaPendiente> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
 
-        DTOEventoMensajeria evento = Assert.Single(eventos);
+        EventoMensajeriaPendiente evento = Assert.Single(eventos);
         Assert.Equal(mensaje.ID, evento.IDMensaje);
         Assert.Equal(procesamiento.ID, evento.IDProcesamientoInternoMensaje);
     }
@@ -50,7 +50,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         await CrearProcesamientoAsync(baseDatos, "error", DateTime.Now.AddMinutes(-1));
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
 
-        List<DTOEventoMensajeria> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
+        List<EventoMensajeriaPendiente> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
 
         Assert.Empty(eventos);
     }
@@ -66,7 +66,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         (DAOMensaje mensajeTercero, DAOProcesamientoInternoMensaje procesamientoTercero) = await CrearProcesamientoAsync(baseDatos, "en_proceso", fecha.AddMinutes(1));
         ICargarEventosMensajeriaPendientesAplicacion aplicacion = CrearAplicacion(baseDatos);
 
-        List<DTOEventoMensajeria> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
+        List<EventoMensajeriaPendiente> eventos = await aplicacion.EjecutarAsync(CancellationToken.None);
 
         Assert.Collection(
             eventos,

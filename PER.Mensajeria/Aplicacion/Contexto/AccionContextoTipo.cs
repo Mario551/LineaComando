@@ -1,6 +1,6 @@
-namespace PER.Mensajeria.API.Contexto;
+namespace PER.Mensajeria.Aplicacion.Contexto;
 
-public enum DTOAccionContextoTipo
+public enum AccionContextoTipo
 {
     Responder = 1,
     NoResponder = 2,

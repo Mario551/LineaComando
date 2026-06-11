@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using PER.Mensajeria.API.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto;
 
 namespace PER.Mensajeria.Builder;
 

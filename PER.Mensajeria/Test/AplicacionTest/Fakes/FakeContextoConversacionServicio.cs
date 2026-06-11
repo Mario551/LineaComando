@@ -1,45 +1,45 @@
-using PER.Mensajeria.API.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Entidad.DTO;
 
 namespace AplicacionTest.Fakes;
 
 public class FakeContextoConversacionServicio : IContextoConversacionServicio
 {
-    private readonly DTOResultadoContextoConversacion? resultado;
+    private readonly ResultadoContextoConversacion? resultado;
     private readonly Exception? excepcion;
 
-    private FakeContextoConversacionServicio(DTOResultadoContextoConversacion? resultado, Exception? excepcion)
+    private FakeContextoConversacionServicio(ResultadoContextoConversacion? resultado, Exception? excepcion)
     {
         this.resultado = resultado;
         this.excepcion = excepcion;
     }
 
     public bool Ejecutado { get; private set; }
-    public DTOContextoConversacionSolicitud? SolicitudRecibida { get; private set; }
+    public SolicitudContextoConversacion? SolicitudRecibida { get; private set; }
     public int PasosInternosSimulados { get; private set; }
 
     public static FakeContextoConversacionServicio ConSalidas(params DTOMensajeSaliente[] mensajesSalientes)
     {
-        return new FakeContextoConversacionServicio(new DTOResultadoContextoConversacion
+        return new FakeContextoConversacionServicio(new ResultadoContextoConversacion
         {
-            TipoResultado = DTOResultadoContextoConversacionTipo.ConSalidas,
+            TipoResultado = ResultadoContextoConversacionTipo.ConSalidas,
             MensajesSalientes = mensajesSalientes.ToList()
         }, null);
     }
 
     public static FakeContextoConversacionServicio SinSalidas()
     {
-        return new FakeContextoConversacionServicio(new DTOResultadoContextoConversacion
+        return new FakeContextoConversacionServicio(new ResultadoContextoConversacion
         {
-            TipoResultado = DTOResultadoContextoConversacionTipo.SinSalidas
+            TipoResultado = ResultadoContextoConversacionTipo.SinSalidas
         }, null);
     }
 
     public static FakeContextoConversacionServicio ConError(string error)
     {
-        return new FakeContextoConversacionServicio(new DTOResultadoContextoConversacion
+        return new FakeContextoConversacionServicio(new ResultadoContextoConversacion
         {
-            TipoResultado = DTOResultadoContextoConversacionTipo.Error,
+            TipoResultado = ResultadoContextoConversacionTipo.Error,
             Error = error
         }, null);
     }
@@ -63,8 +63,8 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
         return fake;
     }
 
-    public Task<DTOResultadoContextoConversacion> ResolverAsync(
-        DTOContextoConversacionSolicitud solicitud,
+    public Task<ResultadoContextoConversacion> ResolverAsync(
+        SolicitudContextoConversacion solicitud,
         CancellationToken cancellationToken)
     {
         Ejecutado = true;

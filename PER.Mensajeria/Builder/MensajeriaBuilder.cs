@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using PER.Mensajeria.Builder.Worker;
-using PER.Mensajeria.API.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Aplicacion.EnviarMensaje;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;

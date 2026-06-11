@@ -1,6 +1,8 @@
-namespace PER.Mensajeria.Entidad.DTO;
+namespace PER.Mensajeria.Aplicacion.Contexto;
 
-public class DTOContextoConversacionSolicitud
+using PER.Mensajeria.Entidad.DTO;
+
+public class SolicitudContextoConversacion
 {
     public long IDProcesamientoInternoMensaje { get; set; }
     public long IDMensaje { get; set; }

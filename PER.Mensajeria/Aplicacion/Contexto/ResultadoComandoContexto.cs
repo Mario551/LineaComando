@@ -1,23 +1,23 @@
-namespace PER.Mensajeria.API.Contexto;
+namespace PER.Mensajeria.Aplicacion.Contexto;
 
-public class DTOResultadoComandoContexto
+public class ResultadoComandoContexto
 {
     public bool Exitoso { get; set; }
     public string? Resultado { get; set; }
     public string? Error { get; set; }
 
-    public static DTOResultadoComandoContexto Exito(string resultado)
+    public static ResultadoComandoContexto Exito(string resultado)
     {
-        return new DTOResultadoComandoContexto
+        return new ResultadoComandoContexto
         {
             Exitoso = true,
             Resultado = resultado
         };
     }
 
-    public static DTOResultadoComandoContexto Fallo(string error)
+    public static ResultadoComandoContexto Fallo(string error)
     {
-        return new DTOResultadoComandoContexto
+        return new ResultadoComandoContexto
         {
             Exitoso = false,
             Error = error

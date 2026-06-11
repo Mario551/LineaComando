@@ -62,7 +62,7 @@ public class OrquestadorContextoWorkerTest
             this.pasos = pasos;
         }
 
-        public DTOEventoMensajeria Evento { get; } = new()
+        public EventoMensajeriaPendiente Evento { get; } = new()
         {
             IDMensaje = 10,
             IDProcesamientoInternoMensaje = 20,
@@ -71,10 +71,10 @@ public class OrquestadorContextoWorkerTest
             FechaCreacion = DateTime.Now
         };
 
-        public Task<List<DTOEventoMensajeria>> EjecutarAsync(CancellationToken cancellationToken)
+        public Task<List<EventoMensajeriaPendiente>> EjecutarAsync(CancellationToken cancellationToken)
         {
             pasos.Add("carga");
-            return Task.FromResult(new List<DTOEventoMensajeria> { Evento });
+            return Task.FromResult(new List<EventoMensajeriaPendiente> { Evento });
         }
     }
 

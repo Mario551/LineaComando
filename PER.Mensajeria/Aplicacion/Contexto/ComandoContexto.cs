@@ -1,6 +1,6 @@
-namespace PER.Mensajeria.API.Contexto;
+namespace PER.Mensajeria.Aplicacion.Contexto;
 
-public class DTOComandoContexto
+public class ComandoContexto
 {
     public string Codigo { get; set; } = string.Empty;
     public string Descripcion { get; set; } = string.Empty;

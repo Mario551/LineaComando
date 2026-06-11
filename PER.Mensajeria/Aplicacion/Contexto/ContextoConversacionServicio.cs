@@ -1,4 +1,4 @@
-namespace PER.Mensajeria.API.Contexto;
+namespace PER.Mensajeria.Aplicacion.Contexto;
 
 using PER.Mensajeria.Entidad.DTO;
 
@@ -27,18 +27,18 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         this.configuracion = configuracion;
     }
 
-    public async Task<DTOResultadoContextoConversacion> ResolverAsync(
-        DTOContextoConversacionSolicitud solicitud,
+    public async Task<ResultadoContextoConversacion> ResolverAsync(
+        SolicitudContextoConversacion solicitud,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<DTOComandoContexto> comandos = await proveedorCatalogoComandoContextoServicio.ObtenerAsync(
+        IReadOnlyList<ComandoContexto> comandos = await proveedorCatalogoComandoContextoServicio.ObtenerAsync(
             solicitud,
             cancellationToken);
-        List<DTODatoIntermedioContexto> datosIntermedios = [];
+        List<DatoIntermedioContexto> datosIntermedios = [];
 
         for (int iteracion = 1; iteracion <= configuracion.MaximoIteraciones; iteracion++)
         {
-            DTOContextoConversacionEstado estado = new()
+            EstadoContextoConversacion estado = new()
             {
                 Solicitud = solicitud,
                 Comandos = comandos,
@@ -46,12 +46,12 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
                 Iteracion = iteracion
             };
 
-            DTOResultadoContextoConversacion? resultadoFiltro = await EjecutarFiltrosAsync(estado, cancellationToken);
+            ResultadoContextoConversacion? resultadoFiltro = await EjecutarFiltrosAsync(estado, cancellationToken);
             if (resultadoFiltro is not null)
                 return resultadoFiltro;
 
-            DTOIntencionContextoResultado decision = await intencionContextoConversacionServicio.DecidirAsync(
-                new DTOIntencionContextoSolicitud
+            ResultadoIntencionContexto decision = await intencionContextoConversacionServicio.DecidirAsync(
+                new SolicitudIntencionContexto
                 {
                     Solicitud = solicitud,
                     Comandos = comandos,
@@ -60,7 +60,7 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
                 },
                 cancellationToken);
 
-            DTOResultadoContextoConversacion? resultadoFinal = await ProcesarDecisionAsync(
+            ResultadoContextoConversacion? resultadoFinal = await ProcesarDecisionAsync(
                 solicitud,
                 comandos,
                 datosIntermedios,
@@ -76,13 +76,13 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         return CrearError("Se alcanzo el maximo de iteraciones del contexto.");
     }
 
-    private async Task<DTOResultadoContextoConversacion?> EjecutarFiltrosAsync(
-        DTOContextoConversacionEstado estado,
+    private async Task<ResultadoContextoConversacion?> EjecutarFiltrosAsync(
+        EstadoContextoConversacion estado,
         CancellationToken cancellationToken)
     {
         foreach (IFiltroContextoConversacion filtro in filtros)
         {
-            DTOResultadoFiltroContexto resultadoFiltro = await filtro.EjecutarAsync(estado, cancellationToken);
+            ResultadoFiltroContexto resultadoFiltro = await filtro.EjecutarAsync(estado, cancellationToken);
             if (!resultadoFiltro.Continuar)
             {
                 return CrearError(resultadoFiltro.Error ?? "Un filtro detuvo el contexto.");
@@ -92,41 +92,41 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         return null;
     }
 
-    private async Task<DTOResultadoContextoConversacion?> ProcesarDecisionAsync(
-        DTOContextoConversacionSolicitud solicitud,
-        IReadOnlyList<DTOComandoContexto> comandos,
-        List<DTODatoIntermedioContexto> datosIntermedios,
-        DTOIntencionContextoResultado decision,
+    private async Task<ResultadoContextoConversacion?> ProcesarDecisionAsync(
+        SolicitudContextoConversacion solicitud,
+        IReadOnlyList<ComandoContexto> comandos,
+        List<DatoIntermedioContexto> datosIntermedios,
+        ResultadoIntencionContexto decision,
         CancellationToken cancellationToken)
     {
-        if (decision.TipoAccion == DTOAccionContextoTipo.Responder)
+        if (decision.TipoAccion == AccionContextoTipo.Responder)
         {
-            return new DTOResultadoContextoConversacion
+            return new ResultadoContextoConversacion
             {
-                TipoResultado = DTOResultadoContextoConversacionTipo.ConSalidas,
+                TipoResultado = ResultadoContextoConversacionTipo.ConSalidas,
                 MensajesSalientes = decision.MensajesSalientes
             };
         }
 
-        if (decision.TipoAccion == DTOAccionContextoTipo.NoResponder)
+        if (decision.TipoAccion == AccionContextoTipo.NoResponder)
         {
-            return new DTOResultadoContextoConversacion
+            return new ResultadoContextoConversacion
             {
-                TipoResultado = DTOResultadoContextoConversacionTipo.SinSalidas
+                TipoResultado = ResultadoContextoConversacionTipo.SinSalidas
             };
         }
 
-        if (decision.TipoAccion == DTOAccionContextoTipo.Error)
+        if (decision.TipoAccion == AccionContextoTipo.Error)
         {
             return CrearError(decision.Error ?? "La IA de intencion devolvio error.");
         }
 
-        if (decision.TipoAccion == DTOAccionContextoTipo.Comando)
+        if (decision.TipoAccion == AccionContextoTipo.Comando)
         {
             return await ProcesarComandoAsync(solicitud, comandos, datosIntermedios, decision, cancellationToken);
         }
 
-        if (decision.TipoAccion == DTOAccionContextoTipo.Historial)
+        if (decision.TipoAccion == AccionContextoTipo.Historial)
         {
             return await ProcesarHistorialAsync(solicitud, datosIntermedios, cancellationToken);
         }
@@ -134,22 +134,22 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         return CrearError("Accion de contexto no soportada.");
     }
 
-    private async Task<DTOResultadoContextoConversacion?> ProcesarComandoAsync(
-        DTOContextoConversacionSolicitud solicitud,
-        IReadOnlyList<DTOComandoContexto> comandos,
-        List<DTODatoIntermedioContexto> datosIntermedios,
-        DTOIntencionContextoResultado decision,
+    private async Task<ResultadoContextoConversacion?> ProcesarComandoAsync(
+        SolicitudContextoConversacion solicitud,
+        IReadOnlyList<ComandoContexto> comandos,
+        List<DatoIntermedioContexto> datosIntermedios,
+        ResultadoIntencionContexto decision,
         CancellationToken cancellationToken)
     {
-        DTOComandoContexto? comando = comandos.SingleOrDefault(
+        ComandoContexto? comando = comandos.SingleOrDefault(
             comandoActual => comandoActual.Codigo == decision.CodigoComando && comandoActual.Autorizado);
         if (comando is null)
         {
             return CrearError($"Comando no autorizado: {decision.CodigoComando}");
         }
 
-        DTOResultadoComandoContexto resultadoComando = await ejecutorComandoContextoServicio.EjecutarAsync(
-            new DTOEjecutarComandoContextoSolicitud
+        ResultadoComandoContexto resultadoComando = await ejecutorComandoContextoServicio.EjecutarAsync(
+            new SolicitudEjecutarComandoContexto
             {
                 Solicitud = solicitud,
                 Comando = comando,
@@ -160,7 +160,7 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         if (!resultadoComando.Exitoso)
             return CrearError(resultadoComando.Error ?? "Fallo la ejecucion del comando.");
 
-        datosIntermedios.Add(new DTODatoIntermedioContexto
+        datosIntermedios.Add(new DatoIntermedioContexto
         {
             Tipo = "comando",
             Contenido = resultadoComando.Resultado
@@ -169,12 +169,12 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         return null;
     }
 
-    private async Task<DTOResultadoContextoConversacion?> ProcesarHistorialAsync(
-        DTOContextoConversacionSolicitud solicitud,
-        List<DTODatoIntermedioContexto> datosIntermedios,
+    private async Task<ResultadoContextoConversacion?> ProcesarHistorialAsync(
+        SolicitudContextoConversacion solicitud,
+        List<DatoIntermedioContexto> datosIntermedios,
         CancellationToken cancellationToken)
     {
-        DTOResultadoHistorialContexto resultadoHistorial = await proveedorHistorialContextoServicio.ObtenerAsync(
+        ResultadoHistorialContexto resultadoHistorial = await proveedorHistorialContextoServicio.ObtenerAsync(
             solicitud,
             cancellationToken);
 
@@ -183,7 +183,7 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
             return CrearError(resultadoHistorial.Error ?? "No se pudo obtener el historial.");
         }
 
-        datosIntermedios.Add(new DTODatoIntermedioContexto
+        datosIntermedios.Add(new DatoIntermedioContexto
         {
             Tipo = "historial",
             Contenido = resultadoHistorial.Historial
@@ -192,11 +192,11 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         return null;
     }
 
-    private static DTOResultadoContextoConversacion CrearError(string error)
+    private static ResultadoContextoConversacion CrearError(string error)
     {
-        return new DTOResultadoContextoConversacion
+        return new ResultadoContextoConversacion
         {
-            TipoResultado = DTOResultadoContextoConversacionTipo.Error,
+            TipoResultado = ResultadoContextoConversacionTipo.Error,
             Error = error
         };
     }

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
-using PER.Mensajeria.Entidad.DTO;
 using PER.Mensajeria.Servicio.Cola;
 using PER.Mensajeria.Servicio.Orquestador;
 
@@ -38,9 +37,9 @@ public class OrquestadorContextoWorker : BackgroundService
         ICargarEventosMensajeriaPendientesAplicacion cargarEventosMensajeriaPendientesAplicacion = alcance.ServiceProvider
             .GetRequiredService<ICargarEventosMensajeriaPendientesAplicacion>();
 
-        List<DTOEventoMensajeria> eventosPendientes = await cargarEventosMensajeriaPendientesAplicacion.EjecutarAsync(cancellationToken);
+        List<EventoMensajeriaPendiente> eventosPendientes = await cargarEventosMensajeriaPendientesAplicacion.EjecutarAsync(cancellationToken);
 
-        foreach (DTOEventoMensajeria eventoPendiente in eventosPendientes)
+        foreach (EventoMensajeriaPendiente eventoPendiente in eventosPendientes)
         {
             colaEventosMensajeriaServicio.Publicar(ConvertirEvento(eventoPendiente));
         }
@@ -88,7 +87,7 @@ public class OrquestadorContextoWorker : BackgroundService
         }
     }
 
-    private static EventoMensajeria ConvertirEvento(DTOEventoMensajeria evento)
+    private static EventoMensajeria ConvertirEvento(EventoMensajeriaPendiente evento)
     {
         return new EventoMensajeria
         {

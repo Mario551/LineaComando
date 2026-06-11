@@ -1,6 +1,6 @@
-namespace PER.Mensajeria.Entidad.DTO;
+namespace PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 
-public class DTOEventoMensajeria
+public class EventoMensajeriaPendiente
 {
     public long IDMensaje { get; set; }
     public long IDProcesamientoInternoMensaje { get; set; }

@@ -1,4 +1,4 @@
-namespace PER.Mensajeria.API.Contexto;
+namespace PER.Mensajeria.Aplicacion.Contexto;
 
 public class ConfiguracionContextoConversacion
 {

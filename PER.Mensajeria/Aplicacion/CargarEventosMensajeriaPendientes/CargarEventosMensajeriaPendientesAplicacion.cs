@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Datos.UnitOfWork;
-using PER.Mensajeria.Entidad.DTO;
 
 namespace PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 
@@ -13,9 +12,9 @@ public class CargarEventosMensajeriaPendientesAplicacion : ICargarEventosMensaje
         this.unitOfWork = unitOfWork;
     }
 
-    public Task<List<DTOEventoMensajeria>> EjecutarAsync(CancellationToken cancellationToken)
+    public Task<List<EventoMensajeriaPendiente>> EjecutarAsync(CancellationToken cancellationToken)
     {
-        IQueryable<DTOEventoMensajeria> consulta =
+        IQueryable<EventoMensajeriaPendiente> consulta =
             from procesamiento in unitOfWork.ProcesamientoInternoMensajeRepositorio.GetNoTracking()
             join mensaje in unitOfWork.MensajeRepositorio.GetNoTracking()
                 on procesamiento.IDMensaje equals mensaje.ID
@@ -25,7 +24,7 @@ public class CargarEventosMensajeriaPendientesAplicacion : ICargarEventosMensaje
                 && (procesamiento.IDEstadoProcesamientoInternoMensaje == "pendiente"
                     || procesamiento.IDEstadoProcesamientoInternoMensaje == "en_proceso")
             orderby procesamiento.FechaCreacion, procesamiento.ID
-            select new DTOEventoMensajeria
+            select new EventoMensajeriaPendiente
             {
                 IDMensaje = mensaje.ID,
                 IDProcesamientoInternoMensaje = procesamiento.ID,

@@ -1,7 +1,7 @@
 namespace PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 
 using Microsoft.EntityFrameworkCore;
-using PER.Mensajeria.API.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
@@ -41,17 +41,17 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
             unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            DTOContextoConversacionSolicitud solicitudContexto = await CrearSolicitudContextoAsync(
+            SolicitudContextoConversacion solicitudContexto = await CrearSolicitudContextoAsync(
                 procesamiento,
                 mensajeEntrada,
                 linea,
                 conversacion,
                 cancellationToken);
-            DTOResultadoContextoConversacion resultadoContexto = await contextoConversacionServicio.ResolverAsync(
+            ResultadoContextoConversacion resultadoContexto = await contextoConversacionServicio.ResolverAsync(
                 solicitudContexto,
                 cancellationToken);
 
-            if (resultadoContexto.TipoResultado == DTOResultadoContextoConversacionTipo.Error)
+            if (resultadoContexto.TipoResultado == ResultadoContextoConversacionTipo.Error)
             {
                 throw new InvalidOperationException(resultadoContexto.Error ?? "El contexto devolvio error.");
             }
@@ -91,7 +91,7 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
         mensajeSaliente.IDLineaConversacion = linea.ID;
     }
 
-    private async Task<DTOContextoConversacionSolicitud> CrearSolicitudContextoAsync(
+    private async Task<SolicitudContextoConversacion> CrearSolicitudContextoAsync(
         DAOProcesamientoInternoMensaje procesamiento,
         DAOMensaje mensajeEntrada,
         DAOLineaConversacion linea,
@@ -111,7 +111,7 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
             })
             .ToListAsync(cancellationToken);
 
-        return new DTOContextoConversacionSolicitud
+        return new SolicitudContextoConversacion
         {
             IDProcesamientoInternoMensaje = procesamiento.ID,
             IDMensaje = mensajeEntrada.ID,

@@ -1,7 +1,7 @@
 using AplicacionTest.Fakes;
 using AplicacionTest.Infraestructura;
 using Microsoft.EntityFrameworkCore;
-using PER.Mensajeria.API.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.Contexto;
@@ -113,7 +113,7 @@ public class OrquestarMensajeEntradaAplicacionTest
 
         await aplicacion.EjecutarAsync(procesamiento.ID, CancellationToken.None);
 
-        DTOContextoConversacionSolicitud solicitud = Assert.IsType<DTOContextoConversacionSolicitud>(contextoConversacion.SolicitudRecibida);
+        SolicitudContextoConversacion solicitud = Assert.IsType<SolicitudContextoConversacion>(contextoConversacion.SolicitudRecibida);
         Assert.Equal(procesamiento.ID, solicitud.IDProcesamientoInternoMensaje);
         Assert.Equal(mensaje.ID, solicitud.IDMensaje);
         Assert.Equal(mensaje.IDLineaConversacion, solicitud.IDLineaConversacion);
