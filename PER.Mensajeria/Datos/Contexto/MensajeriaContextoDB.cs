@@ -26,6 +26,7 @@ public class MensajeriaContextoDB : DbContext
     public DbSet<DAOParticipanteConversacion> ParticipantesConversacion { get; set; }
     public DbSet<DAOTipoParticipanteConversacion> TiposParticipanteConversacion { get; set; }
     public DbSet<DAOLineaConversacion> LineasConversacion { get; set; }
+    public DbSet<DAOEstadoContextoConversacion> EstadosContextoConversacion { get; set; }
     public DbSet<DAOMensaje> Mensajes { get; set; }
     public DbSet<DAODireccionMensaje> DireccionesMensaje { get; set; }
     public DbSet<DAOTipoMensaje> TiposMensaje { get; set; }
@@ -34,6 +35,10 @@ public class MensajeriaContextoDB : DbContext
     public DbSet<DAOProcesamientoInternoMensaje> ProcesamientosInternosMensaje { get; set; }
     public DbSet<DAOTipoProcesamientoInternoMensaje> TiposProcesamientoInternoMensaje { get; set; }
     public DbSet<DAOEstadoProcesamientoInternoMensaje> EstadosProcesamientoInternoMensaje { get; set; }
+    public DbSet<DAORolContextoIA> RolesContextoIA { get; set; }
+    public DbSet<DAOTipoEntradaContextoIA> TiposEntradaContextoIA { get; set; }
+    public DbSet<DAOEntradaContextoIA> EntradasContextoIA { get; set; }
+    public DbSet<DAOMetadataRazonamientoIALineaConversacion> MetadataRazonamientoIALineaConversacion { get; set; }
     public DbSet<DAOEnvioMensaje> EnviosMensaje { get; set; }
     public DbSet<DAOEstadoEnvioMensaje> EstadosEnvioMensaje { get; set; }
 
@@ -51,6 +56,7 @@ public class MensajeriaContextoDB : DbContext
         modelBuilder.ApplyConfiguration(new ParticipanteConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new TipoParticipanteConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new LineaConversacionConfiguracion());
+        modelBuilder.ApplyConfiguration(new EstadoContextoConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new MensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new DireccionMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new TipoMensajeConfiguracion());
@@ -59,6 +65,10 @@ public class MensajeriaContextoDB : DbContext
         modelBuilder.ApplyConfiguration(new ProcesamientoInternoMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new TipoProcesamientoInternoMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new EstadoProcesamientoInternoMensajeConfiguracion());
+        modelBuilder.ApplyConfiguration(new RolContextoIAConfiguracion());
+        modelBuilder.ApplyConfiguration(new TipoEntradaContextoIAConfiguracion());
+        modelBuilder.ApplyConfiguration(new EntradaContextoIAConfiguracion());
+        modelBuilder.ApplyConfiguration(new MetadataRazonamientoIALineaConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new EnvioMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new EstadoEnvioMensajeConfiguracion());
 

@@ -1,6 +1,7 @@
 namespace PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.UnitOfWork;
@@ -12,18 +13,23 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
     private readonly IUnitOfWork unitOfWork;
     private readonly IContextoConversacionServicio contextoConversacionServicio;
     private readonly IRegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion;
+    private readonly ILogger<OrquestarMensajeEntradaAplicacion> logger;
 
     public OrquestarMensajeEntradaAplicacion(
         IUnitOfWork unitOfWork,
         IContextoConversacionServicio contextoConversacionServicio,
-        IRegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion)
+        IRegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion,
+        ILogger<OrquestarMensajeEntradaAplicacion> logger)
     {
         this.unitOfWork = unitOfWork;
         this.contextoConversacionServicio = contextoConversacionServicio;
         this.registrarMensajeSalidaAplicacion = registrarMensajeSalidaAplicacion;
+        this.logger = logger;
     }
 
-    public async Task EjecutarAsync(long idProcesamientoInternoMensaje, CancellationToken cancellationToken)
+    public async Task<ResultadoOrquestarMensajeEntrada> EjecutarAsync(
+        long idProcesamientoInternoMensaje,
+        CancellationToken cancellationToken)
     {
         DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
             .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
@@ -56,6 +62,14 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
                 throw new InvalidOperationException(resultadoContexto.Error ?? "El contexto devolvio error.");
             }
 
+            if (resultadoContexto.TipoResultado == ResultadoContextoConversacionTipo.LimiteVentanaAlcanzado)
+            {
+                ResultadoCompactacionIntencionContexto compactacion = resultadoContexto.Compactacion
+                    ?? throw new InvalidOperationException("El limite de ventana debe incluir una compactacion valida.");
+
+                return ResultadoOrquestarMensajeEntrada.RenovarLinea(compactacion);
+            }
+
             foreach (DTOMensajeSaliente mensajeSaliente in resultadoContexto.MensajesSalientes)
             {
                 ForzarRelacionSalida(mensajeSaliente, conversacion, linea);
@@ -71,14 +85,31 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
             procesamiento.Error = null;
             unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
             await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return resultadoContexto.TipoResultado == ResultadoContextoConversacionTipo.SinSalidas
+                ? ResultadoOrquestarMensajeEntrada.SinSalidas()
+                : ResultadoOrquestarMensajeEntrada.Procesado();
         }
         catch (Exception excepcion)
         {
+            logger.LogError(
+                excepcion,
+                "Error orquestando mensaje de entrada. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+                procesamiento.ID,
+                mensajeEntrada.ID,
+                conversacion.ID,
+                linea.ID);
+
             procesamiento.IDEstadoProcesamientoInternoMensaje = "error";
             procesamiento.Intentos++;
             procesamiento.Error = excepcion.Message;
             unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
             await unitOfWork.SaveChangesAsync(cancellationToken);
+            return ResultadoOrquestarMensajeEntrada.ConError(excepcion.Message);
+        }
+        finally
+        {
+            unitOfWork.ProcesamientoInternoMensajeRepositorio.LiberarRastreo(procesamiento);
         }
     }
 

@@ -4,5 +4,6 @@ public enum ResultadoContextoConversacionTipo
 {
     ConSalidas = 1,
     SinSalidas = 2,
-    Error = 3
+    Error = 3,
+    LimiteVentanaAlcanzado = 4
 }

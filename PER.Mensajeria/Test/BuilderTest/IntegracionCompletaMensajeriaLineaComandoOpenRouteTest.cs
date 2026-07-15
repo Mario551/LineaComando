@@ -1,3 +1,5 @@
+using BuilderTest.Infraestructura;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -21,16 +23,24 @@ using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Entidad.DAO;
 using PER.Mensajeria.Entidad.DTO;
 using PER.Mensajeria.Servicio.Mensaje;
+using Xunit.Abstractions;
 
 namespace BuilderTest;
 
 public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
 {
+    private readonly ITestOutputHelper output;
+
+    public IntegracionCompletaMensajeriaLineaComandoOpenRouteTest(ITestOutputHelper output)
+    {
+        this.output = output;
+    }
+
     private const string CodigoComando = "pedido consultar";
     private const string Pedido = "54013";
     private const string EstadoPedido = "despachado";
-    private const string ModeloOpenRoute = "moonshotai/kimi-k2.6";
-    private static readonly TimeSpan TiempoEsperaFlujo = TimeSpan.FromSeconds(90);
+    private const string ModeloOpenRoute = "minimax/minimax-m3";
+    private static readonly TimeSpan TiempoEsperaFlujo = TimeSpan.FromMinutes(10);
 
     public static IEnumerable<object[]> Motores
     {
@@ -50,10 +60,17 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             "La variable de entorno OPENROUTE_MENSAJERIA es obligatoria para el test de integración real con OpenRouter.");
         ConfiguracionBaseDatosPrueba baseDatos = CrearConfiguracionBaseDatos(motor);
         RegistroIntegracionMensajeriaOpenRoutePrueba registro = new();
+        RegistroLoggerPrueba registroLogger = new(output);
         ServiceCollection servicios = new();
-        servicios.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
+        servicios.AddLogging(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Information);
+            builder.AddProvider(new LoggerProviderPrueba(registroLogger));
+        });
+        string directorioOpenRouter = CrearDirectorioOpenRouterPrueba();
+        output.WriteLine($"Archivos OpenRouter: {directorioOpenRouter}");
         servicios.AddSingleton(registro);
-        servicios.AddTransient<IntencionOpenRouteMensajeriaPrueba>(_ => new IntencionOpenRouteMensajeriaPrueba(apiKey, registro));
+        servicios.AddSingleton(new ConfiguracionOpenRouteMensajeriaPrueba(apiKey, directorioOpenRouter));
 
         LineaComandoBuilder lineaComandoBuilder = servicios.AddLineaComando(async (serviceProvider, builderInicializador, cancellationToken) =>
         {
@@ -82,23 +99,33 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         await CrearCuentaCanalAsync(serviceProvider, baseDatos.CuentaCanal);
 
         List<IHostedService> hostedServices = serviceProvider.GetServices<IHostedService>().ToList();
-        CancellationTokenSource timeout = new(TiempoEsperaFlujo);
+        CancellationTokenSource timeoutFlujo = new(TiempoEsperaFlujo);
 
         try
         {
-            await IniciarHostedServicesAsync(hostedServices, timeout.Token);
+            await IniciarHostedServicesAsync(hostedServices, timeoutFlujo.Token);
 
             DTORegistrarMensajeEntranteRespuesta respuestaEntrada;
             using (IServiceScope alcance = serviceProvider.CreateScope())
             {
                 IMensajeServicio mensajeServicio = alcance.ServiceProvider.GetRequiredService<IMensajeServicio>();
-                respuestaEntrada = await mensajeServicio.RecibirAsync(CrearSolicitudEntrada(baseDatos.CuentaCanal), timeout.Token);
+                respuestaEntrada = await mensajeServicio.RecibirAsync(CrearSolicitudEntrada(baseDatos.CuentaCanal), timeoutFlujo.Token);
             }
+
+            ILogger<IntegracionCompletaMensajeriaLineaComandoOpenRouteTest> logger = serviceProvider
+                .GetRequiredService<ILogger<IntegracionCompletaMensajeriaLineaComandoOpenRouteTest>>();
+            logger.LogInformation(
+                "Mensaje entrante registrado. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+                respuestaEntrada.IDProcesamientoInternoMensaje,
+                respuestaEntrada.IDMensaje,
+                respuestaEntrada.IDConversacion,
+                respuestaEntrada.IDLineaConversacion);
 
             ResultadoFlujoCompletoPrueba resultado = await EsperarProcesamientoAsync(
                 serviceProvider,
                 respuestaEntrada.IDProcesamientoInternoMensaje,
-                timeout.Token);
+                logger,
+                timeoutFlujo.Token);
 
             Assert.True(respuestaEntrada.Registrado);
             Assert.Equal("procesado", resultado.Procesamiento.IDEstadoProcesamientoInternoMensaje);
@@ -107,6 +134,27 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             Assert.Single(resultado.MensajesEntrada);
             Assert.NotEmpty(resultado.MensajesSalida);
             Assert.NotEmpty(resultado.EnviosPendientes);
+            Assert.Equal(3, resultado.MetadataIA.Count);
+            Assert.Equal(
+                [nameof(AccionContextoTipo.Comando), nameof(AccionContextoTipo.Historial), nameof(AccionContextoTipo.Responder)],
+                resultado.MetadataIA.OrderBy(metadata => metadata.Iteracion).Select(metadata => metadata.AccionDecidida));
+            Assert.Equal(
+                [
+                    ("user", "mensaje_entrada"),
+                    ("assistant", "decision_comando"),
+                    ("tool", "resultado_comando"),
+                    ("assistant", "decision_historial"),
+                    ("tool", "resultado_historial"),
+                    ("assistant", "respuesta_final")
+                ],
+                resultado.EntradasContextoIA
+                    .OrderBy(entrada => entrada.Orden)
+                    .Select(entrada => (entrada.IDRolContextoIA, entrada.IDTipoEntradaContextoIA)));
+            Assert.Equal([1, 2, 3, 4, 5, 6], resultado.EntradasContextoIA.OrderBy(entrada => entrada.Orden).Select(entrada => entrada.Orden));
+            Assert.All(
+                resultado.EntradasContextoIA.Where(entrada => entrada.IDRolContextoIA == "assistant"),
+                entrada => Assert.NotNull(entrada.IDMetadataRazonamientoIA));
+            Assert.All(resultado.EntradasContextoIA, entrada => Assert.NotEqual(default, entrada.FechaEntrada));
 
             DAOMensaje mensajeSalida = Assert.Single(resultado.MensajesSalida);
             Assert.Contains(Pedido, mensajeSalida.Contenido ?? string.Empty);
@@ -119,6 +167,13 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             Assert.Contains(registro.DatosIntermediosIA, datos => datos.Any(dato => dato.Tipo == "comando" && (dato.Contenido ?? string.Empty).Contains(Pedido)));
             Assert.Contains(registro.DatosIntermediosIA, datos => datos.Any(dato => dato.Tipo == "historial" && (dato.Contenido ?? string.Empty).Contains("Historial de prueba")));
             Assert.Contains(registro.HistorialesSolicitados, historial => historial.IDConversacion > 0);
+            Assert.Equal(3, registro.EntradasContextoIA.Count);
+            Assert.Equal([1, 3, 5], registro.EntradasContextoIA.Select(entradas => entradas.Count));
+            EntradaContextoIA decisionComandoReenviada = Assert.Single(
+                registro.EntradasContextoIA[1],
+                entrada => entrada.IDTipoEntradaContextoIA == "decision_comando");
+            Assert.NotNull(decisionComandoReenviada.Metadata);
+            Assert.Equal("OpenRouter", decisionComandoReenviada.Metadata.Proveedor);
 
             int indiceComandoEjecutado = registro.Operaciones.IndexOf("comando_ejecutado");
             int indiceHistorialSolicitado = registro.Operaciones.IndexOf("historial_solicitado");
@@ -130,11 +185,17 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
                 .ToList();
             Assert.Equal(["primer_filtro", "segundo_filtro"], filtrosPrimeraIteracion.Select(filtro => filtro.Nombre).ToList());
             Assert.True(registro.Filtros.Select(filtro => filtro.Iteracion).Distinct().Count() >= 3);
+            registroLogger.AssertSinErrores();
+        }
+        catch (OperationCanceledException) when (timeoutFlujo.IsCancellationRequested)
+        {
+            throw new TimeoutException("El flujo completo de mensajeria supero el timeout de 2 minutos.");
         }
         finally
         {
-            await DetenerHostedServicesAsync(hostedServices, timeout.Token);
-            timeout.Dispose();
+            using CancellationTokenSource timeoutApagado = new(TimeSpan.FromSeconds(10));
+            await DetenerHostedServicesAsync(hostedServices, timeoutApagado.Token);
+            timeoutFlujo.Dispose();
         }
     }
 
@@ -256,10 +317,13 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
     private static async Task<ResultadoFlujoCompletoPrueba> EsperarProcesamientoAsync(
         IServiceProvider serviceProvider,
         long idProcesamientoInternoMensaje,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
+            while (!cancellationToken.IsCancellationRequested)
+            {
             using IServiceScope alcance = serviceProvider.CreateScope();
             MensajeriaContextoDB contexto = alcance.ServiceProvider.GetRequiredService<MensajeriaContextoDB>();
             DAOProcesamientoInternoMensaje procesamiento = await contexto.ProcesamientosInternosMensaje.SingleAsync(
@@ -274,6 +338,16 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             List<DAOEnvioMensaje> enviosPendientes = await contexto.EnviosMensaje
                 .Where(envio => envio.IDEstadoEnvioMensaje == "pendiente")
                 .ToListAsync(cancellationToken);
+            List<DAOMetadataRazonamientoIALineaConversacion> metadataIA = await contexto.MetadataRazonamientoIALineaConversacion
+                .AsNoTracking()
+                .Where(metadata => metadata.IDProcesamientoInternoMensaje == idProcesamientoInternoMensaje)
+                .OrderBy(metadata => metadata.Iteracion)
+                .ToListAsync(cancellationToken);
+            List<DAOEntradaContextoIA> entradasContextoIA = await contexto.EntradasContextoIA
+                .AsNoTracking()
+                .Where(entrada => entrada.IDProcesamientoInternoMensaje == idProcesamientoInternoMensaje)
+                .OrderBy(entrada => entrada.Orden)
+                .ToListAsync(cancellationToken);
 
             if (procesamiento.IDEstadoProcesamientoInternoMensaje == "error")
             {
@@ -282,13 +356,58 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
 
             if (procesamiento.IDEstadoProcesamientoInternoMensaje == "procesado" && mensajesSalida.Count > 0)
             {
-                return new ResultadoFlujoCompletoPrueba(procesamiento, mensajesEntrada, mensajesSalida, enviosPendientes);
+                return new ResultadoFlujoCompletoPrueba(
+                    procesamiento,
+                    mensajesEntrada,
+                    mensajesSalida,
+                    enviosPendientes,
+                    metadataIA,
+                    entradasContextoIA);
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await RegistrarEstadoTimeoutAsync(serviceProvider, idProcesamientoInternoMensaje, logger);
+            throw new TimeoutException("El flujo completo de mensajeria supero el timeout de 2 minutos.");
         }
 
-        throw new TimeoutException("El flujo completo de mensajería no finalizó dentro del tiempo esperado.");
+        await RegistrarEstadoTimeoutAsync(serviceProvider, idProcesamientoInternoMensaje, logger);
+        throw new TimeoutException("El flujo completo de mensajeria supero el timeout de 2 minutos.");
+    }
+
+    private static async Task RegistrarEstadoTimeoutAsync(
+        IServiceProvider serviceProvider,
+        long idProcesamientoInternoMensaje,
+        ILogger logger)
+    {
+        try
+        {
+            using IServiceScope alcance = serviceProvider.CreateScope();
+            MensajeriaContextoDB contexto = alcance.ServiceProvider.GetRequiredService<MensajeriaContextoDB>();
+            DAOProcesamientoInternoMensaje? procesamiento = await contexto.ProcesamientosInternosMensaje
+                .AsNoTracking()
+                .SingleOrDefaultAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje);
+            int mensajesEntrada = await contexto.Mensajes.AsNoTracking().CountAsync(mensaje => mensaje.IDDireccionMensaje == "entrada");
+            int mensajesSalida = await contexto.Mensajes.AsNoTracking().CountAsync(mensaje => mensaje.IDDireccionMensaje == "salida");
+            int enviosPendientes = await contexto.EnviosMensaje.AsNoTracking().CountAsync(envio => envio.IDEstadoEnvioMensaje == "pendiente");
+
+            logger.LogError(
+                "Timeout esperando flujo completo. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, Estado={Estado}, Intentos={Intentos}, Error={Error}, MensajesEntrada={MensajesEntrada}, MensajesSalida={MensajesSalida}, EnviosPendientes={EnviosPendientes}",
+                idProcesamientoInternoMensaje,
+                procesamiento?.IDEstadoProcesamientoInternoMensaje,
+                procesamiento?.Intentos,
+                procesamiento?.Error,
+                mensajesEntrada,
+                mensajesSalida,
+                enviosPendientes);
+        }
+        catch (Exception excepcion)
+        {
+            logger.LogError(excepcion, "No se pudo registrar el estado final despues del timeout del flujo completo.");
+        }
     }
 
     private static ConfiguracionBaseDatosPrueba CrearConfiguracionBaseDatos(MotorIntegracionCompletaPrueba motor)
@@ -320,6 +439,15 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         return valor!;
     }
 
+    private static string CrearDirectorioOpenRouterPrueba()
+    {
+        // Formato para buscar despues: /tmp/per_mensajeria_openrouter_yyyyMMdd_{Guid}
+        string fecha = DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+        string ruta = Path.Combine(Path.GetTempPath(), $"per_mensajeria_openrouter_{fecha}_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(ruta);
+        return ruta;
+    }
+
     public enum MotorIntegracionCompletaPrueba
     {
         PostgreSql,
@@ -336,7 +464,9 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         DAOProcesamientoInternoMensaje Procesamiento,
         List<DAOMensaje> MensajesEntrada,
         List<DAOMensaje> MensajesSalida,
-        List<DAOEnvioMensaje> EnviosPendientes);
+        List<DAOEnvioMensaje> EnviosPendientes,
+        List<DAOMetadataRazonamientoIALineaConversacion> MetadataIA,
+        List<DAOEntradaContextoIA> EntradasContextoIA);
 
     private sealed class ModeloCachePorContextoIntegracionPrueba : IModelCacheKeyFactory
     {
@@ -356,6 +486,8 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
 
         public List<IReadOnlyList<DatoIntermedioContexto>> DatosIntermediosIA { get; } = [];
 
+        public List<IReadOnlyList<EntradaContextoIA>> EntradasContextoIA { get; } = [];
+
         public List<RegistroComandoEncoladoPrueba> ComandosEncolados { get; } = [];
 
         public List<RegistroComandoEjecutadoPrueba> ComandosEjecutados { get; } = [];
@@ -372,12 +504,16 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             }
         }
 
-        public void RegistrarLlamadaIA(IReadOnlyList<ComandoContexto> comandos, IReadOnlyList<DatoIntermedioContexto> datosIntermedios)
+        public void RegistrarLlamadaIA(
+            IReadOnlyList<ComandoContexto> comandos,
+            IReadOnlyList<DatoIntermedioContexto> datosIntermedios,
+            IReadOnlyList<EntradaContextoIA> entradasContextoIA)
         {
             lock (sync)
             {
                 CatalogosIA.Add(comandos.ToList());
                 DatosIntermediosIA.Add(datosIntermedios.ToList());
+                EntradasContextoIA.Add(entradasContextoIA.ToList());
             }
         }
 
@@ -426,7 +562,7 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             this.registro = registro;
         }
 
-        public Task<ResultadoFiltroContexto> EjecutarAsync(EstadoContextoConversacion estado, CancellationToken cancellationToken)
+        public Task<ResultadoFiltroContexto> EjecutarAsync(EstadoIteracionContextoConversacion estado, CancellationToken cancellationToken)
         {
             registro.RegistrarFiltro("primer_filtro", estado.Iteracion);
             return Task.FromResult(ResultadoFiltroContexto.ContinuarFlujo());
@@ -442,7 +578,7 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             this.registro = registro;
         }
 
-        public Task<ResultadoFiltroContexto> EjecutarAsync(EstadoContextoConversacion estado, CancellationToken cancellationToken)
+        public Task<ResultadoFiltroContexto> EjecutarAsync(EstadoIteracionContextoConversacion estado, CancellationToken cancellationToken)
         {
             registro.RegistrarFiltro("segundo_filtro", estado.Iteracion);
             return Task.FromResult(ResultadoFiltroContexto.ContinuarFlujo());
@@ -540,27 +676,57 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         }
     }
 
+    private sealed record ConfiguracionOpenRouteMensajeriaPrueba(string ApiKey, string DirectorioArchivos);
+
     private sealed class IntencionOpenRouteMensajeriaPrueba : IIntencionContextoConversacionServicio
     {
         private readonly string apiKey;
+        private readonly string directorioArchivos;
         private readonly RegistroIntegracionMensajeriaOpenRoutePrueba registro;
+        private readonly ILogger<IntencionOpenRouteMensajeriaPrueba> logger;
 
-        public IntencionOpenRouteMensajeriaPrueba(string apiKey, RegistroIntegracionMensajeriaOpenRoutePrueba registro)
+        public IntencionOpenRouteMensajeriaPrueba(
+            ConfiguracionOpenRouteMensajeriaPrueba configuracion,
+            RegistroIntegracionMensajeriaOpenRoutePrueba registro,
+            ILogger<IntencionOpenRouteMensajeriaPrueba> logger)
         {
-            this.apiKey = apiKey;
+            apiKey = configuracion.ApiKey;
+            directorioArchivos = configuracion.DirectorioArchivos;
             this.registro = registro;
+            this.logger = logger;
         }
 
         public async Task<ResultadoIntencionContexto> DecidirAsync(
             SolicitudIntencionContexto solicitud,
             CancellationToken cancellationToken)
         {
-            registro.RegistrarLlamadaIA(solicitud.Comandos, solicitud.DatosIntermedios);
-            string respuesta = await SolicitarDecisionAsync(solicitud, cancellationToken);
-            return MapearRespuesta(respuesta);
+            registro.RegistrarLlamadaIA(
+                solicitud.Comandos,
+                solicitud.DatosIntermedios,
+                solicitud.EntradasContextoIA);
+            ResultadoOpenRouteDecisionPrueba respuesta = await SolicitarDecisionAsync(solicitud, cancellationToken);
+            return MapearRespuesta(respuesta.Contenido, respuesta.Metadata);
         }
 
-        private async Task<string> SolicitarDecisionAsync(SolicitudIntencionContexto solicitud, CancellationToken cancellationToken)
+        public Task<ResultadoCompactacionIntencionContexto> CompactarAsync(
+            SolicitudCompactacionIntencionContexto solicitud,
+            CancellationToken cancellationToken)
+        {
+            MetadataRazonamientoIAContexto metadata = new()
+            {
+                Proveedor = "openrouter",
+                Modelo = ModeloOpenRoute,
+                Adaptador = nameof(IntencionOpenRouteMensajeriaPrueba),
+                AccionDecidida = "Compactar",
+                Iteracion = solicitud.Iteracion
+            };
+
+            return Task.FromResult(ResultadoCompactacionIntencionContexto.Fallo(
+                "La compactacion no forma parte de este escenario de integracion.",
+                metadata));
+        }
+
+        private async Task<ResultadoOpenRouteDecisionPrueba> SolicitarDecisionAsync(SolicitudIntencionContexto solicitud, CancellationToken cancellationToken)
         {
             using HttpClient cliente = new()
             {
@@ -572,11 +738,18 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             {
                 ["model"] = ModeloOpenRoute,
                 ["temperature"] = 0,
-                ["max_tokens"] = 300,
+                ["max_tokens"] = 10000,
                 ["response_format"] = new Dictionary<string, string>
                 {
                     ["type"] = "json_object"
                 },
+                ["provider"] = new Dictionary<string, object?>
+                {
+                    ["only"] = new[] { "minimax" },
+                    ["allow_fallbacks"] = false,
+                    ["require_parameters"] = true
+                },
+                ["session_id"] = $"{Path.GetFileName(directorioArchivos)}-{solicitud.Solicitud.IDProcesamientoInternoMensaje}",
                 ["messages"] = new List<Dictionary<string, string>>
                 {
                     new()
@@ -593,15 +766,22 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             };
 
             string json = JsonSerializer.Serialize(cuerpo);
+            await GuardarArchivoAsync(solicitud.Iteracion, "request.json", FormatearJson(json), cancellationToken);
+            logger.LogInformation("Solicitud enviada a OpenRouter: {SolicitudOpenRouter}", json);
             using StringContent contenido = new(json, Encoding.UTF8, "application/json");
             using HttpResponseMessage respuesta = await cliente.PostAsync(
                 "https://openrouter.ai/api/v1/chat/completions",
                 contenido,
                 cancellationToken);
             string cuerpoRespuesta = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+            await GuardarArchivoAsync(solicitud.Iteracion, "response.json", FormatearJson(cuerpoRespuesta), cancellationToken);
 
             if (!respuesta.IsSuccessStatusCode)
             {
+                logger.LogError(
+                    "OpenRouter devolvio error HTTP. StatusCode={StatusCode}, Cuerpo={CuerpoRespuesta}",
+                    (int)respuesta.StatusCode,
+                    cuerpoRespuesta);
                 throw new InvalidOperationException($"OpenRouter devolvio {(int)respuesta.StatusCode}: {cuerpoRespuesta}");
             }
 
@@ -614,10 +794,45 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
 
             if (string.IsNullOrWhiteSpace(contenidoModelo))
             {
+                logger.LogError("OpenRouter no devolvio contenido de decision. ArchivoRespuesta={ArchivoRespuesta}, Cuerpo={CuerpoRespuesta}", CrearRutaArchivo(solicitud.Iteracion, "response.json"), cuerpoRespuesta);
                 throw new InvalidOperationException("OpenRouter no devolvio contenido de decision.");
             }
 
-            return LimpiarJson(contenidoModelo);
+            await GuardarArchivoAsync(solicitud.Iteracion, "content.txt", contenidoModelo, cancellationToken);
+            logger.LogInformation("Contenido devuelto por OpenRouter: {ContenidoModelo}", contenidoModelo);
+            string contenidoDecision = LimpiarJson(contenidoModelo);
+            return new ResultadoOpenRouteDecisionPrueba(
+                contenidoDecision,
+                CrearMetadata(solicitud, documento.RootElement, json, cuerpoRespuesta, contenidoDecision));
+        }
+
+        private Task GuardarArchivoAsync(int iteracion, string nombreArchivo, string contenido, CancellationToken cancellationToken)
+        {
+            return File.WriteAllTextAsync(CrearRutaArchivo(iteracion, nombreArchivo), contenido, Encoding.UTF8, cancellationToken);
+        }
+
+        private string CrearRutaArchivo(int iteracion, string nombreArchivo)
+        {
+            // Formato para buscar despues: /tmp/per_mensajeria_openrouter_yyyyMMdd_{Guid}
+            return Path.Combine(directorioArchivos, $"iteracion_{iteracion}_{nombreArchivo}");
+        }
+
+        private static string FormatearJson(string contenido)
+        {
+            if (string.IsNullOrWhiteSpace(contenido))
+            {
+                return contenido;
+            }
+
+            try
+            {
+                using JsonDocument documento = JsonDocument.Parse(contenido);
+                return JsonSerializer.Serialize(documento.RootElement, new JsonSerializerOptions { WriteIndented = true });
+            }
+            catch (JsonException)
+            {
+                return contenido;
+            }
         }
 
         private static string CrearPromptSistema()
@@ -637,6 +852,8 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             {
                 iteracion = solicitud.Iteracion,
                 mensaje = solicitud.Solicitud.Contenido,
+                fechaMensaje = solicitud.Solicitud.FechaMensaje,
+                estadoContextoInicial = solicitud.EstadoContextoInicial,
                 comandos = solicitud.Comandos.Select(comando => new
                 {
                     codigo = comando.Codigo,
@@ -647,52 +864,156 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
                 {
                     tipo = dato.Tipo,
                     contenido = dato.Contenido
-                })
+                }),
+                entradasContextoIA = solicitud.EntradasContextoIA
+                    .OrderBy(entrada => entrada.Orden)
+                    .Select(entrada => new
+                    {
+                        orden = entrada.Orden,
+                        rol = entrada.IDRolContextoIA,
+                        tipo = entrada.IDTipoEntradaContextoIA,
+                        contenido = entrada.Contenido,
+                        toolCallID = entrada.ToolCallID,
+                        fechaEntrada = entrada.FechaEntrada,
+                        metadata = entrada.Metadata is null
+                            ? null
+                            : new
+                            {
+                                proveedor = entrada.Metadata.Proveedor,
+                                modelo = entrada.Metadata.Modelo,
+                                adaptador = entrada.Metadata.Adaptador,
+                                iteracion = entrada.Metadata.Iteracion,
+                                accion = entrada.Metadata.AccionDecidida,
+                                finishReason = entrada.Metadata.FinishReason,
+                                nativeFinishReason = entrada.Metadata.NativeFinishReason,
+                                promptTokens = entrada.Metadata.PromptTokens,
+                                completionTokens = entrada.Metadata.CompletionTokens,
+                                reasoningTokens = entrada.Metadata.ReasoningTokens,
+                                totalTokens = entrada.Metadata.TotalTokens,
+                                content = entrada.Metadata.Content,
+                                reasoning = entrada.Metadata.Reasoning,
+                                reasoningDetails = entrada.Metadata.ReasoningDetailsJson
+                            }
+                    })
             };
 
             return JsonSerializer.Serialize(datos);
         }
 
-        private static ResultadoIntencionContexto MapearRespuesta(string respuesta)
+        private static ResultadoIntencionContexto MapearRespuesta(
+            string respuesta,
+            MetadataRazonamientoIAContexto metadata)
         {
             using JsonDocument documento = JsonDocument.Parse(respuesta);
             JsonElement raiz = documento.RootElement;
             string accion = LeerString(raiz, "accion").ToLowerInvariant();
+            metadata.AccionDecidida = accion;
 
             if (accion == "comando")
             {
                 string codigoComando = LeerString(raiz, "codigoComando");
                 Dictionary<string, string> parametros = LeerParametros(raiz);
-                return ResultadoIntencionContexto.PedirComando(codigoComando, parametros);
+                return ResultadoIntencionContexto.PedirComando(metadata, respuesta, codigoComando, parametros);
             }
 
             if (accion == "historial" || accion == "pedir_historial")
             {
-                return ResultadoIntencionContexto.PedirHistorial();
+                return ResultadoIntencionContexto.PedirHistorial(metadata, respuesta);
             }
 
             if (accion == "responder")
             {
                 string contenido = LeerString(raiz, "contenido");
-                return ResultadoIntencionContexto.Responder(new DTOMensajeSaliente
-                {
-                    TipoMensaje = "texto",
-                    Contenido = contenido,
-                    FechaMensaje = DateTime.Now
-                });
+                return ResultadoIntencionContexto.Responder(
+                    metadata,
+                    respuesta,
+                    new DTOMensajeSaliente
+                    {
+                        TipoMensaje = "texto",
+                        Contenido = contenido,
+                        FechaMensaje = DateTime.Now
+                    });
             }
 
             if (accion is "no_responder" or "no responder")
             {
-                return ResultadoIntencionContexto.NoResponder();
+                return ResultadoIntencionContexto.NoResponder(metadata, respuesta);
             }
 
             if (accion == "error")
             {
-                return ResultadoIntencionContexto.ConError(LeerString(raiz, "error"));
+                return ResultadoIntencionContexto.ConError(metadata, respuesta, LeerString(raiz, "error"));
             }
 
             throw new InvalidOperationException($"OpenRouter devolvio una accion no soportada: {accion}. Respuesta: {respuesta}");
+        }
+
+        private static MetadataRazonamientoIAContexto CrearMetadata(
+            SolicitudIntencionContexto solicitud,
+            JsonElement respuestaOpenRouter,
+            string requestJson,
+            string responseJson,
+            string contenidoDecision)
+        {
+            JsonElement choice = respuestaOpenRouter.GetProperty("choices")[0];
+            JsonElement message = choice.GetProperty("message");
+
+            MetadataRazonamientoIAContexto metadata = new()
+            {
+                Proveedor = "OpenRouter",
+                Modelo = ModeloOpenRoute,
+                Adaptador = "PruebaOpenRouterMiniMaxM3",
+                Iteracion = solicitud.Iteracion,
+                FinishReason = LeerStringOpcional(choice, "finish_reason"),
+                NativeFinishReason = LeerStringOpcional(choice, "native_finish_reason"),
+                RequestJson = requestJson,
+                ResponseJson = responseJson,
+                Content = contenidoDecision,
+                Reasoning = LeerStringOpcional(message, "reasoning"),
+                ReasoningDetailsJson = LeerJsonOpcional(message, "reasoning_details")
+            };
+
+            if (respuestaOpenRouter.TryGetProperty("usage", out JsonElement usage))
+            {
+                metadata.PromptTokens = LeerEnteroOpcional(usage, "prompt_tokens");
+                metadata.CompletionTokens = LeerEnteroOpcional(usage, "completion_tokens");
+                metadata.TotalTokens = LeerEnteroOpcional(usage, "total_tokens");
+                metadata.ReasoningTokens =
+                    LeerEnteroOpcional(usage, "reasoning_tokens")
+                    ?? LeerEnteroOpcional(usage, "reasoning");
+            }
+
+            return metadata;
+        }
+
+        private static string? LeerStringOpcional(JsonElement raiz, string propiedad)
+        {
+            if (raiz.TryGetProperty(propiedad, out JsonElement valor) && valor.ValueKind == JsonValueKind.String)
+            {
+                return valor.GetString();
+            }
+
+            return null;
+        }
+
+        private static int? LeerEnteroOpcional(JsonElement raiz, string propiedad)
+        {
+            if (raiz.TryGetProperty(propiedad, out JsonElement valor) && valor.ValueKind == JsonValueKind.Number)
+            {
+                return valor.GetInt32();
+            }
+
+            return null;
+        }
+
+        private static string? LeerJsonOpcional(JsonElement raiz, string propiedad)
+        {
+            if (raiz.TryGetProperty(propiedad, out JsonElement valor) && valor.ValueKind != JsonValueKind.Null)
+            {
+                return valor.GetRawText();
+            }
+
+            return null;
         }
 
         private static string LeerString(JsonElement raiz, string propiedad)
@@ -723,9 +1044,19 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             return parametros;
         }
 
+        private sealed record ResultadoOpenRouteDecisionPrueba(
+            string Contenido,
+            MetadataRazonamientoIAContexto Metadata);
+
         private static string LimpiarJson(string contenido)
         {
             string limpio = contenido.Trim();
+            if (limpio.StartsWith("{", StringComparison.Ordinal)
+                && limpio.EndsWith("`", StringComparison.Ordinal))
+            {
+                limpio = limpio.TrimEnd('`').TrimEnd();
+            }
+
             if (!limpio.StartsWith("```", StringComparison.Ordinal))
             {
                 return limpio;

@@ -9,6 +9,7 @@ using PER.Mensajeria.Aplicacion.EnviarMensaje;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
+using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Servicio.Cola;
@@ -93,6 +94,9 @@ public class MensajeriaBuilder : IMensajeriaBuilder
         AgregarSiNoExisteScoped<IRegistrarMensajeSalidaAplicacion, RegistrarMensajeSalidaAplicacion>();
         AgregarSiNoExisteScoped<IEnviarMensajeAplicacion, EnviarMensajeAplicacion>();
         AgregarSiNoExisteScoped<IOrquestarMensajeEntradaAplicacion, OrquestarMensajeEntradaAplicacion>();
+        AgregarSiNoExisteScoped<IRegistrarContextoIAAplicacion, RegistrarContextoIAAplicacion>();
+        AgregarSiNoExisteScoped<IEstadoContextoConversacionAplicacion, EstadoContextoConversacionAplicacion>();
+        AgregarSiNoExisteScoped<IRenovarLineaContextoAplicacion, RenovarLineaContextoAplicacion>();
         AgregarSiNoExisteScoped<IMensajeServicio, MensajeServicio>();
         AgregarSiNoExisteScoped<IEnvioMensajeServicio, EnvioMensajeServicio>();
         AgregarSiNoExisteScoped<IOrquestadorContextoServicio, OrquestadorContextoServicio>();

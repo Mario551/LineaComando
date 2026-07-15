@@ -44,6 +44,16 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
         }, null);
     }
 
+    public static FakeContextoConversacionServicio LimiteVentana(
+        ResultadoCompactacionIntencionContexto compactacion)
+    {
+        return new FakeContextoConversacionServicio(new ResultadoContextoConversacion
+        {
+            TipoResultado = ResultadoContextoConversacionTipo.LimiteVentanaAlcanzado,
+            Compactacion = compactacion
+        }, null);
+    }
+
     public static FakeContextoConversacionServicio ConExcepcion(Exception excepcion)
     {
         return new FakeContextoConversacionServicio(null, excepcion);

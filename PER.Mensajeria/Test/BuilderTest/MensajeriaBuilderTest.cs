@@ -8,6 +8,8 @@ using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Mensajeria.Builder;
+using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Datos.Contexto;
 
 namespace BuilderTest;
@@ -22,6 +24,8 @@ public class MensajeriaBuilderTest
         servicios.AgregarMensajeria(builder => builder.AgregarWorkerOrquestador());
 
         Assert.Contains(servicios, descriptor => descriptor.ServiceType == typeof(IHostedService));
+        Assert.Contains(servicios, descriptor => descriptor.ServiceType == typeof(IEstadoContextoConversacionAplicacion));
+        Assert.Contains(servicios, descriptor => descriptor.ServiceType == typeof(IRenovarLineaContextoAplicacion));
     }
 
     [Fact]

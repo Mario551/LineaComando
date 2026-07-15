@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Servicio.Cola;
 using PER.Mensajeria.Servicio.Orquestador;
@@ -12,13 +13,16 @@ public class OrquestadorContextoWorker : BackgroundService
 
     private readonly IColaEventosMensajeriaServicio colaEventosMensajeriaServicio;
     private readonly IServiceScopeFactory serviceScopeFactory;
+    private readonly ILogger<OrquestadorContextoWorker> logger;
 
     public OrquestadorContextoWorker(
         IColaEventosMensajeriaServicio colaEventosMensajeriaServicio,
-        IServiceScopeFactory serviceScopeFactory)
+        IServiceScopeFactory serviceScopeFactory,
+        ILogger<OrquestadorContextoWorker> logger)
     {
         this.colaEventosMensajeriaServicio = colaEventosMensajeriaServicio;
         this.serviceScopeFactory = serviceScopeFactory;
+        this.logger = logger;
     }
 
     public async Task EjecutarAsync(CancellationToken cancellationToken)
@@ -33,6 +37,8 @@ public class OrquestadorContextoWorker : BackgroundService
 
     public async Task CargarPendientesAsync(CancellationToken cancellationToken)
     {
+        logger.LogInformation("Inicia carga inicial de eventos pendientes de mensajeria.");
+
         using IServiceScope alcance = serviceScopeFactory.CreateScope();
         ICargarEventosMensajeriaPendientesAplicacion cargarEventosMensajeriaPendientesAplicacion = alcance.ServiceProvider
             .GetRequiredService<ICargarEventosMensajeriaPendientesAplicacion>();
@@ -43,17 +49,42 @@ public class OrquestadorContextoWorker : BackgroundService
         {
             colaEventosMensajeriaServicio.Publicar(ConvertirEvento(eventoPendiente));
         }
+
+        logger.LogInformation("Finaliza carga inicial de eventos pendientes de mensajeria. Eventos={CantidadEventos}", eventosPendientes.Count);
     }
 
     public async Task ProcesarUnEventoAsync(CancellationToken cancellationToken)
     {
         EventoMensajeria eventoMensajeria = await colaEventosMensajeriaServicio.ConsumirAsync(cancellationToken);
+        logger.LogInformation(
+            "Evento de mensajeria consumido. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+            eventoMensajeria.IDProcesamientoInternoMensaje,
+            eventoMensajeria.IDMensaje,
+            eventoMensajeria.IDConversacion,
+            eventoMensajeria.IDLineaConversacion);
 
-        using IServiceScope alcance = serviceScopeFactory.CreateScope();
-        IOrquestadorContextoServicio orquestadorContextoServicio = alcance.ServiceProvider
-            .GetRequiredService<IOrquestadorContextoServicio>();
+        try
+        {
+            using IServiceScope alcance = serviceScopeFactory.CreateScope();
+            IOrquestadorContextoServicio orquestadorContextoServicio = alcance.ServiceProvider
+                .GetRequiredService<IOrquestadorContextoServicio>();
 
-        await orquestadorContextoServicio.ProcesarAsync(eventoMensajeria, cancellationToken);
+            await orquestadorContextoServicio.ProcesarAsync(eventoMensajeria, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception excepcion)
+        {
+            logger.LogError(
+                excepcion,
+                "Error procesando evento de mensajeria. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+                eventoMensajeria.IDProcesamientoInternoMensaje,
+                eventoMensajeria.IDMensaje,
+                eventoMensajeria.IDConversacion,
+                eventoMensajeria.IDLineaConversacion);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -80,8 +111,9 @@ public class OrquestadorContextoWorker : BackgroundService
             {
                 throw;
             }
-            catch
+            catch (Exception excepcion)
             {
+                logger.LogError(excepcion, "Error en carga inicial de eventos pendientes de mensajeria. Se reintentara en {SegundosReintento} segundos.", EsperaReintentoCarga.TotalSeconds);
                 await Task.Delay(EsperaReintentoCarga, cancellationToken);
             }
         }

@@ -24,19 +24,23 @@ public class EnviarMensajeAplicacion : IEnviarMensajeAplicacion
 
         if (envio.IDEstadoEnvioMensaje != "pendiente")
         {
-            return new DTOResultadoEnvioMensaje
+            DTOResultadoEnvioMensaje resultadoExistente = new()
             {
                 IDEnvioMensaje = envio.ID,
                 Estado = envio.IDEstadoEnvioMensaje,
                 Error = envio.Error
             };
+
+            unitOfWork.EnvioMensajeRepositorio.LiberarRastreo(envio);
+
+            return resultadoExistente;
         }
 
-        DAOMensaje mensaje = await unitOfWork.MensajeRepositorio.Get()
+        DAOMensaje mensaje = await unitOfWork.MensajeRepositorio.GetNoTracking()
             .SingleAsync(mensajeActual => mensajeActual.ID == envio.IDMensaje, cancellationToken);
-        DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.Get()
+        DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
             .SingleAsync(lineaActual => lineaActual.ID == mensaje.IDLineaConversacion, cancellationToken);
-        List<DTOArchivoMensaje> archivos = await unitOfWork.ArchivoMensajeRepositorio.Get()
+        List<DTOArchivoMensaje> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
             .Where(archivoActual => archivoActual.IDMensaje == mensaje.ID)
             .Select(archivoActual => new DTOArchivoMensaje
             {
@@ -82,11 +86,15 @@ public class EnviarMensajeAplicacion : IEnviarMensajeAplicacion
         unitOfWork.EnvioMensajeRepositorio.Actualizar(envio);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new DTOResultadoEnvioMensaje
+        DTOResultadoEnvioMensaje resultadoEnvio = new()
         {
             IDEnvioMensaje = envio.ID,
             Estado = envio.IDEstadoEnvioMensaje,
             Error = envio.Error
         };
+
+        unitOfWork.EnvioMensajeRepositorio.LiberarRastreo(envio);
+
+        return resultadoEnvio;
     }
 }

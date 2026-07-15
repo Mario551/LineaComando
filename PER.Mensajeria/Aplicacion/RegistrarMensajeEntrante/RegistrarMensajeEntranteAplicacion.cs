@@ -41,6 +41,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             DAOParticipanteConversacion participante = await ObtenerOCrearParticipanteAsync(mensajeSolicitud, cancellationToken);
             DAOConversacion conversacion = await ObtenerOCrearConversacionAsync(cuentaCanal.ID, participante.ID, fecha, cancellationToken);
             DAOLineaConversacion linea = await ObtenerOCrearLineaAsync(conversacion.ID, fecha, cancellationToken);
+            List<DAOArchivoMensaje> archivos = [];
 
             DAOMensaje mensaje = new()
             {
@@ -61,7 +62,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
 
             foreach (DTOArchivoMensaje archivoSolicitud in mensajeSolicitud.Archivos)
             {
-                await unitOfWork.ArchivoMensajeRepositorio.AgregarAsync(new DAOArchivoMensaje
+                DAOArchivoMensaje archivo = new()
                 {
                     IDMensaje = mensaje.ID,
                     IDTipoContenidoArchivo = archivoSolicitud.TipoContenido,
@@ -71,7 +72,10 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
                     ProveedorAlmacenamiento = archivoSolicitud.ProveedorAlmacenamiento,
                     IdentificadorExternoArchivo = archivoSolicitud.IdentificadorExternoArchivo,
                     FechaCreacion = fecha
-                }, cancellationToken);
+                };
+
+                archivos.Add(archivo);
+                await unitOfWork.ArchivoMensajeRepositorio.AgregarAsync(archivo, cancellationToken);
             }
 
             DAOProcesamientoInternoMensaje procesamiento = new()
@@ -93,12 +97,27 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transaccionIniciada = false;
 
+            long idMensaje = mensaje.ID;
+            long idConversacion = conversacion.ID;
+            long idLineaConversacion = linea.ID;
+            long idProcesamientoInternoMensaje = procesamiento.ID;
+
+            foreach (DAOArchivoMensaje archivo in archivos)
+            {
+                unitOfWork.ArchivoMensajeRepositorio.LiberarRastreo(archivo);
+            }
+
+            unitOfWork.MensajeRepositorio.LiberarRastreo(mensaje);
+            unitOfWork.ProcesamientoInternoMensajeRepositorio.LiberarRastreo(procesamiento);
+            unitOfWork.LineaConversacionRepositorio.LiberarRastreo(linea);
+            unitOfWork.ConversacionRepositorio.LiberarRastreo(conversacion);
+
             return new DTORegistrarMensajeEntranteRespuesta
             {
-                IDMensaje = mensaje.ID,
-                IDConversacion = conversacion.ID,
-                IDLineaConversacion = linea.ID,
-                IDProcesamientoInternoMensaje = procesamiento.ID,
+                IDMensaje = idMensaje,
+                IDConversacion = idConversacion,
+                IDLineaConversacion = idLineaConversacion,
+                IDProcesamientoInternoMensaje = idProcesamientoInternoMensaje,
                 Registrado = true
             };
         }
@@ -116,8 +135,8 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
         CancellationToken cancellationToken)
     {
         DAOCuentaCanal? cuentaCanal = await (
-            from cuenta in unitOfWork.CuentaCanalRepositorio.Get()
-            join canal in unitOfWork.CanalComunicacionRepositorio.Get() on cuenta.IDCanalComunicacion equals canal.ID
+            from cuenta in unitOfWork.CuentaCanalRepositorio.GetNoTracking()
+            join canal in unitOfWork.CanalComunicacionRepositorio.GetNoTracking() on cuenta.IDCanalComunicacion equals canal.ID
             where canal.Canal == mensajeSolicitud.Canal
                 && cuenta.Cuenta == mensajeSolicitud.Cuenta
                 && cuenta.Activa
@@ -143,9 +162,9 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
         }
 
         var mensajeExistente = await (
-            from mensaje in unitOfWork.MensajeRepositorio.Get()
-            join linea in unitOfWork.LineaConversacionRepositorio.Get() on mensaje.IDLineaConversacion equals linea.ID
-            join conversacion in unitOfWork.ConversacionRepositorio.Get() on linea.IDConversacion equals conversacion.ID
+            from mensaje in unitOfWork.MensajeRepositorio.GetNoTracking()
+            join linea in unitOfWork.LineaConversacionRepositorio.GetNoTracking() on mensaje.IDLineaConversacion equals linea.ID
+            join conversacion in unitOfWork.ConversacionRepositorio.GetNoTracking() on linea.IDConversacion equals conversacion.ID
             where conversacion.IDCuentaCanal == idCuentaCanal
                 && mensaje.IDDireccionMensaje == "entrada"
                 && mensaje.IdentificadorExternoMensaje == identificadorExternoMensaje
@@ -162,7 +181,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             return null;
         }
 
-        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.GetNoTracking()
             .SingleAsync(
                 procesamientoActual => procesamientoActual.IDMensaje == mensajeExistente.Mensaje.ID
                     && procesamientoActual.IDTipoProcesamientoInternoMensaje == "orquestar_entrada",
@@ -182,7 +201,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
         DTOMensajeEntrante mensajeSolicitud,
         CancellationToken cancellationToken)
     {
-        DAOParticipanteConversacion? participante = await unitOfWork.ParticipanteConversacionRepositorio.Get()
+        DAOParticipanteConversacion? participante = await unitOfWork.ParticipanteConversacionRepositorio.GetNoTracking()
             .SingleOrDefaultAsync(
                 participanteActual => participanteActual.IDTipoParticipanteConversacion == mensajeSolicitud.TipoParticipante
                     && participanteActual.IdentificadorParticipante == mensajeSolicitud.IdentificadorParticipante,
@@ -201,6 +220,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
 
         await unitOfWork.ParticipanteConversacionRepositorio.AgregarAsync(participante, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        unitOfWork.ParticipanteConversacionRepositorio.LiberarRastreo(participante);
 
         return participante;
     }
@@ -235,15 +255,18 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
         await unitOfWork.ConversacionRepositorio.AgregarAsync(conversacion, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await unitOfWork.ConversacionParticipanteRepositorio.AgregarAsync(new DAOConversacionParticipante
+        DAOConversacionParticipante nuevaConversacionParticipante = new()
         {
             IDConversacion = conversacion.ID,
             IDParticipanteConversacion = idParticipanteConversacion,
             FechaUnion = fecha,
             Activo = true
-        }, cancellationToken);
+        };
+
+        await unitOfWork.ConversacionParticipanteRepositorio.AgregarAsync(nuevaConversacionParticipante, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        unitOfWork.ConversacionParticipanteRepositorio.LiberarRastreo(nuevaConversacionParticipante);
 
         return conversacion;
     }
@@ -266,6 +289,7 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             linea.Activa = false;
             unitOfWork.LineaConversacionRepositorio.Actualizar(linea);
             await unitOfWork.SaveChangesAsync(cancellationToken);
+            unitOfWork.LineaConversacionRepositorio.LiberarRastreo(linea);
         }
 
         linea = new DAOLineaConversacion

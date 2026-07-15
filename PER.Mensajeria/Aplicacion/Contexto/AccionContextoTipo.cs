@@ -6,5 +6,6 @@ public enum AccionContextoTipo
     NoResponder = 2,
     Comando = 3,
     Historial = 4,
-    Error = 5
+    Error = 5,
+    LimiteVentanaAlcanzado = 6
 }

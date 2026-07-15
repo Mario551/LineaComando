@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Entidad.DTO;
@@ -17,9 +18,11 @@ public class OrquestadorContextoWorkerTest
         FakeCargarEventosMensajeriaPendientesAplicacion cargarEventos = new(pasos);
         FakeOrquestadorContextoServicio orquestador = new(pasos);
         ServiceProvider serviceProvider = CrearServiceProvider(cargarEventos, orquestador);
+        RegistroLoggerPrueba registroLogger = new();
         OrquestadorContextoWorker worker = new(
             cola,
-            serviceProvider.GetRequiredService<IServiceScopeFactory>());
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            new LoggerPrueba<OrquestadorContextoWorker>(registroLogger));
         using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(3));
 
         Task tareaWorker = worker.EjecutarAsync(cancellationTokenSource.Token);
@@ -30,6 +33,7 @@ public class OrquestadorContextoWorkerTest
 
         Assert.Equal(cargarEventos.Evento.IDProcesamientoInternoMensaje, eventoProcesado.IDProcesamientoInternoMensaje);
         Assert.Equal(new[] { "carga", "procesa" }, pasos);
+        registroLogger.AssertSinErrores();
     }
 
     private static ServiceProvider CrearServiceProvider(
@@ -49,6 +53,63 @@ public class OrquestadorContextoWorkerTest
             await tarea;
         }
         catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private sealed class RegistroLoggerPrueba
+    {
+        private readonly List<string> errores = [];
+
+        public void Registrar(LogLevel nivel, string mensaje)
+        {
+            if (nivel >= LogLevel.Error)
+            {
+                errores.Add(mensaje);
+            }
+        }
+
+        public void AssertSinErrores()
+        {
+            Assert.Empty(errores);
+        }
+    }
+
+    private sealed class LoggerPrueba<T> : ILogger<T>
+    {
+        private readonly RegistroLoggerPrueba registroLogger;
+
+        public LoggerPrueba(RegistroLoggerPrueba registroLogger)
+        {
+            this.registroLogger = registroLogger;
+        }
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull
+        {
+            return AlcanceLoggerPrueba.Instancia;
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            registroLogger.Registrar(logLevel, formatter(state, exception));
+        }
+    }
+
+    private sealed class AlcanceLoggerPrueba : IDisposable
+    {
+        public static readonly AlcanceLoggerPrueba Instancia = new();
+
+        public void Dispose()
         {
         }
     }

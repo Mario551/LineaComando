@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Aplicacion\Aplicacion.csproj" />
+    <ProjectReference Include="..\..\..\LineaComando\Comandos\Comandos.csproj" />
+    <ProjectReference Include="..\..\..\LineaComando\LineaComando.Cola\LineaComando.Cola.csproj" />
   </ItemGroup>
 
 </Project>

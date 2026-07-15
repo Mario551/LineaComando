@@ -9,6 +9,7 @@ using PER.Mensajeria.Datos.Repositorio.LineaConversacion;
 using PER.Mensajeria.Datos.Repositorio.Mensaje;
 using PER.Mensajeria.Datos.Repositorio.ParticipanteConversacion;
 using PER.Mensajeria.Datos.Repositorio.ProcesamientoInternoMensaje;
+using PER.Mensajeria.Datos.Repositorio;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace PER.Mensajeria.Datos.UnitOfWork;
@@ -27,6 +28,9 @@ public class UnitOfWork : IUnitOfWork
     private IConversacionParticipanteRepositorio? conversacionParticipanteRepositorio;
     private ILineaConversacionRepositorio? lineaConversacionRepositorio;
     private IArchivoMensajeRepositorio? archivoMensajeRepositorio;
+    private IEntradaContextoIARepositorio? entradaContextoIARepositorio;
+    private IMetadataRazonamientoIALineaConversacionRepositorio? metadataRazonamientoIALineaConversacionRepositorio;
+    private IEstadoContextoConversacionRepositorio? estadoContextoConversacionRepositorio;
 
     public UnitOfWork(MensajeriaContextoDB contexto)
     {
@@ -110,6 +114,30 @@ public class UnitOfWork : IUnitOfWork
         get
         {
             return archivoMensajeRepositorio ??= new ArchivoMensajeRepositorio(contexto);
+        }
+    }
+
+    public IEntradaContextoIARepositorio EntradaContextoIARepositorio
+    {
+        get
+        {
+            return entradaContextoIARepositorio ??= new EntradaContextoIARepositorio(contexto);
+        }
+    }
+
+    public IMetadataRazonamientoIALineaConversacionRepositorio MetadataRazonamientoIALineaConversacionRepositorio
+    {
+        get
+        {
+            return metadataRazonamientoIALineaConversacionRepositorio ??= new MetadataRazonamientoIALineaConversacionRepositorio(contexto);
+        }
+    }
+
+    public IEstadoContextoConversacionRepositorio EstadoContextoConversacionRepositorio
+    {
+        get
+        {
+            return estadoContextoConversacionRepositorio ??= new EstadoContextoConversacionRepositorio(contexto);
         }
     }
 

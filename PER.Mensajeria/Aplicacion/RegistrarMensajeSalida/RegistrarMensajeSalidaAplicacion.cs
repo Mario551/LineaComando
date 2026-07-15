@@ -33,6 +33,7 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
             transaccionIniciada = true;
 
             DateTime fecha = DateTime.Now;
+            List<DAOArchivoMensaje> archivos = [];
             DAOMensaje mensaje = new()
             {
                 IDLineaConversacion = mensajeSolicitud.IDLineaConversacion,
@@ -51,7 +52,7 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
 
             foreach (DTOArchivoMensaje archivoSolicitud in mensajeSolicitud.Archivos)
             {
-                await unitOfWork.ArchivoMensajeRepositorio.AgregarAsync(new DAOArchivoMensaje
+                DAOArchivoMensaje archivo = new()
                 {
                     IDMensaje = mensaje.ID,
                     IDTipoContenidoArchivo = archivoSolicitud.TipoContenido,
@@ -61,7 +62,10 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
                     ProveedorAlmacenamiento = archivoSolicitud.ProveedorAlmacenamiento,
                     IdentificadorExternoArchivo = archivoSolicitud.IdentificadorExternoArchivo,
                     FechaCreacion = fecha
-                }, cancellationToken);
+                };
+
+                archivos.Add(archivo);
+                await unitOfWork.ArchivoMensajeRepositorio.AgregarAsync(archivo, cancellationToken);
             }
 
             DAOEnvioMensaje envio = new()
@@ -80,10 +84,22 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
             await unitOfWork.CommitTransactionAsync(cancellationToken);
             transaccionIniciada = false;
 
+            long idMensaje = mensaje.ID;
+            long idEnvioMensaje = envio.ID;
+
+            foreach (DAOArchivoMensaje archivo in archivos)
+            {
+                unitOfWork.ArchivoMensajeRepositorio.LiberarRastreo(archivo);
+            }
+
+            unitOfWork.MensajeRepositorio.LiberarRastreo(mensaje);
+            unitOfWork.EnvioMensajeRepositorio.LiberarRastreo(envio);
+            unitOfWork.LineaConversacionRepositorio.LiberarRastreo(linea);
+
             return new DTORegistrarMensajeSalidaRespuesta
             {
-                IDMensaje = mensaje.ID,
-                IDEnvioMensaje = envio.ID,
+                IDMensaje = idMensaje,
+                IDEnvioMensaje = idEnvioMensaje,
                 Registrado = true
             };
         }

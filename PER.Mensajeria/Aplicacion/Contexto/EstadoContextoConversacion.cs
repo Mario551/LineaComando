@@ -1,11 +1,12 @@
 namespace PER.Mensajeria.Aplicacion.Contexto;
 
-using PER.Mensajeria.Entidad.DTO;
-
 public class EstadoContextoConversacion
 {
-    public SolicitudContextoConversacion Solicitud { get; set; } = new();
-    public IReadOnlyList<ComandoContexto> Comandos { get; set; } = [];
-    public IReadOnlyList<DatoIntermedioContexto> DatosIntermedios { get; set; } = [];
-    public int Iteracion { get; set; }
+    public long ID { get; set; }
+    public long IDConversacion { get; set; }
+    public long IDLineaConversacionOrigen { get; set; }
+    public long? IDEstadoContextoAnterior { get; set; }
+    public int Version { get; set; }
+    public string Contenido { get; set; } = string.Empty;
+    public DateTime FechaCreacion { get; set; }
 }

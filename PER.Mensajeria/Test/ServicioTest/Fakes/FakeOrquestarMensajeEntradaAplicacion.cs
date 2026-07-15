@@ -6,10 +6,14 @@ public class FakeOrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaApl
 {
     public long? IDProcesamientoInternoMensaje { get; private set; }
 
-    public Task EjecutarAsync(long idProcesamientoInternoMensaje, CancellationToken cancellationToken)
+    public ResultadoOrquestarMensajeEntrada Resultado { get; set; } = ResultadoOrquestarMensajeEntrada.Procesado();
+
+    public Task<ResultadoOrquestarMensajeEntrada> EjecutarAsync(
+        long idProcesamientoInternoMensaje,
+        CancellationToken cancellationToken)
     {
         IDProcesamientoInternoMensaje = idProcesamientoInternoMensaje;
 
-        return Task.CompletedTask;
+        return Task.FromResult(Resultado);
     }
 }

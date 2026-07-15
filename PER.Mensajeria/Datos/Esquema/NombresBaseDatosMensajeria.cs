@@ -22,6 +22,8 @@ public sealed class NombresBaseDatosMensajeria
     public string TiposProcesamientoInternoMensaje => Calificar("per_tipos_procesamiento_interno_mensaje");
     public string EstadosProcesamientoInternoMensaje => Calificar("per_estados_procesamiento_interno_mensaje");
     public string EstadosEnvioMensaje => Calificar("per_estados_envio_mensaje");
+    public string RolesContextoIA => Calificar("per_roles_contexto_ia");
+    public string TiposEntradaContextoIA => Calificar("per_tipos_entrada_contexto_ia");
     public string CuentasCanal => Calificar("per_cuentas_canal");
     public string ParticipantesConversacion => Calificar("per_participantes_conversacion");
     public string Conversaciones => Calificar("per_conversaciones");
@@ -30,6 +32,9 @@ public sealed class NombresBaseDatosMensajeria
     public string Mensajes => Calificar("per_mensajes");
     public string ArchivosMensaje => Calificar("per_archivos_mensaje");
     public string ProcesamientosInternosMensaje => Calificar("per_procesamientos_internos_mensaje");
+    public string EntradasContextoIA => Calificar("per_entradas_contexto_ia");
+    public string MetadataRazonamientoIALineaConversacion => Calificar("per_metadata_razonamiento_ia_linea_conversacion");
+    public string EstadosContextoConversacion => Calificar("per_estados_contexto_conversacion");
     public string EnviosMensaje => Calificar("per_envios_mensaje");
 
     public static NombresBaseDatosMensajeria Postgres(string? esquema = null)

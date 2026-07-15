@@ -34,4 +34,9 @@ public class Repositorio<T> : IRepositorio<T> where T : class
     {
         DbSet.Update(entidad);
     }
+
+    public void LiberarRastreo(T entidad)
+    {
+        Contexto.Entry(entidad).State = EntityState.Detached;
+    }
 }
