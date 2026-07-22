@@ -58,7 +58,7 @@ public class MensajeServicioTest
             IDLineaConversacionOrigen = 3,
             Compactacion = ResultadoCompactacionIntencionContexto.Exito(
                 "snapshot",
-                new MetadataRazonamientoIAContexto
+                new InformacionTecnicaLlamadaIAContexto
                 {
                     Proveedor = "fake",
                     Modelo = "fake",

@@ -2,7 +2,6 @@ using AplicacionTest.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.Contexto;
-using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
 using PER.Mensajeria.Entidad.DTO;
 
@@ -53,10 +52,7 @@ public class RegistrarMensajeSalidaAplicacionTest
 
     private static IRegistrarMensajeSalidaAplicacion CrearAplicacion(BaseDatosPrueba baseDatos)
     {
-        MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        UnitOfWork unitOfWork = new(contexto);
-
-        return new RegistrarMensajeSalidaAplicacion(unitOfWork);
+        return new RegistrarMensajeSalidaAplicacion(new UnitOfWorkFactoryPrueba(baseDatos));
     }
 
     private static DTORegistrarMensajeSalidaSolicitud CrearSolicitud(long idConversacion, long idLineaConversacion)

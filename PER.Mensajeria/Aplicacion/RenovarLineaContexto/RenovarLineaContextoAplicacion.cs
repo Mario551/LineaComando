@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
@@ -9,12 +10,13 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
 {
     private const string EstadoPendiente = "pendiente";
     private const string TipoEntradaLimiteVentana = "limite_ventana";
+    private const string TipoResultadoConsultaMensajesLineaAnterior = "resultado_consulta_mensajes_linea_anterior";
 
-    private readonly IUnitOfWork unitOfWork;
+    private readonly IUnitOfWorkFactory unitOfWorkFactory;
 
-    public RenovarLineaContextoAplicacion(IUnitOfWork unitOfWork)
+    public RenovarLineaContextoAplicacion(IUnitOfWorkFactory unitOfWorkFactory)
     {
-        this.unitOfWork = unitOfWork;
+        this.unitOfWorkFactory = unitOfWorkFactory;
     }
 
     public async Task<ResultadoRenovarLineaContexto> EjecutarAsync(
@@ -31,14 +33,18 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             return resultadoExistente;
         }
 
+        await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
+        IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
+
         DAOLineaConversacion? lineaOrigen = null;
         DAOMensaje? mensaje = null;
         DAOProcesamientoInternoMensaje? procesamiento = null;
-        DAOMetadataRazonamientoIALineaConversacion? metadataCompactacion = null;
-        DAOEstadoContextoConversacion? estadoContexto = null;
+        List<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionesTecnicasCompactacion = [];
+        DAOCompactacionContextoConversacion? compactacionContexto = null;
         DAOLineaConversacion? lineaNueva = null;
-        List<DAOEntradaContextoIA> entradasProcesamiento = [];
-        List<DAOMetadataRazonamientoIALineaConversacion> metadataProcesamiento = [];
+        List<DAOMetadataEntradaContextoIA> entradasProcesamiento = [];
+        List<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionTecnicaProcesamiento = [];
+        List<DAOEjecucionComandoContexto> ejecucionesComando = [];
 
         await unitOfWork.BeginTransactionAsync(cancellationToken);
         try
@@ -52,44 +58,53 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
 
             ValidarEntidades(solicitud, lineaOrigen, mensaje, procesamiento);
 
-            entradasProcesamiento = await unitOfWork.EntradaContextoIARepositorio.Get()
+            entradasProcesamiento = await unitOfWork.MetadataEntradaContextoIARepositorio.Get()
                 .Where(entrada => entrada.IDProcesamientoInternoMensaje == solicitud.IDProcesamientoInternoMensaje)
                 .OrderBy(entrada => entrada.Orden)
                 .ThenBy(entrada => entrada.ID)
                 .ToListAsync(cancellationToken);
 
-            HashSet<long> idsMetadataMovible = entradasProcesamiento
+            HashSet<long> idsInformacionTecnicaMovible = entradasProcesamiento
                 .Where(entrada => entrada.IDTipoEntradaContextoIA != TipoEntradaLimiteVentana)
-                .Where(entrada => entrada.IDMetadataRazonamientoIA.HasValue)
-                .Select(entrada => entrada.IDMetadataRazonamientoIA!.Value)
+                .Where(entrada => entrada.IDInformacionTecnicaLlamadaIA.HasValue)
+                .Select(entrada => entrada.IDInformacionTecnicaLlamadaIA!.Value)
                 .ToHashSet();
 
-            metadataProcesamiento = await unitOfWork.MetadataRazonamientoIALineaConversacionRepositorio.Get()
-                .Where(metadata => idsMetadataMovible.Contains(metadata.ID))
+            informacionTecnicaProcesamiento = await unitOfWork.InformacionTecnicaLlamadaIALineaConversacionRepositorio.Get()
+                .Where(metadata => idsInformacionTecnicaMovible.Contains(metadata.ID))
                 .ToListAsync(cancellationToken);
 
-            metadataCompactacion = CrearMetadataCompactacion(solicitud);
-            await unitOfWork.MetadataRazonamientoIALineaConversacionRepositorio.AgregarAsync(
-                metadataCompactacion,
-                cancellationToken);
+            ejecucionesComando = await unitOfWork.EjecucionComandoContextoRepositorio.Get()
+                .Where(ejecucion => ejecucion.IDProcesamientoInternoMensaje == solicitud.IDProcesamientoInternoMensaje)
+                .ToListAsync(cancellationToken);
+
+            informacionesTecnicasCompactacion = solicitud.Compactacion.InformacionesTecnicasLlamadasIA
+                .Select(metadata => CrearInformacionTecnicaCompactacion(solicitud, metadata))
+                .ToList();
+            foreach (DAOInformacionTecnicaLlamadaIALineaConversacion informacionTecnicaCompactacion in informacionesTecnicasCompactacion)
+            {
+                await unitOfWork.InformacionTecnicaLlamadaIALineaConversacionRepositorio.AgregarAsync(
+                    informacionTecnicaCompactacion,
+                    cancellationToken);
+            }
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            int version = await unitOfWork.EstadoContextoConversacionRepositorio.GetNoTracking()
-                .Where(estado => estado.IDConversacion == solicitud.IDConversacion)
-                .Select(estado => (int?)estado.Version)
+            int version = await unitOfWork.CompactacionContextoConversacionRepositorio.GetNoTracking()
+                .Where(compactacion => compactacion.IDConversacion == solicitud.IDConversacion)
+                .Select(compactacion => (int?)compactacion.Version)
                 .MaxAsync(cancellationToken) ?? 0;
 
-            estadoContexto = new DAOEstadoContextoConversacion
+            compactacionContexto = new DAOCompactacionContextoConversacion
             {
                 IDConversacion = solicitud.IDConversacion,
                 IDLineaConversacionOrigen = lineaOrigen.ID,
-                IDEstadoContextoAnterior = lineaOrigen.IDEstadoContextoInicial,
-                IDMetadataRazonamientoIA = metadataCompactacion.ID,
+                IDCompactacionContextoAnterior = lineaOrigen.IDCompactacionContextoInicial,
+                IDInformacionTecnicaLlamadaIA = informacionesTecnicasCompactacion[^1].ID,
                 Version = version + 1,
                 Contenido = solicitud.Compactacion.Contenido,
                 FechaCreacion = DateTime.Now
             };
-            await unitOfWork.EstadoContextoConversacionRepositorio.AgregarAsync(estadoContexto, cancellationToken);
+            await unitOfWork.CompactacionContextoConversacionRepositorio.AgregarAsync(compactacionContexto, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
             lineaOrigen.Activa = false;
@@ -99,7 +114,7 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             lineaNueva = new DAOLineaConversacion
             {
                 IDConversacion = solicitud.IDConversacion,
-                IDEstadoContextoInicial = estadoContexto.ID,
+                IDCompactacionContextoInicial = compactacionContexto.ID,
                 FechaInicio = mensaje.FechaMensaje,
                 FechaUltimaActividad = DateTime.Now,
                 Activa = true
@@ -111,7 +126,7 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             unitOfWork.MensajeRepositorio.Actualizar(mensaje);
 
             int orden = 1;
-            foreach (DAOEntradaContextoIA entrada in entradasProcesamiento)
+            foreach (DAOMetadataEntradaContextoIA entrada in entradasProcesamiento)
             {
                 if (entrada.IDTipoEntradaContextoIA == TipoEntradaLimiteVentana)
                 {
@@ -120,14 +135,25 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
 
                 entrada.IDLineaConversacion = lineaNueva.ID;
                 entrada.Orden = orden;
+                if (entrada.IDTipoEntradaContextoIA == TipoResultadoConsultaMensajesLineaAnterior
+                    && EsConsultaCargada(entrada.Contenido))
+                {
+                    entrada.IDCompactacionContextoIncorporada = compactacionContexto.ID;
+                }
                 orden++;
-                unitOfWork.EntradaContextoIARepositorio.Actualizar(entrada);
+                unitOfWork.MetadataEntradaContextoIARepositorio.Actualizar(entrada);
             }
 
-            foreach (DAOMetadataRazonamientoIALineaConversacion metadata in metadataProcesamiento)
+            foreach (DAOInformacionTecnicaLlamadaIALineaConversacion metadata in informacionTecnicaProcesamiento)
             {
                 metadata.IDLineaConversacion = lineaNueva.ID;
-                unitOfWork.MetadataRazonamientoIALineaConversacionRepositorio.Actualizar(metadata);
+                unitOfWork.InformacionTecnicaLlamadaIALineaConversacionRepositorio.Actualizar(metadata);
+            }
+
+            foreach (DAOEjecucionComandoContexto ejecucion in ejecucionesComando)
+            {
+                ejecucion.IDLineaConversacion = lineaNueva.ID;
+                unitOfWork.EjecucionComandoContextoRepositorio.Actualizar(ejecucion);
             }
 
             procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoPendiente;
@@ -138,7 +164,7 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
 
-            return CrearResultado(estadoContexto, lineaNueva, mensaje, procesamiento);
+            return CrearResultado(compactacionContexto, lineaNueva, mensaje, procesamiento);
         }
         catch
         {
@@ -155,14 +181,16 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         finally
         {
             LiberarRastreo(
+                unitOfWork,
                 lineaOrigen,
                 mensaje,
                 procesamiento,
-                metadataCompactacion,
-                estadoContexto,
+                informacionesTecnicasCompactacion,
+                compactacionContexto,
                 lineaNueva,
                 entradasProcesamiento,
-                metadataProcesamiento);
+                informacionTecnicaProcesamiento,
+                ejecucionesComando);
         }
     }
 
@@ -170,20 +198,23 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         SolicitudRenovarLineaContexto solicitud,
         CancellationToken cancellationToken)
     {
+        await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
+        IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
+
         return await (
-            from estado in unitOfWork.EstadoContextoConversacionRepositorio.GetNoTracking()
+            from compactacion in unitOfWork.CompactacionContextoConversacionRepositorio.GetNoTracking()
             join linea in unitOfWork.LineaConversacionRepositorio.GetNoTracking()
-                on estado.ID equals linea.IDEstadoContextoInicial
+                on compactacion.ID equals linea.IDCompactacionContextoInicial
             join mensaje in unitOfWork.MensajeRepositorio.GetNoTracking()
                 on linea.ID equals mensaje.IDLineaConversacion
             join procesamiento in unitOfWork.ProcesamientoInternoMensajeRepositorio.GetNoTracking()
                 on mensaje.ID equals procesamiento.IDMensaje
-            where estado.IDLineaConversacionOrigen == solicitud.IDLineaConversacionOrigen
+            where compactacion.IDLineaConversacionOrigen == solicitud.IDLineaConversacionOrigen
                 && mensaje.ID == solicitud.IDMensaje
                 && procesamiento.ID == solicitud.IDProcesamientoInternoMensaje
             select new ResultadoRenovarLineaContexto
             {
-                IDEstadoContexto = estado.ID,
+                IDCompactacionContexto = compactacion.ID,
                 IDLineaConversacion = linea.ID,
                 IDMensaje = mensaje.ID,
                 IDProcesamientoInternoMensaje = procesamiento.ID,
@@ -203,7 +234,27 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
 
         if (string.IsNullOrWhiteSpace(solicitud.Compactacion.Contenido))
         {
-            throw new InvalidOperationException("La compactacion debe contener el estado inicial de la nueva linea.");
+            throw new InvalidOperationException("La compactacion debe contener el contexto inicial de la nueva linea.");
+        }
+    }
+
+    private static bool EsConsultaCargada(string? contenido)
+    {
+        if (string.IsNullOrWhiteSpace(contenido))
+        {
+            return false;
+        }
+
+        try
+        {
+            using JsonDocument documento = JsonDocument.Parse(contenido);
+            return documento.RootElement.TryGetProperty("estado", out JsonElement estado)
+                && estado.ValueKind == JsonValueKind.String
+                && estado.GetString() == "cargada";
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 
@@ -234,12 +285,11 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         }
     }
 
-    private static DAOMetadataRazonamientoIALineaConversacion CrearMetadataCompactacion(
-        SolicitudRenovarLineaContexto solicitud)
+    private static DAOInformacionTecnicaLlamadaIALineaConversacion CrearInformacionTecnicaCompactacion(
+        SolicitudRenovarLineaContexto solicitud,
+        InformacionTecnicaLlamadaIAContexto metadata)
     {
-        MetadataRazonamientoIAContexto metadata = solicitud.Compactacion.Metadata;
-
-        return new DAOMetadataRazonamientoIALineaConversacion
+        return new DAOInformacionTecnicaLlamadaIALineaConversacion
         {
             IDLineaConversacion = solicitud.IDLineaConversacionOrigen,
             IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,
@@ -266,14 +316,14 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
     }
 
     private static ResultadoRenovarLineaContexto CrearResultado(
-        DAOEstadoContextoConversacion estado,
+        DAOCompactacionContextoConversacion compactacion,
         DAOLineaConversacion linea,
         DAOMensaje mensaje,
         DAOProcesamientoInternoMensaje procesamiento)
     {
         return new ResultadoRenovarLineaContexto
         {
-            IDEstadoContexto = estado.ID,
+            IDCompactacionContexto = compactacion.ID,
             IDLineaConversacion = linea.ID,
             IDMensaje = mensaje.ID,
             IDProcesamientoInternoMensaje = procesamiento.ID,
@@ -281,15 +331,17 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         };
     }
 
-    private void LiberarRastreo(
+    private static void LiberarRastreo(
+        IUnitOfWork unitOfWork,
         DAOLineaConversacion? lineaOrigen,
         DAOMensaje? mensaje,
         DAOProcesamientoInternoMensaje? procesamiento,
-        DAOMetadataRazonamientoIALineaConversacion? metadataCompactacion,
-        DAOEstadoContextoConversacion? estadoContexto,
+        IReadOnlyList<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionesTecnicasCompactacion,
+        DAOCompactacionContextoConversacion? compactacionContexto,
         DAOLineaConversacion? lineaNueva,
-        IReadOnlyList<DAOEntradaContextoIA> entradasProcesamiento,
-        IReadOnlyList<DAOMetadataRazonamientoIALineaConversacion> metadataProcesamiento)
+        IReadOnlyList<DAOMetadataEntradaContextoIA> entradasProcesamiento,
+        IReadOnlyList<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionTecnicaProcesamiento,
+        IReadOnlyList<DAOEjecucionComandoContexto> ejecucionesComando)
     {
         if (lineaOrigen is not null)
         {
@@ -306,14 +358,14 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             unitOfWork.ProcesamientoInternoMensajeRepositorio.LiberarRastreo(procesamiento);
         }
 
-        if (metadataCompactacion is not null)
+        foreach (DAOInformacionTecnicaLlamadaIALineaConversacion informacionTecnicaCompactacion in informacionesTecnicasCompactacion)
         {
-            unitOfWork.MetadataRazonamientoIALineaConversacionRepositorio.LiberarRastreo(metadataCompactacion);
+            unitOfWork.InformacionTecnicaLlamadaIALineaConversacionRepositorio.LiberarRastreo(informacionTecnicaCompactacion);
         }
 
-        if (estadoContexto is not null)
+        if (compactacionContexto is not null)
         {
-            unitOfWork.EstadoContextoConversacionRepositorio.LiberarRastreo(estadoContexto);
+            unitOfWork.CompactacionContextoConversacionRepositorio.LiberarRastreo(compactacionContexto);
         }
 
         if (lineaNueva is not null)
@@ -321,14 +373,19 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             unitOfWork.LineaConversacionRepositorio.LiberarRastreo(lineaNueva);
         }
 
-        foreach (DAOEntradaContextoIA entrada in entradasProcesamiento)
+        foreach (DAOMetadataEntradaContextoIA entrada in entradasProcesamiento)
         {
-            unitOfWork.EntradaContextoIARepositorio.LiberarRastreo(entrada);
+            unitOfWork.MetadataEntradaContextoIARepositorio.LiberarRastreo(entrada);
         }
 
-        foreach (DAOMetadataRazonamientoIALineaConversacion metadata in metadataProcesamiento)
+        foreach (DAOInformacionTecnicaLlamadaIALineaConversacion metadata in informacionTecnicaProcesamiento)
         {
-            unitOfWork.MetadataRazonamientoIALineaConversacionRepositorio.LiberarRastreo(metadata);
+            unitOfWork.InformacionTecnicaLlamadaIALineaConversacionRepositorio.LiberarRastreo(metadata);
+        }
+
+        foreach (DAOEjecucionComandoContexto ejecucion in ejecucionesComando)
+        {
+            unitOfWork.EjecucionComandoContextoRepositorio.LiberarRastreo(ejecucion);
         }
     }
 }

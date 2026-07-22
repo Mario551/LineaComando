@@ -28,9 +28,10 @@ public class UnitOfWork : IUnitOfWork
     private IConversacionParticipanteRepositorio? conversacionParticipanteRepositorio;
     private ILineaConversacionRepositorio? lineaConversacionRepositorio;
     private IArchivoMensajeRepositorio? archivoMensajeRepositorio;
-    private IEntradaContextoIARepositorio? entradaContextoIARepositorio;
-    private IMetadataRazonamientoIALineaConversacionRepositorio? metadataRazonamientoIALineaConversacionRepositorio;
-    private IEstadoContextoConversacionRepositorio? estadoContextoConversacionRepositorio;
+    private IMetadataEntradaContextoIARepositorio? metadataEntradaContextoIARepositorio;
+    private IInformacionTecnicaLlamadaIALineaConversacionRepositorio? informacionTecnicaLlamadaIALineaConversacionRepositorio;
+    private ICompactacionContextoConversacionRepositorio? compactacionContextoConversacionRepositorio;
+    private IEjecucionComandoContextoRepositorio? ejecucionComandoContextoRepositorio;
 
     public UnitOfWork(MensajeriaContextoDB contexto)
     {
@@ -117,27 +118,35 @@ public class UnitOfWork : IUnitOfWork
         }
     }
 
-    public IEntradaContextoIARepositorio EntradaContextoIARepositorio
+    public IMetadataEntradaContextoIARepositorio MetadataEntradaContextoIARepositorio
     {
         get
         {
-            return entradaContextoIARepositorio ??= new EntradaContextoIARepositorio(contexto);
+            return metadataEntradaContextoIARepositorio ??= new MetadataEntradaContextoIARepositorio(contexto);
         }
     }
 
-    public IMetadataRazonamientoIALineaConversacionRepositorio MetadataRazonamientoIALineaConversacionRepositorio
+    public IInformacionTecnicaLlamadaIALineaConversacionRepositorio InformacionTecnicaLlamadaIALineaConversacionRepositorio
     {
         get
         {
-            return metadataRazonamientoIALineaConversacionRepositorio ??= new MetadataRazonamientoIALineaConversacionRepositorio(contexto);
+            return informacionTecnicaLlamadaIALineaConversacionRepositorio ??= new InformacionTecnicaLlamadaIALineaConversacionRepositorio(contexto);
         }
     }
 
-    public IEstadoContextoConversacionRepositorio EstadoContextoConversacionRepositorio
+    public ICompactacionContextoConversacionRepositorio CompactacionContextoConversacionRepositorio
     {
         get
         {
-            return estadoContextoConversacionRepositorio ??= new EstadoContextoConversacionRepositorio(contexto);
+            return compactacionContextoConversacionRepositorio ??= new CompactacionContextoConversacionRepositorio(contexto);
+        }
+    }
+
+    public IEjecucionComandoContextoRepositorio EjecucionComandoContextoRepositorio
+    {
+        get
+        {
+            return ejecucionComandoContextoRepositorio ??= new EjecucionComandoContextoRepositorio(contexto);
         }
     }
 

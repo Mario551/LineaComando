@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Datos.Contexto;
-using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
 
 namespace AplicacionTest;
@@ -21,8 +20,8 @@ public class RenovarLineaContextoAplicacionTest
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) =
             await baseDatos.CrearMensajeEntradaPendienteAsync();
         DatosRenovacion datos = await PrepararDatosRenovacionAsync(baseDatos, mensaje, procesamiento);
-        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        IRenovarLineaContextoAplicacion aplicacion = new RenovarLineaContextoAplicacion(new UnitOfWork(contexto));
+        UnitOfWorkFactoryPrueba unitOfWorkFactory = new(baseDatos);
+        IRenovarLineaContextoAplicacion aplicacion = new RenovarLineaContextoAplicacion(unitOfWorkFactory);
         SolicitudRenovarLineaContexto solicitud = CrearSolicitud(datos, "snapshot v1");
 
         ResultadoRenovarLineaContexto resultado = await aplicacion.EjecutarAsync(
@@ -31,9 +30,9 @@ public class RenovarLineaContextoAplicacionTest
         ResultadoRenovarLineaContexto reintento = await aplicacion.EjecutarAsync(
             solicitud,
             CancellationToken.None);
-        IEstadoContextoConversacionAplicacion estadoAplicacion = new EstadoContextoConversacionAplicacion(
-            new UnitOfWork(contexto));
-        EstadoContextoConversacion? estadoInicial = await estadoAplicacion.ObtenerInicialAsync(
+        ICompactacionContextoConversacionAplicacion compactacionAplicacion = new CompactacionContextoConversacionAplicacion(
+            unitOfWorkFactory);
+        CompactacionContextoConversacion? compactacionInicial = await compactacionAplicacion.ObtenerInicialAsync(
             resultado.IDLineaConversacion,
             CancellationToken.None);
 
@@ -42,21 +41,30 @@ public class RenovarLineaContextoAplicacionTest
             .Where(linea => linea.IDConversacion == datos.IDConversacion)
             .OrderBy(linea => linea.ID)
             .ToListAsync();
-        DAOEstadoContextoConversacion estado = await verificacion.EstadosContextoConversacion.SingleAsync();
+        DAOCompactacionContextoConversacion compactacion = await verificacion.CompactacionesContextoConversacion.SingleAsync();
         DAOMensaje mensajeActual = await verificacion.Mensajes.SingleAsync(
             mensajeActual => mensajeActual.ID == datos.IDMensaje);
         DAOProcesamientoInternoMensaje procesamientoActual = await verificacion.ProcesamientosInternosMensaje.SingleAsync(
             procesamientoActual => procesamientoActual.ID == datos.IDProcesamiento);
-        List<DAOEntradaContextoIA> entradasLineaAnterior = await verificacion.EntradasContextoIA
+        List<DAOMetadataEntradaContextoIA> entradasLineaAnterior = await verificacion.MetadataEntradasContextoIA
             .Where(entrada => entrada.IDLineaConversacion == datos.IDLineaOrigen)
             .OrderBy(entrada => entrada.Orden)
             .ToListAsync();
-        List<DAOEntradaContextoIA> entradasLineaNueva = await verificacion.EntradasContextoIA
+        List<DAOMetadataEntradaContextoIA> entradasLineaNueva = await verificacion.MetadataEntradasContextoIA
             .Where(entrada => entrada.IDLineaConversacion == resultado.IDLineaConversacion)
             .OrderBy(entrada => entrada.Orden)
             .ToListAsync();
-        List<DAOMetadataRazonamientoIALineaConversacion> metadataLineaNueva = await verificacion.MetadataRazonamientoIALineaConversacion
+        List<DAOInformacionTecnicaLlamadaIALineaConversacion> metadataLineaNueva = await verificacion.InformacionTecnicaLlamadasIALineaConversacion
             .Where(metadata => metadata.IDLineaConversacion == resultado.IDLineaConversacion)
+            .ToListAsync();
+        List<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionTecnicaCompactacion = await verificacion.InformacionTecnicaLlamadasIALineaConversacion
+            .Where(metadata => metadata.IDLineaConversacion == datos.IDLineaOrigen
+                && metadata.AccionDecidida == "Compactar")
+            .OrderBy(metadata => metadata.ID)
+            .ToListAsync();
+        List<DAOEjecucionComandoContexto> ejecucionesComando = await verificacion.EjecucionesComandoContexto
+            .Where(ejecucion => ejecucion.IDProcesamientoInternoMensaje == datos.IDProcesamiento)
+            .OrderBy(ejecucion => ejecucion.NumeroIntento)
             .ToListAsync();
 
         Assert.Equal(2, lineas.Count);
@@ -64,28 +72,49 @@ public class RenovarLineaContextoAplicacionTest
         DAOLineaConversacion lineaNueva = lineas.Single(linea => linea.ID == resultado.IDLineaConversacion);
         Assert.True(lineaNueva.Activa);
         Assert.Equal(datos.IDConversacion, lineaNueva.IDConversacion);
-        Assert.Equal(estado.ID, lineaNueva.IDEstadoContextoInicial);
-        Assert.Equal(datos.IDLineaOrigen, estado.IDLineaConversacionOrigen);
-        Assert.Equal(1, estado.Version);
-        Assert.Equal("snapshot v1", estado.Contenido);
-        Assert.NotNull(estadoInicial);
-        Assert.Equal(estado.ID, estadoInicial.ID);
-        Assert.Equal("snapshot v1", estadoInicial.Contenido);
+        Assert.Equal(compactacion.ID, lineaNueva.IDCompactacionContextoInicial);
+        Assert.Equal(datos.IDLineaOrigen, compactacion.IDLineaConversacionOrigen);
+        Assert.Equal(1, compactacion.Version);
+        Assert.Equal("snapshot v1", compactacion.Contenido);
+        Assert.NotNull(compactacionInicial);
+        Assert.Equal(compactacion.ID, compactacionInicial.ID);
+        Assert.Equal("snapshot v1", compactacionInicial.Contenido);
         Assert.Equal(lineaNueva.ID, mensajeActual.IDLineaConversacion);
         Assert.Equal("pendiente", procesamientoActual.IDEstadoProcesamientoInternoMensaje);
         Assert.Null(procesamientoActual.Error);
         Assert.Equal(["mensaje_entrada", "limite_ventana"], entradasLineaAnterior.Select(entrada => entrada.IDTipoEntradaContextoIA));
         Assert.Equal(
-            ["mensaje_entrada", "decision_comando", "resultado_comando"],
+            [
+                "mensaje_entrada",
+                "decision_comando",
+                "resultado_comando",
+                "decision_consulta_mensajes_linea_anterior",
+                "resultado_consulta_mensajes_linea_anterior"
+            ],
             entradasLineaNueva.Select(entrada => entrada.IDTipoEntradaContextoIA));
-        Assert.Equal([1, 2, 3], entradasLineaNueva.Select(entrada => entrada.Orden));
+        Assert.Equal([1, 2, 3, 4, 5], entradasLineaNueva.Select(entrada => entrada.Orden));
         Assert.Contains(entradasLineaNueva, entrada => entrada.IDTipoEntradaContextoIA == "resultado_comando");
-        DAOMetadataRazonamientoIALineaConversacion metadataComando = Assert.Single(metadataLineaNueva);
+        DAOMetadataEntradaContextoIA resultadoConsulta = Assert.Single(
+            entradasLineaNueva,
+            entrada => entrada.IDTipoEntradaContextoIA == "resultado_consulta_mensajes_linea_anterior");
+        Assert.Equal(compactacion.ID, resultadoConsulta.IDCompactacionContextoIncorporada);
+        DAOInformacionTecnicaLlamadaIALineaConversacion metadataComando = Assert.Single(
+            metadataLineaNueva,
+            metadata => metadata.AccionDecidida == "Comando");
         Assert.Equal(datos.IDMetadataComando, metadataComando.ID);
-        Assert.Equal(resultado.IDEstadoContexto, reintento.IDEstadoContexto);
+        Assert.Contains(metadataLineaNueva, metadata => metadata.AccionDecidida == "ConsultarMensajesLineaAnterior");
+        Assert.Equal(2, informacionTecnicaCompactacion.Count);
+        Assert.Equal(informacionTecnicaCompactacion[^1].ID, compactacion.IDInformacionTecnicaLlamadaIA);
+        Assert.Equal("compactacion final", informacionTecnicaCompactacion[^1].Content);
+        Assert.Equal(2, ejecucionesComando.Count);
+        Assert.All(ejecucionesComando, ejecucion => Assert.Equal(lineaNueva.ID, ejecucion.IDLineaConversacion));
+        Assert.Equal(ejecucionesComando[0].ID, ejecucionesComando[1].IDEjecucionAnterior);
+        Assert.Equal([1, 2], ejecucionesComando.Select(ejecucion => ejecucion.NumeroIntento));
+        Assert.Equal(resultado.IDCompactacionContexto, reintento.IDCompactacionContexto);
         Assert.Equal(resultado.IDLineaConversacion, reintento.IDLineaConversacion);
-        Assert.Single(await verificacion.EstadosContextoConversacion.ToListAsync());
-        Assert.Empty(contexto.ChangeTracker.Entries());
+        Assert.Single(await verificacion.CompactacionesContextoConversacion.ToListAsync());
+        Assert.Equal(0, unitOfWorkFactory.AlcancesActivos);
+        Assert.Equal(unitOfWorkFactory.AlcancesCreados, unitOfWorkFactory.AlcancesDispuestos);
     }
 
     [Theory]
@@ -97,8 +126,8 @@ public class RenovarLineaContextoAplicacionTest
         (DAOMensaje mensaje1, DAOProcesamientoInternoMensaje procesamiento1) =
             await baseDatos.CrearMensajeEntradaPendienteAsync();
         DatosRenovacion datos1 = await PrepararDatosRenovacionAsync(baseDatos, mensaje1, procesamiento1);
-        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        IRenovarLineaContextoAplicacion aplicacion = new RenovarLineaContextoAplicacion(new UnitOfWork(contexto));
+        UnitOfWorkFactoryPrueba unitOfWorkFactory = new(baseDatos);
+        IRenovarLineaContextoAplicacion aplicacion = new RenovarLineaContextoAplicacion(unitOfWorkFactory);
         ResultadoRenovarLineaContexto renovacion1 = await aplicacion.EjecutarAsync(
             CrearSolicitud(datos1, "snapshot v1"),
             CancellationToken.None);
@@ -109,25 +138,26 @@ public class RenovarLineaContextoAplicacionTest
             CancellationToken.None);
 
         await using MensajeriaContextoDB verificacion = baseDatos.CrearContexto();
-        List<DAOEstadoContextoConversacion> estados = await verificacion.EstadosContextoConversacion
-            .OrderBy(estado => estado.Version)
+        List<DAOCompactacionContextoConversacion> compactaciones = await verificacion.CompactacionesContextoConversacion
+            .OrderBy(compactacion => compactacion.Version)
             .ToListAsync();
-        DAOEstadoContextoConversacion estado1 = estados[0];
-        DAOEstadoContextoConversacion estado2 = estados[1];
+        DAOCompactacionContextoConversacion compactacion1 = compactaciones[0];
+        DAOCompactacionContextoConversacion compactacion2 = compactaciones[1];
         DAOLineaConversacion lineaFinal = await verificacion.LineasConversacion.SingleAsync(
             linea => linea.ID == renovacion2.IDLineaConversacion);
-        int entradasPrimerProcesamientoEnLineaIntermedia = await verificacion.EntradasContextoIA.CountAsync(
+        int entradasPrimerProcesamientoEnLineaIntermedia = await verificacion.MetadataEntradasContextoIA.CountAsync(
             entrada => entrada.IDLineaConversacion == renovacion1.IDLineaConversacion
                 && entrada.IDProcesamientoInternoMensaje == datos1.IDProcesamiento);
 
-        Assert.Equal(2, estados.Count);
-        Assert.Equal(1, estado1.Version);
-        Assert.Equal(2, estado2.Version);
-        Assert.Equal(estado1.ID, estado2.IDEstadoContextoAnterior);
-        Assert.Equal("snapshot v2", estado2.Contenido);
-        Assert.Equal(estado2.ID, lineaFinal.IDEstadoContextoInicial);
-        Assert.Equal(3, entradasPrimerProcesamientoEnLineaIntermedia);
-        Assert.Empty(contexto.ChangeTracker.Entries());
+        Assert.Equal(2, compactaciones.Count);
+        Assert.Equal(1, compactacion1.Version);
+        Assert.Equal(2, compactacion2.Version);
+        Assert.Equal(compactacion1.ID, compactacion2.IDCompactacionContextoAnterior);
+        Assert.Equal("snapshot v2", compactacion2.Contenido);
+        Assert.Equal(compactacion2.ID, lineaFinal.IDCompactacionContextoInicial);
+        Assert.Equal(5, entradasPrimerProcesamientoEnLineaIntermedia);
+        Assert.Equal(0, unitOfWorkFactory.AlcancesActivos);
+        Assert.Equal(unitOfWorkFactory.AlcancesCreados, unitOfWorkFactory.AlcancesDispuestos);
     }
 
     private static async Task<DatosRenovacion> PrepararDatosRenovacionAsync(
@@ -141,28 +171,116 @@ public class RenovarLineaContextoAplicacionTest
         procesamiento.IDEstadoProcesamientoInternoMensaje = "en_proceso";
         contexto.ProcesamientosInternosMensaje.Update(procesamiento);
 
-        DAOMetadataRazonamientoIALineaConversacion metadataComando = CrearMetadata(
+        DAOInformacionTecnicaLlamadaIALineaConversacion metadataComando = CrearInformacionTecnicaLlamadaIA(
             linea.ID,
             procesamiento.ID,
             mensaje.ID,
             1,
             "Comando");
-        DAOMetadataRazonamientoIALineaConversacion metadataLimite = CrearMetadata(
+        DAOInformacionTecnicaLlamadaIALineaConversacion metadataLimite = CrearInformacionTecnicaLlamadaIA(
+            linea.ID,
+            procesamiento.ID,
+            mensaje.ID,
+            3,
+            "LimiteVentanaAlcanzado");
+        DAOInformacionTecnicaLlamadaIALineaConversacion metadataConsulta = CrearInformacionTecnicaLlamadaIA(
             linea.ID,
             procesamiento.ID,
             mensaje.ID,
             2,
-            "LimiteVentanaAlcanzado");
-        contexto.MetadataRazonamientoIALineaConversacion.AddRange(metadataComando, metadataLimite);
+            "ConsultarMensajesLineaAnterior");
+        contexto.InformacionTecnicaLlamadasIALineaConversacion.AddRange(
+            metadataComando,
+            metadataConsulta,
+            metadataLimite);
         await contexto.SaveChangesAsync();
 
         DateTime fecha = DateTime.Now;
-        contexto.EntradasContextoIA.AddRange(
-            CrearEntrada(linea.ID, null, null, null, 1, "user", "mensaje_entrada", "historial anterior", fecha.AddMinutes(-5)),
+        DAOMetadataEntradaContextoIA metadataEntradaDecision = CrearEntrada(
+            linea.ID,
+            mensaje.ID,
+            procesamiento.ID,
+            metadataComando.ID,
+            3,
+            "assistant",
+            "decision_comando",
+            "ejecutar comando",
+            fecha.AddMinutes(-3));
+        DAOMetadataEntradaContextoIA metadataEntradaResultado = CrearEntrada(
+            linea.ID,
+            mensaje.ID,
+            procesamiento.ID,
+            null,
+            4,
+            "tool",
+            "resultado_comando",
+            "comando completado",
+            fecha.AddMinutes(-2));
+        DAOMetadataEntradaContextoIA metadataEntradaDecisionConsulta = CrearEntrada(
+            linea.ID,
+            mensaje.ID,
+            procesamiento.ID,
+            metadataConsulta.ID,
+            5,
+            "assistant",
+            "decision_consulta_mensajes_linea_anterior",
+            "consultar ciclo anterior",
+            fecha.AddMinutes(-1));
+        DAOMetadataEntradaContextoIA metadataEntradaResultadoConsulta = CrearEntrada(
+            linea.ID,
+            mensaje.ID,
+            procesamiento.ID,
+            null,
+            6,
+            "tool",
+            "resultado_consulta_mensajes_linea_anterior",
+            "{\"ciclosHaciaAtras\":1,\"idLineaConversacion\":100,\"idProcesamientoInternoMensaje\":200,\"cantidadEntradas\":2,\"estado\":\"cargada\"}",
+            fecha);
+        contexto.MetadataEntradasContextoIA.AddRange(
+            CrearEntrada(linea.ID, null, null, null, 1, "user", "mensaje_entrada", "contexto anterior", fecha.AddMinutes(-5)),
             CrearEntrada(linea.ID, mensaje.ID, procesamiento.ID, null, 2, "user", "mensaje_entrada", mensaje.Contenido, fecha.AddMinutes(-4)),
-            CrearEntrada(linea.ID, mensaje.ID, procesamiento.ID, metadataComando.ID, 3, "assistant", "decision_comando", "ejecutar comando", fecha.AddMinutes(-3)),
-            CrearEntrada(linea.ID, mensaje.ID, procesamiento.ID, null, 4, "tool", "resultado_comando", "comando completado", fecha.AddMinutes(-2)),
-            CrearEntrada(linea.ID, mensaje.ID, procesamiento.ID, metadataLimite.ID, 5, "assistant", "limite_ventana", "limite alcanzado", fecha.AddMinutes(-1)));
+            metadataEntradaDecision,
+            metadataEntradaResultado,
+            metadataEntradaDecisionConsulta,
+            metadataEntradaResultadoConsulta,
+            CrearEntrada(linea.ID, mensaje.ID, procesamiento.ID, metadataLimite.ID, 7, "assistant", "limite_ventana", "limite alcanzado", fecha.AddMinutes(1)));
+        await contexto.SaveChangesAsync();
+
+        DAOEjecucionComandoContexto intentoAnterior = new()
+        {
+            IDLineaConversacion = linea.ID,
+            IDProcesamientoInternoMensaje = procesamiento.ID,
+            IDMetadataEntradaDecisionContextoIA = metadataEntradaDecision.ID,
+            NumeroIntento = 1,
+            ProveedorEjecucion = "lineacomando",
+            IdentificadorExterno = "1001",
+            CodigoComando = "pedido consultar",
+            ParametrosJson = "{\"pedido\":\"54013\"}",
+            IDEstadoEjecucionComandoContexto = "abandonada",
+            Activa = false,
+            FechaCreacion = fecha.AddMinutes(-3),
+            FechaFinalizacion = fecha.AddMinutes(-2)
+        };
+        contexto.EjecucionesComandoContexto.Add(intentoAnterior);
+        await contexto.SaveChangesAsync();
+
+        contexto.EjecucionesComandoContexto.Add(new DAOEjecucionComandoContexto
+        {
+            IDEjecucionAnterior = intentoAnterior.ID,
+            IDLineaConversacion = linea.ID,
+            IDProcesamientoInternoMensaje = procesamiento.ID,
+            IDMetadataEntradaDecisionContextoIA = metadataEntradaDecision.ID,
+            IDMetadataEntradaResultadoContextoIA = metadataEntradaResultado.ID,
+            NumeroIntento = 2,
+            ProveedorEjecucion = "lineacomando",
+            IdentificadorExterno = "1002",
+            CodigoComando = "pedido consultar",
+            ParametrosJson = "{\"pedido\":\"54013\"}",
+            IDEstadoEjecucionComandoContexto = "completada",
+            Activa = false,
+            FechaCreacion = fecha.AddMinutes(-2),
+            FechaFinalizacion = fecha.AddMinutes(-1)
+        });
         await contexto.SaveChangesAsync();
 
         return new DatosRenovacion(
@@ -204,15 +322,15 @@ public class RenovarLineaContextoAplicacionTest
         contexto.ProcesamientosInternosMensaje.Add(procesamiento);
         await contexto.SaveChangesAsync();
 
-        DAOMetadataRazonamientoIALineaConversacion metadataLimite = CrearMetadata(
+        DAOInformacionTecnicaLlamadaIALineaConversacion metadataLimite = CrearInformacionTecnicaLlamadaIA(
             renovacionAnterior.IDLineaConversacion,
             procesamiento.ID,
             mensaje.ID,
             1,
             "LimiteVentanaAlcanzado");
-        contexto.MetadataRazonamientoIALineaConversacion.Add(metadataLimite);
+        contexto.InformacionTecnicaLlamadasIALineaConversacion.Add(metadataLimite);
         await contexto.SaveChangesAsync();
-        contexto.EntradasContextoIA.AddRange(
+        contexto.MetadataEntradasContextoIA.AddRange(
             CrearEntrada(renovacionAnterior.IDLineaConversacion, mensaje.ID, procesamiento.ID, null, 4, "user", "mensaje_entrada", mensaje.Contenido, fecha),
             CrearEntrada(renovacionAnterior.IDLineaConversacion, mensaje.ID, procesamiento.ID, metadataLimite.ID, 5, "assistant", "limite_ventana", "segundo limite", fecha));
         await contexto.SaveChangesAsync();
@@ -225,14 +343,14 @@ public class RenovarLineaContextoAplicacionTest
             0);
     }
 
-    private static DAOMetadataRazonamientoIALineaConversacion CrearMetadata(
+    private static DAOInformacionTecnicaLlamadaIALineaConversacion CrearInformacionTecnicaLlamadaIA(
         long idLinea,
         long idProcesamiento,
         long idMensaje,
         int iteracion,
         string accion)
     {
-        return new DAOMetadataRazonamientoIALineaConversacion
+        return new DAOInformacionTecnicaLlamadaIALineaConversacion
         {
             IDLineaConversacion = idLinea,
             IDProcesamientoInternoMensaje = idProcesamiento,
@@ -246,7 +364,7 @@ public class RenovarLineaContextoAplicacionTest
         };
     }
 
-    private static DAOEntradaContextoIA CrearEntrada(
+    private static DAOMetadataEntradaContextoIA CrearEntrada(
         long idLinea,
         long? idMensaje,
         long? idProcesamiento,
@@ -257,12 +375,12 @@ public class RenovarLineaContextoAplicacionTest
         string? contenido,
         DateTime fecha)
     {
-        return new DAOEntradaContextoIA
+        return new DAOMetadataEntradaContextoIA
         {
             IDLineaConversacion = idLinea,
             IDMensaje = idMensaje,
             IDProcesamientoInternoMensaje = idProcesamiento,
-            IDMetadataRazonamientoIA = idMetadata,
+            IDInformacionTecnicaLlamadaIA = idMetadata,
             Orden = orden,
             IDRolContextoIA = rol,
             IDTipoEntradaContextoIA = tipo,
@@ -284,14 +402,23 @@ public class RenovarLineaContextoAplicacionTest
             IDLineaConversacionOrigen = datos.IDLineaOrigen,
             Compactacion = ResultadoCompactacionIntencionContexto.Exito(
                 contenido,
-                new MetadataRazonamientoIAContexto
-                {
-                    Proveedor = "fake",
-                    Modelo = "fake",
-                    Adaptador = "fake",
-                    Iteracion = 3,
-                    AccionDecidida = "Compactar"
-                })
+                [
+                    CrearInformacionTecnicaCompactacion("compactacion fragmento"),
+                    CrearInformacionTecnicaCompactacion("compactacion final")
+                ])
+        };
+    }
+
+    private static InformacionTecnicaLlamadaIAContexto CrearInformacionTecnicaCompactacion(string contenido)
+    {
+        return new InformacionTecnicaLlamadaIAContexto
+        {
+            Proveedor = "fake",
+            Modelo = "fake",
+            Adaptador = "fake",
+            Iteracion = 3,
+            AccionDecidida = "Compactar",
+            Content = contenido
         };
     }
 

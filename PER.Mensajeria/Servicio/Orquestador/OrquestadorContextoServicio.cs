@@ -1,84 +1,143 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
-using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Servicio.Cola;
-using PER.Mensajeria.Servicio.Contexto;
-using PER.Mensajeria.Servicio.Mensaje;
 
 namespace PER.Mensajeria.Servicio.Orquestador;
 
-public class OrquestadorContextoServicio : IOrquestadorContextoServicio
+public sealed class OrquestadorContextoServicio : IOrquestadorContextoServicio
 {
-    private readonly IOrquestarMensajeEntradaAplicacion orquestarMensajeEntradaAplicacion;
-    private readonly IContextoConversacionActivoServicio contextoConversacionActivoServicio;
-    private readonly IMensajeServicio mensajeServicio;
+    private readonly ConcurrentDictionary<long, ProcesadorConversacionServicio> procesadores = new();
+    private readonly IServiceScopeFactory serviceScopeFactory;
     private readonly ILogger<OrquestadorContextoServicio> logger;
+    private readonly SemaphoreSlim limiteConversaciones;
+    private readonly CancellationTokenSource cancelacion = new();
+    private readonly object cicloVida = new();
+    private Task? tareaDisposicion;
+    private bool disponiendo;
 
     public OrquestadorContextoServicio(
-        IOrquestarMensajeEntradaAplicacion orquestarMensajeEntradaAplicacion,
-        IContextoConversacionActivoServicio contextoConversacionActivoServicio,
-        IMensajeServicio mensajeServicio,
+        IServiceScopeFactory serviceScopeFactory,
+        ConfiguracionOrquestadorContexto configuracion,
         ILogger<OrquestadorContextoServicio> logger)
     {
-        this.orquestarMensajeEntradaAplicacion = orquestarMensajeEntradaAplicacion;
-        this.contextoConversacionActivoServicio = contextoConversacionActivoServicio;
-        this.mensajeServicio = mensajeServicio;
+        ArgumentNullException.ThrowIfNull(serviceScopeFactory);
+        ArgumentNullException.ThrowIfNull(configuracion);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        if (configuracion.MaximoConversacionesConcurrentes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(configuracion),
+                configuracion.MaximoConversacionesConcurrentes,
+                "El maximo de conversaciones concurrentes debe ser mayor que cero.");
+        }
+
+        this.serviceScopeFactory = serviceScopeFactory;
         this.logger = logger;
+        limiteConversaciones = new SemaphoreSlim(
+            configuracion.MaximoConversacionesConcurrentes,
+            configuracion.MaximoConversacionesConcurrentes);
     }
 
-    public async Task ProcesarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken)
+    public Task EncolarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken)
     {
-        logger.LogInformation(
-            "Inicia orquestacion de contexto. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}",
-            eventoMensajeria.IDProcesamientoInternoMensaje,
-            eventoMensajeria.IDConversacion);
+        ArgumentNullException.ThrowIfNull(eventoMensajeria);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (cicloVida)
+        {
+            ObjectDisposedException.ThrowIf(disponiendo, this);
+
+            while (true)
+            {
+                ProcesadorConversacionServicio procesador = procesadores.GetOrAdd(
+                    eventoMensajeria.IDConversacion,
+                    CrearProcesador);
+
+                if (procesador.IntentarEncolar(eventoMensajeria))
+                {
+                    logger.LogDebug(
+                        "Evento entregado al procesador de conversacion. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}",
+                        eventoMensajeria.IDProcesamientoInternoMensaje,
+                        eventoMensajeria.IDConversacion);
+                    return Task.CompletedTask;
+                }
+
+                RetirarProcesador(eventoMensajeria.IDConversacion, procesador);
+            }
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (cicloVida)
+        {
+            if (tareaDisposicion is null)
+            {
+                disponiendo = true;
+                ProcesadorConversacionServicio[] procesadoresActivos = procesadores.Values
+                    .Distinct()
+                    .ToArray();
+                tareaDisposicion = DisponerAsync(procesadoresActivos);
+            }
+
+            return new ValueTask(tareaDisposicion);
+        }
+    }
+
+    private ProcesadorConversacionServicio CrearProcesador(long idConversacion)
+    {
+        logger.LogDebug(
+            "Procesador de conversacion creado. IDConversacion={IDConversacion}",
+            idConversacion);
+
+        return new ProcesadorConversacionServicio(
+            idConversacion,
+            serviceScopeFactory,
+            limiteConversaciones,
+            RetirarProcesador,
+            cancelacion.Token,
+            logger);
+    }
+
+    private void RetirarProcesador(
+        long idConversacion,
+        ProcesadorConversacionServicio procesador)
+    {
+        bool retirado = ((ICollection<KeyValuePair<long, ProcesadorConversacionServicio>>)procesadores)
+            .Remove(new KeyValuePair<long, ProcesadorConversacionServicio>(idConversacion, procesador));
+
+        if (retirado)
+        {
+            logger.LogDebug(
+                "Procesador de conversacion retirado. IDConversacion={IDConversacion}",
+                idConversacion);
+        }
+    }
+
+    private async Task DisponerAsync(IReadOnlyCollection<ProcesadorConversacionServicio> procesadoresActivos)
+    {
+        await Task.Yield();
 
         try
         {
-            await contextoConversacionActivoServicio.EjecutarAsync(
-                eventoMensajeria.IDConversacion,
-                token => ProcesarEventoAsync(eventoMensajeria, token),
-                cancellationToken);
-
-            logger.LogInformation(
-                "Finaliza orquestacion de contexto. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}",
-                eventoMensajeria.IDProcesamientoInternoMensaje,
-                eventoMensajeria.IDConversacion);
-        }
-        catch (Exception excepcion) when (excepcion is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-        {
-            logger.LogError(
-                excepcion,
-                "Error en orquestacion de contexto. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}",
-                eventoMensajeria.IDProcesamientoInternoMensaje,
-                eventoMensajeria.IDConversacion);
-            throw;
-        }
-    }
-
-    private async Task ProcesarEventoAsync(
-        EventoMensajeria eventoMensajeria,
-        CancellationToken cancellationToken)
-    {
-        ResultadoOrquestarMensajeEntrada resultado = await orquestarMensajeEntradaAplicacion.EjecutarAsync(
-            eventoMensajeria.IDProcesamientoInternoMensaje,
-            cancellationToken);
-
-        if (resultado.Tipo != ResultadoOrquestarMensajeEntradaTipo.RenovarLinea)
-        {
-            return;
-        }
-
-        await mensajeServicio.RenovarLineaContextoAsync(
-            new SolicitudRenovarLineaContexto
+            try
             {
-                IDProcesamientoInternoMensaje = eventoMensajeria.IDProcesamientoInternoMensaje,
-                IDMensaje = eventoMensajeria.IDMensaje,
-                IDConversacion = eventoMensajeria.IDConversacion,
-                IDLineaConversacionOrigen = eventoMensajeria.IDLineaConversacion,
-                Compactacion = resultado.Compactacion
-                    ?? throw new InvalidOperationException("La renovacion de linea requiere una compactacion.")
-            },
-            cancellationToken);
+                cancelacion.Cancel();
+            }
+            catch (Exception excepcion)
+            {
+                logger.LogError(excepcion, "Error notificando la cancelacion de los procesadores de conversacion.");
+            }
+
+            await Task.WhenAll(procesadoresActivos.Select(procesador => procesador.Finalizacion));
+        }
+        finally
+        {
+            procesadores.Clear();
+            limiteConversaciones.Dispose();
+            cancelacion.Dispose();
+        }
     }
 }

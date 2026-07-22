@@ -7,16 +7,22 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
 {
     private readonly ResultadoContextoConversacion? resultado;
     private readonly Exception? excepcion;
+    private readonly CancellationTokenSource? fuenteCancelacion;
 
-    private FakeContextoConversacionServicio(ResultadoContextoConversacion? resultado, Exception? excepcion)
+    private FakeContextoConversacionServicio(
+        ResultadoContextoConversacion? resultado,
+        Exception? excepcion,
+        CancellationTokenSource? fuenteCancelacion = null)
     {
         this.resultado = resultado;
         this.excepcion = excepcion;
+        this.fuenteCancelacion = fuenteCancelacion;
     }
 
     public bool Ejecutado { get; private set; }
     public SolicitudContextoConversacion? SolicitudRecibida { get; private set; }
     public int PasosInternosSimulados { get; private set; }
+    public Action? AntesDeResolver { get; set; }
 
     public static FakeContextoConversacionServicio ConSalidas(params DTOMensajeSaliente[] mensajesSalientes)
     {
@@ -59,6 +65,11 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
         return new FakeContextoConversacionServicio(null, excepcion);
     }
 
+    public static FakeContextoConversacionServicio ConCancelacion(CancellationTokenSource fuenteCancelacion)
+    {
+        return new FakeContextoConversacionServicio(null, null, fuenteCancelacion);
+    }
+
     public static FakeContextoConversacionServicio ConComandoIntermedio(DTOMensajeSaliente mensajeSaliente)
     {
         FakeContextoConversacionServicio fake = ConSalidas(mensajeSaliente);
@@ -66,7 +77,7 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
         return fake;
     }
 
-    public static FakeContextoConversacionServicio ConHistorialIntermedio(DTOMensajeSaliente mensajeSaliente)
+    public static FakeContextoConversacionServicio ConConsultaMensajesAnterioresIntermedia(DTOMensajeSaliente mensajeSaliente)
     {
         FakeContextoConversacionServicio fake = ConSalidas(mensajeSaliente);
         fake.PasosInternosSimulados = 1;
@@ -77,8 +88,15 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
         SolicitudContextoConversacion solicitud,
         CancellationToken cancellationToken)
     {
+        AntesDeResolver?.Invoke();
         Ejecutado = true;
         SolicitudRecibida = solicitud;
+
+        if (fuenteCancelacion is not null)
+        {
+            fuenteCancelacion.Cancel();
+            throw new OperationCanceledException(cancellationToken);
+        }
 
         if (excepcion is not null)
         {

@@ -13,15 +13,18 @@ public class OrquestadorContextoWorker : BackgroundService
 
     private readonly IColaEventosMensajeriaServicio colaEventosMensajeriaServicio;
     private readonly IServiceScopeFactory serviceScopeFactory;
+    private readonly IOrquestadorContextoServicio orquestadorContextoServicio;
     private readonly ILogger<OrquestadorContextoWorker> logger;
 
     public OrquestadorContextoWorker(
         IColaEventosMensajeriaServicio colaEventosMensajeriaServicio,
         IServiceScopeFactory serviceScopeFactory,
+        IOrquestadorContextoServicio orquestadorContextoServicio,
         ILogger<OrquestadorContextoWorker> logger)
     {
         this.colaEventosMensajeriaServicio = colaEventosMensajeriaServicio;
         this.serviceScopeFactory = serviceScopeFactory;
+        this.orquestadorContextoServicio = orquestadorContextoServicio;
         this.logger = logger;
     }
 
@@ -32,6 +35,27 @@ public class OrquestadorContextoWorker : BackgroundService
         while (!cancellationToken.IsCancellationRequested)
         {
             await ProcesarUnEventoAsync(cancellationToken);
+        }
+    }
+
+    private async Task CargarPendientesConReintentoAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await CargarPendientesAsync(cancellationToken);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception excepcion)
+            {
+                logger.LogError(excepcion, "Error en carga inicial de eventos pendientes de mensajeria. Se reintentara en {SegundosReintento} segundos.", EsperaReintentoCarga.TotalSeconds);
+                await Task.Delay(EsperaReintentoCarga, cancellationToken);
+            }
         }
     }
 
@@ -47,7 +71,7 @@ public class OrquestadorContextoWorker : BackgroundService
 
         foreach (EventoMensajeriaPendiente eventoPendiente in eventosPendientes)
         {
-            colaEventosMensajeriaServicio.Publicar(ConvertirEvento(eventoPendiente));
+            colaEventosMensajeriaServicio.PublicarRehidratado(ConvertirEvento(eventoPendiente));
         }
 
         logger.LogInformation("Finaliza carga inicial de eventos pendientes de mensajeria. Eventos={CantidadEventos}", eventosPendientes.Count);
@@ -65,11 +89,7 @@ public class OrquestadorContextoWorker : BackgroundService
 
         try
         {
-            using IServiceScope alcance = serviceScopeFactory.CreateScope();
-            IOrquestadorContextoServicio orquestadorContextoServicio = alcance.ServiceProvider
-                .GetRequiredService<IOrquestadorContextoServicio>();
-
-            await orquestadorContextoServicio.ProcesarAsync(eventoMensajeria, cancellationToken);
+            await orquestadorContextoServicio.EncolarAsync(eventoMensajeria, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -96,26 +116,9 @@ public class OrquestadorContextoWorker : BackgroundService
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
         }
-    }
-
-    private async Task CargarPendientesConReintentoAsync(CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
+        finally
         {
-            try
-            {
-                await CargarPendientesAsync(cancellationToken);
-                return;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception excepcion)
-            {
-                logger.LogError(excepcion, "Error en carga inicial de eventos pendientes de mensajeria. Se reintentara en {SegundosReintento} segundos.", EsperaReintentoCarga.TotalSeconds);
-                await Task.Delay(EsperaReintentoCarga, cancellationToken);
-            }
+            await orquestadorContextoServicio.DisposeAsync();
         }
     }
 

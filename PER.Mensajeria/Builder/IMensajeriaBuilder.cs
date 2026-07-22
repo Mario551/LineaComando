@@ -1,4 +1,5 @@
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Servicio.Orquestador;
 
 namespace PER.Mensajeria.Builder;
 
@@ -11,5 +12,6 @@ public interface IMensajeriaBuilder
     IMensajeriaBuilder ConfigurarLineaConversacion(TimeSpan tiempoMaximoInactividad);
     IMensajeriaBuilder ConfigurarContexto(Action<IContextoMensajeriaBuilder> configurarContexto);
     IMensajeriaBuilder ConfigurarContextoConversacion(ConfiguracionContextoConversacion configuracion);
+    IMensajeriaBuilder ConfigurarOrquestadorContexto(ConfiguracionOrquestadorContexto configuracion);
     IMensajeriaBuilder AgregarWorkerOrquestador();
 }

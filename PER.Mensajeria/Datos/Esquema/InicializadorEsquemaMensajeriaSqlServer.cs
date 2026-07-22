@@ -16,6 +16,7 @@ public class InicializadorEsquemaMensajeriaSqlServer
         "per_estados_envio_mensaje",
         "per_roles_contexto_ia",
         "per_tipos_entrada_contexto_ia",
+        "per_estados_ejecucion_comando_contexto",
         "per_cuentas_canal",
         "per_participantes_conversacion",
         "per_conversaciones",
@@ -24,9 +25,10 @@ public class InicializadorEsquemaMensajeriaSqlServer
         "per_mensajes",
         "per_archivos_mensaje",
         "per_procesamientos_internos_mensaje",
-        "per_metadata_razonamiento_ia_linea_conversacion",
-        "per_entradas_contexto_ia",
-        "per_estados_contexto_conversacion",
+        "per_informacion_tecnica_llamadas_ia_linea_conversacion",
+        "per_metadata_entradas_contexto_ia",
+        "per_ejecuciones_comando_contexto",
+        "per_compactaciones_contexto_conversacion",
         "per_envios_mensaje"
     ];
 
@@ -184,6 +186,12 @@ CREATE TABLE {nombres.TiposEntradaContextoIA} (
     CONSTRAINT pk_per_tipos_entrada_contexto_ia PRIMARY KEY (id)
 );
 
+CREATE TABLE {nombres.EstadosEjecucionComandoContexto} (
+    id NVARCHAR(32) NOT NULL,
+    descripcion NVARCHAR(MAX) NOT NULL,
+    CONSTRAINT pk_per_estados_ejecucion_comando_contexto PRIMARY KEY (id)
+);
+
 CREATE TABLE {nombres.CuentasCanal} (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     id_canal_comunicacion INT NOT NULL,
@@ -224,7 +232,7 @@ CREATE TABLE {nombres.ConversacionesParticipantes} (
 CREATE TABLE {nombres.LineasConversacion} (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     id_conversacion BIGINT NOT NULL,
-    id_estado_contexto_inicial BIGINT NULL,
+    id_compactacion_contexto_inicial BIGINT NULL,
     fecha_inicio DATETIME2 NOT NULL,
     fecha_ultima_actividad DATETIME2 NOT NULL,
     activa BIT NOT NULL,
@@ -276,7 +284,7 @@ CREATE TABLE {nombres.ProcesamientosInternosMensaje} (
     CONSTRAINT fk_procesamientos_internos_mensaje_estado FOREIGN KEY (id_estado_procesamiento_interno_mensaje) REFERENCES {nombres.EstadosProcesamientoInternoMensaje}(id) ON DELETE NO ACTION
 );
 
-CREATE TABLE {nombres.MetadataRazonamientoIALineaConversacion} (
+CREATE TABLE {nombres.InformacionTecnicaLlamadasIALineaConversacion} (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     id_linea_conversacion BIGINT NOT NULL,
     id_procesamiento_interno_mensaje BIGINT NOT NULL,
@@ -299,36 +307,37 @@ CREATE TABLE {nombres.MetadataRazonamientoIALineaConversacion} (
     reasoning_details_json NVARCHAR(MAX) NULL,
     error NVARCHAR(MAX) NULL,
     fecha_creacion DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT fk_metadata_ia_linea FOREIGN KEY (id_linea_conversacion) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_metadata_ia_procesamiento FOREIGN KEY (id_procesamiento_interno_mensaje) REFERENCES {nombres.ProcesamientosInternosMensaje}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_metadata_ia_mensaje FOREIGN KEY (id_mensaje) REFERENCES {nombres.Mensajes}(id) ON DELETE NO ACTION
+    CONSTRAINT fk_informacion_tecnica_ia_linea FOREIGN KEY (id_linea_conversacion) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_informacion_tecnica_ia_procesamiento FOREIGN KEY (id_procesamiento_interno_mensaje) REFERENCES {nombres.ProcesamientosInternosMensaje}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_informacion_tecnica_ia_mensaje FOREIGN KEY (id_mensaje) REFERENCES {nombres.Mensajes}(id) ON DELETE NO ACTION
 );
 
-CREATE TABLE {nombres.EstadosContextoConversacion} (
+CREATE TABLE {nombres.CompactacionesContextoConversacion} (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     id_conversacion BIGINT NOT NULL,
     id_linea_conversacion_origen BIGINT NOT NULL,
-    id_estado_contexto_anterior BIGINT NULL,
-    id_metadata_razonamiento_ia BIGINT NOT NULL,
+    id_compactacion_contexto_anterior BIGINT NULL,
+    id_informacion_tecnica_llamada_ia BIGINT NOT NULL,
     version INT NOT NULL,
     contenido NVARCHAR(MAX) NOT NULL,
     fecha_creacion DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT fk_estados_contexto_conversacion FOREIGN KEY (id_conversacion) REFERENCES {nombres.Conversaciones}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_estados_contexto_linea_origen FOREIGN KEY (id_linea_conversacion_origen) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_estados_contexto_anterior FOREIGN KEY (id_estado_contexto_anterior) REFERENCES {nombres.EstadosContextoConversacion}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_estados_contexto_metadata FOREIGN KEY (id_metadata_razonamiento_ia) REFERENCES {nombres.MetadataRazonamientoIALineaConversacion}(id) ON DELETE NO ACTION
+    CONSTRAINT fk_compactaciones_contexto_conversacion FOREIGN KEY (id_conversacion) REFERENCES {nombres.Conversaciones}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_compactaciones_contexto_linea_origen FOREIGN KEY (id_linea_conversacion_origen) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_compactaciones_contexto_anterior FOREIGN KEY (id_compactacion_contexto_anterior) REFERENCES {nombres.CompactacionesContextoConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_compactaciones_contexto_informacion_ia FOREIGN KEY (id_informacion_tecnica_llamada_ia) REFERENCES {nombres.InformacionTecnicaLlamadasIALineaConversacion}(id) ON DELETE NO ACTION
 );
 
 ALTER TABLE {nombres.LineasConversacion}
-    ADD CONSTRAINT fk_lineas_conversacion_estado_contexto_inicial
-    FOREIGN KEY (id_estado_contexto_inicial) REFERENCES {nombres.EstadosContextoConversacion}(id) ON DELETE NO ACTION;
+    ADD CONSTRAINT fk_lineas_conversacion_compactacion_contexto_inicial
+    FOREIGN KEY (id_compactacion_contexto_inicial) REFERENCES {nombres.CompactacionesContextoConversacion}(id) ON DELETE NO ACTION;
 
-CREATE TABLE {nombres.EntradasContextoIA} (
+CREATE TABLE {nombres.MetadataEntradasContextoIA} (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     id_linea_conversacion BIGINT NOT NULL,
     id_mensaje BIGINT NULL,
     id_procesamiento_interno_mensaje BIGINT NULL,
-    id_metadata_razonamiento_ia BIGINT NULL,
+    id_informacion_tecnica_llamada_ia BIGINT NULL,
+    id_compactacion_contexto_incorporada BIGINT NULL,
     orden INT NOT NULL,
     id_rol_contexto_ia NVARCHAR(32) NOT NULL,
     id_tipo_entrada_contexto_ia NVARCHAR(64) NOT NULL,
@@ -336,12 +345,40 @@ CREATE TABLE {nombres.EntradasContextoIA} (
     tool_call_id NVARCHAR(128) NULL,
     fecha_entrada DATETIME2 NOT NULL,
     fecha_creacion DATETIME2 NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT fk_entradas_contexto_ia_linea FOREIGN KEY (id_linea_conversacion) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_entradas_contexto_ia_mensaje FOREIGN KEY (id_mensaje) REFERENCES {nombres.Mensajes}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_entradas_contexto_ia_procesamiento FOREIGN KEY (id_procesamiento_interno_mensaje) REFERENCES {nombres.ProcesamientosInternosMensaje}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_entradas_contexto_ia_metadata FOREIGN KEY (id_metadata_razonamiento_ia) REFERENCES {nombres.MetadataRazonamientoIALineaConversacion}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_entradas_contexto_ia_rol FOREIGN KEY (id_rol_contexto_ia) REFERENCES {nombres.RolesContextoIA}(id) ON DELETE NO ACTION,
-    CONSTRAINT fk_entradas_contexto_ia_tipo FOREIGN KEY (id_tipo_entrada_contexto_ia) REFERENCES {nombres.TiposEntradaContextoIA}(id) ON DELETE NO ACTION
+    CONSTRAINT fk_metadata_entradas_contexto_ia_linea FOREIGN KEY (id_linea_conversacion) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_metadata_entradas_contexto_ia_mensaje FOREIGN KEY (id_mensaje) REFERENCES {nombres.Mensajes}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_metadata_entradas_contexto_ia_procesamiento FOREIGN KEY (id_procesamiento_interno_mensaje) REFERENCES {nombres.ProcesamientosInternosMensaje}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_metadata_entradas_contexto_ia_informacion FOREIGN KEY (id_informacion_tecnica_llamada_ia) REFERENCES {nombres.InformacionTecnicaLlamadasIALineaConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_metadata_entradas_contexto_ia_compactacion FOREIGN KEY (id_compactacion_contexto_incorporada) REFERENCES {nombres.CompactacionesContextoConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_metadata_entradas_contexto_ia_rol FOREIGN KEY (id_rol_contexto_ia) REFERENCES {nombres.RolesContextoIA}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_metadata_entradas_contexto_ia_tipo FOREIGN KEY (id_tipo_entrada_contexto_ia) REFERENCES {nombres.TiposEntradaContextoIA}(id) ON DELETE NO ACTION
+);
+
+CREATE TABLE {nombres.EjecucionesComandoContexto} (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    id_ejecucion_anterior BIGINT NULL,
+    id_linea_conversacion BIGINT NOT NULL,
+    id_procesamiento_interno_mensaje BIGINT NOT NULL,
+    id_metadata_entrada_decision_contexto_ia BIGINT NOT NULL,
+    id_metadata_entrada_resultado_contexto_ia BIGINT NULL,
+    numero_intento INT NOT NULL,
+    proveedor_ejecucion NVARCHAR(64) NOT NULL,
+    identificador_externo NVARCHAR(128) NULL,
+    codigo_comando NVARCHAR(256) NOT NULL,
+    parametros_json NVARCHAR(MAX) NOT NULL,
+    id_estado_ejecucion_comando_contexto NVARCHAR(32) NOT NULL,
+    activa BIT NOT NULL,
+    error NVARCHAR(MAX) NULL,
+    fecha_creacion DATETIME2 NOT NULL DEFAULT GETDATE(),
+    fecha_inicio_encolado DATETIME2 NULL,
+    fecha_encolado DATETIME2 NULL,
+    fecha_finalizacion DATETIME2 NULL,
+    CONSTRAINT fk_ejecuciones_comando_contexto_anterior FOREIGN KEY (id_ejecucion_anterior) REFERENCES {nombres.EjecucionesComandoContexto}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_ejecuciones_comando_contexto_linea FOREIGN KEY (id_linea_conversacion) REFERENCES {nombres.LineasConversacion}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_ejecuciones_comando_contexto_procesamiento FOREIGN KEY (id_procesamiento_interno_mensaje) REFERENCES {nombres.ProcesamientosInternosMensaje}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_ejecuciones_comando_contexto_decision FOREIGN KEY (id_metadata_entrada_decision_contexto_ia) REFERENCES {nombres.MetadataEntradasContextoIA}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_ejecuciones_comando_contexto_resultado FOREIGN KEY (id_metadata_entrada_resultado_contexto_ia) REFERENCES {nombres.MetadataEntradasContextoIA}(id) ON DELETE NO ACTION,
+    CONSTRAINT fk_ejecuciones_comando_contexto_estado FOREIGN KEY (id_estado_ejecucion_comando_contexto) REFERENCES {nombres.EstadosEjecucionComandoContexto}(id) ON DELETE NO ACTION
 );
 
 CREATE TABLE {nombres.EnviosMensaje} (
@@ -368,18 +405,24 @@ CREATE TABLE {nombres.EnviosMensaje} (
         string sql = $@"
 CREATE INDEX ix_conversaciones_participantes_conversacion_activo ON {nombres.ConversacionesParticipantes} (id_conversacion, activo);
 CREATE INDEX ix_lineas_conversacion_conversacion_activa_fecha ON {nombres.LineasConversacion} (id_conversacion, activa, fecha_ultima_actividad);
-CREATE UNIQUE INDEX ux_lineas_conversacion_estado_contexto_inicial ON {nombres.LineasConversacion} (id_estado_contexto_inicial) WHERE id_estado_contexto_inicial IS NOT NULL;
+CREATE UNIQUE INDEX ux_lineas_conversacion_compactacion_contexto_inicial ON {nombres.LineasConversacion} (id_compactacion_contexto_inicial) WHERE id_compactacion_contexto_inicial IS NOT NULL;
 CREATE INDEX ix_mensajes_linea_fecha_id ON {nombres.Mensajes} (id_linea_conversacion, fecha_creacion, id);
 CREATE UNIQUE INDEX ux_mensajes_idempotencia ON {nombres.Mensajes} (id_linea_conversacion, id_direccion_mensaje, identificador_externo_mensaje) WHERE identificador_externo_mensaje IS NOT NULL;
 CREATE INDEX ix_procesamientos_internos_mensaje_estado_fecha ON {nombres.ProcesamientosInternosMensaje} (id_estado_procesamiento_interno_mensaje, fecha_creacion);
-CREATE INDEX ix_entradas_contexto_ia_linea_orden ON {nombres.EntradasContextoIA} (id_linea_conversacion, orden);
-CREATE INDEX ix_entradas_contexto_ia_procesamiento_orden ON {nombres.EntradasContextoIA} (id_procesamiento_interno_mensaje, orden);
-CREATE INDEX ix_metadata_ia_linea_iteracion ON {nombres.MetadataRazonamientoIALineaConversacion} (id_linea_conversacion, iteracion);
-CREATE INDEX ix_metadata_ia_procesamiento_iteracion ON {nombres.MetadataRazonamientoIALineaConversacion} (id_procesamiento_interno_mensaje, iteracion);
-CREATE UNIQUE INDEX ux_estados_contexto_linea_origen ON {nombres.EstadosContextoConversacion} (id_linea_conversacion_origen);
-CREATE UNIQUE INDEX ux_estados_contexto_conversacion_version ON {nombres.EstadosContextoConversacion} (id_conversacion, version);
-CREATE INDEX ix_estados_contexto_anterior ON {nombres.EstadosContextoConversacion} (id_estado_contexto_anterior);
-CREATE UNIQUE INDEX ux_estados_contexto_metadata ON {nombres.EstadosContextoConversacion} (id_metadata_razonamiento_ia);
+CREATE INDEX ix_metadata_entradas_ia_linea_orden ON {nombres.MetadataEntradasContextoIA} (id_linea_conversacion, orden);
+CREATE INDEX ix_metadata_entradas_ia_procesamiento_orden ON {nombres.MetadataEntradasContextoIA} (id_procesamiento_interno_mensaje, orden);
+CREATE INDEX ix_metadata_entradas_ia_compactacion ON {nombres.MetadataEntradasContextoIA} (id_compactacion_contexto_incorporada);
+CREATE INDEX ix_informacion_tecnica_ia_linea_iteracion ON {nombres.InformacionTecnicaLlamadasIALineaConversacion} (id_linea_conversacion, iteracion);
+CREATE INDEX ix_informacion_tecnica_ia_procesamiento_iteracion ON {nombres.InformacionTecnicaLlamadasIALineaConversacion} (id_procesamiento_interno_mensaje, iteracion);
+CREATE UNIQUE INDEX ux_ejecuciones_comando_contexto_activa_procesamiento ON {nombres.EjecucionesComandoContexto} (id_procesamiento_interno_mensaje) WHERE activa = 1;
+CREATE UNIQUE INDEX ux_ejecuciones_comando_contexto_decision_intento ON {nombres.EjecucionesComandoContexto} (id_metadata_entrada_decision_contexto_ia, numero_intento);
+CREATE UNIQUE INDEX ux_ejecuciones_comando_contexto_externa ON {nombres.EjecucionesComandoContexto} (proveedor_ejecucion, identificador_externo) WHERE identificador_externo IS NOT NULL;
+CREATE UNIQUE INDEX ux_ejecuciones_comando_contexto_anterior ON {nombres.EjecucionesComandoContexto} (id_ejecucion_anterior) WHERE id_ejecucion_anterior IS NOT NULL;
+CREATE UNIQUE INDEX ux_ejecuciones_comando_contexto_resultado ON {nombres.EjecucionesComandoContexto} (id_metadata_entrada_resultado_contexto_ia) WHERE id_metadata_entrada_resultado_contexto_ia IS NOT NULL;
+CREATE UNIQUE INDEX ux_compactaciones_contexto_linea_origen ON {nombres.CompactacionesContextoConversacion} (id_linea_conversacion_origen);
+CREATE UNIQUE INDEX ux_compactaciones_contexto_conversacion_version ON {nombres.CompactacionesContextoConversacion} (id_conversacion, version);
+CREATE INDEX ix_compactaciones_contexto_anterior ON {nombres.CompactacionesContextoConversacion} (id_compactacion_contexto_anterior);
+CREATE UNIQUE INDEX ux_compactaciones_contexto_informacion_ia ON {nombres.CompactacionesContextoConversacion} (id_informacion_tecnica_llamada_ia);
 CREATE INDEX ix_envios_mensaje_estado_fecha ON {nombres.EnviosMensaje} (id_estado_envio_mensaje, fecha_creacion);";
 
         await EjecutarAsync(connection, transaction, sql, cancellationToken);
@@ -421,13 +464,23 @@ INSERT INTO {nombres.RolesContextoIA} (id, descripcion) VALUES
 INSERT INTO {nombres.TiposEntradaContextoIA} (id, descripcion) VALUES
     ('mensaje_entrada', 'Mensaje de entrada'),
     ('decision_comando', 'Decision de comando'),
-    ('decision_historial', 'Decision de historial'),
+    ('decision_consulta_mensajes_linea_anterior', 'Decision de consulta de mensajes de linea anterior'),
     ('respuesta_final', 'Respuesta final'),
     ('no_responder', 'No responder'),
     ('error_intencion', 'Error de intencion'),
     ('resultado_comando', 'Resultado de comando'),
-    ('resultado_historial', 'Resultado de historial'),
-    ('limite_ventana', 'Limite de ventana');";
+    ('resultado_consulta_mensajes_linea_anterior', 'Resultado de consulta de mensajes de linea anterior'),
+    ('limite_ventana', 'Limite de ventana');
+
+INSERT INTO {nombres.EstadosEjecucionComandoContexto} (id, descripcion) VALUES
+    ('preparada', 'Preparada para encolar'),
+    ('encolando', 'Solicitud de encolado iniciada'),
+    ('encolada', 'Encolada en el proveedor externo'),
+    ('abandonando', 'Abandono del intento externo en curso'),
+    ('completada', 'Ejecucion completada'),
+    ('fallida', 'Ejecucion terminada con error'),
+    ('abandonada', 'Ejecucion reemplazada por un reintento'),
+    ('incierta', 'No se pudo determinar la ejecucion externa');";
 
         await EjecutarAsync(connection, transaction, sql, cancellationToken);
     }

@@ -32,9 +32,11 @@ public sealed class NombresBaseDatosMensajeria
     public string Mensajes => Calificar("per_mensajes");
     public string ArchivosMensaje => Calificar("per_archivos_mensaje");
     public string ProcesamientosInternosMensaje => Calificar("per_procesamientos_internos_mensaje");
-    public string EntradasContextoIA => Calificar("per_entradas_contexto_ia");
-    public string MetadataRazonamientoIALineaConversacion => Calificar("per_metadata_razonamiento_ia_linea_conversacion");
-    public string EstadosContextoConversacion => Calificar("per_estados_contexto_conversacion");
+    public string MetadataEntradasContextoIA => Calificar("per_metadata_entradas_contexto_ia");
+    public string InformacionTecnicaLlamadasIALineaConversacion => Calificar("per_informacion_tecnica_llamadas_ia_linea_conversacion");
+    public string CompactacionesContextoConversacion => Calificar("per_compactaciones_contexto_conversacion");
+    public string EstadosEjecucionComandoContexto => Calificar("per_estados_ejecucion_comando_contexto");
+    public string EjecucionesComandoContexto => Calificar("per_ejecuciones_comando_contexto");
     public string EnviosMensaje => Calificar("per_envios_mensaje");
 
     public static NombresBaseDatosMensajeria Postgres(string? esquema = null)

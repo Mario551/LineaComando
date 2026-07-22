@@ -23,7 +23,7 @@ public class FakeMensajeServicio : IMensajeServicio
 
         return Task.FromResult(new ResultadoRenovarLineaContexto
         {
-            IDEstadoContexto = 5,
+            IDCompactacionContexto = 5,
             IDLineaConversacion = 6,
             IDMensaje = solicitud.IDMensaje,
             IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,

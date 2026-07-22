@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Builder.Contexto.LineaComando;
 
 namespace PER.Mensajeria.Builder;
 
@@ -26,6 +27,23 @@ public class ContextoMensajeriaBuilder : IContextoMensajeriaBuilder
         return this;
     }
 
+    public IContextoMensajeriaBuilder UsarIntencionOpenRouter(
+        string apiKey,
+        Action<IOpenRouterMensajeriaBuilder> configurar)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentNullException.ThrowIfNull(configurar);
+
+        OpenRouterMensajeriaBuilder openRouterBuilder = new(servicios, apiKey);
+        configurar(openRouterBuilder);
+        if (!openRouterBuilder.ModeloConfigurado)
+        {
+            throw new InvalidOperationException("OpenRouter debe configurar un adapter de modelo.");
+        }
+
+        return this;
+    }
+
     public IContextoMensajeriaBuilder UsarCatalogoComandos<TCatalogo>()
         where TCatalogo : class, IProveedorCatalogoComandoContextoServicio
     {
@@ -40,10 +58,9 @@ public class ContextoMensajeriaBuilder : IContextoMensajeriaBuilder
         return this;
     }
 
-    public IContextoMensajeriaBuilder UsarProveedorHistorial<THistorial>()
-        where THistorial : class, IProveedorHistorialContextoServicio
+    public IContextoMensajeriaBuilder UsarEjecutorLineaComando()
     {
-        ReemplazarTransient<IProveedorHistorialContextoServicio, THistorial>();
+        ReemplazarTransient<IEjecutorComandoContextoServicio, EjecutorComandoLineaComandoServicio>();
         return this;
     }
 

@@ -10,18 +10,23 @@ using PER.Mensajeria.Entidad.DTO;
 
 public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicacion
 {
-    private readonly IUnitOfWork unitOfWork;
+    private const string EstadoPendiente = "pendiente";
+    private const string EstadoEnProceso = "en_proceso";
+    private const string EstadoProcesado = "procesado";
+    private const string EstadoError = "error";
+
+    private readonly IUnitOfWorkFactory unitOfWorkFactory;
     private readonly IContextoConversacionServicio contextoConversacionServicio;
     private readonly IRegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion;
     private readonly ILogger<OrquestarMensajeEntradaAplicacion> logger;
 
     public OrquestarMensajeEntradaAplicacion(
-        IUnitOfWork unitOfWork,
+        IUnitOfWorkFactory unitOfWorkFactory,
         IContextoConversacionServicio contextoConversacionServicio,
         IRegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion,
         ILogger<OrquestarMensajeEntradaAplicacion> logger)
     {
-        this.unitOfWork = unitOfWork;
+        this.unitOfWorkFactory = unitOfWorkFactory;
         this.contextoConversacionServicio = contextoConversacionServicio;
         this.registrarMensajeSalidaAplicacion = registrarMensajeSalidaAplicacion;
         this.logger = logger;
@@ -31,30 +36,22 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
         long idProcesamientoInternoMensaje,
         CancellationToken cancellationToken)
     {
-        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
-            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
-        DAOMensaje mensajeEntrada = await unitOfWork.MensajeRepositorio.GetNoTracking()
-            .SingleAsync(mensajeActual => mensajeActual.ID == procesamiento.IDMensaje, cancellationToken);
-        DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
-            .SingleAsync(lineaActual => lineaActual.ID == mensajeEntrada.IDLineaConversacion, cancellationToken);
-        DAOConversacion conversacion = await unitOfWork.ConversacionRepositorio.GetNoTracking()
-            .SingleAsync(conversacionActual => conversacionActual.ID == linea.IDConversacion, cancellationToken);
+        DatosProcesamientoMensaje? datosProcesamiento = await PrepararProcesamientoAsync(
+            idProcesamientoInternoMensaje,
+            cancellationToken);
+
+        if (datosProcesamiento is null)
+        {
+            logger.LogDebug(
+                "Evento ignorado porque el procesamiento ya esta en estado terminal. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}",
+                idProcesamientoInternoMensaje);
+            return ResultadoOrquestarMensajeEntrada.Procesado();
+        }
 
         try
         {
-            procesamiento.IDEstadoProcesamientoInternoMensaje = "en_proceso";
-            procesamiento.Error = null;
-            unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-
-            SolicitudContextoConversacion solicitudContexto = await CrearSolicitudContextoAsync(
-                procesamiento,
-                mensajeEntrada,
-                linea,
-                conversacion,
-                cancellationToken);
             ResultadoContextoConversacion resultadoContexto = await contextoConversacionServicio.ResolverAsync(
-                solicitudContexto,
+                datosProcesamiento.SolicitudContexto,
                 cancellationToken);
 
             if (resultadoContexto.TipoResultado == ResultadoContextoConversacionTipo.Error)
@@ -67,12 +64,19 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
                 ResultadoCompactacionIntencionContexto compactacion = resultadoContexto.Compactacion
                     ?? throw new InvalidOperationException("El limite de ventana debe incluir una compactacion valida.");
 
-                return ResultadoOrquestarMensajeEntrada.RenovarLinea(compactacion);
+                return ResultadoOrquestarMensajeEntrada.RenovarLinea(
+                    compactacion,
+                    datosProcesamiento.IDMensaje,
+                    datosProcesamiento.IDConversacion,
+                    datosProcesamiento.IDLineaConversacion);
             }
 
             foreach (DTOMensajeSaliente mensajeSaliente in resultadoContexto.MensajesSalientes)
             {
-                ForzarRelacionSalida(mensajeSaliente, conversacion, linea);
+                ForzarRelacionSalida(
+                    mensajeSaliente,
+                    datosProcesamiento.IDConversacion,
+                    datosProcesamiento.IDLineaConversacion);
 
                 await registrarMensajeSalidaAplicacion.EjecutarAsync(new DTORegistrarMensajeSalidaSolicitud
                 {
@@ -80,55 +84,82 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
                 }, cancellationToken);
             }
 
-            procesamiento.IDEstadoProcesamientoInternoMensaje = "procesado";
-            procesamiento.FechaProcesado = DateTime.Now;
-            procesamiento.Error = null;
-            unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await MarcarProcesadoAsync(idProcesamientoInternoMensaje, cancellationToken);
 
             return resultadoContexto.TipoResultado == ResultadoContextoConversacionTipo.SinSalidas
                 ? ResultadoOrquestarMensajeEntrada.SinSalidas()
                 : ResultadoOrquestarMensajeEntrada.Procesado();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation(
+                "Procesamiento cancelado por apagado. Se conserva en proceso para rehidratacion. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}",
+                idProcesamientoInternoMensaje);
+            throw;
         }
         catch (Exception excepcion)
         {
             logger.LogError(
                 excepcion,
                 "Error orquestando mensaje de entrada. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
-                procesamiento.ID,
-                mensajeEntrada.ID,
-                conversacion.ID,
-                linea.ID);
+                idProcesamientoInternoMensaje,
+                datosProcesamiento.IDMensaje,
+                datosProcesamiento.IDConversacion,
+                datosProcesamiento.IDLineaConversacion);
 
-            procesamiento.IDEstadoProcesamientoInternoMensaje = "error";
-            procesamiento.Intentos++;
-            procesamiento.Error = excepcion.Message;
-            unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await MarcarErrorAsync(idProcesamientoInternoMensaje, excepcion.Message, cancellationToken);
             return ResultadoOrquestarMensajeEntrada.ConError(excepcion.Message);
-        }
-        finally
-        {
-            unitOfWork.ProcesamientoInternoMensajeRepositorio.LiberarRastreo(procesamiento);
         }
     }
 
     private static void ForzarRelacionSalida(
         DTOMensajeSaliente mensajeSaliente,
-        DAOConversacion conversacion,
-        DAOLineaConversacion linea)
+        long idConversacion,
+        long idLineaConversacion)
     {
-        mensajeSaliente.IDConversacion = conversacion.ID;
-        mensajeSaliente.IDLineaConversacion = linea.ID;
+        mensajeSaliente.IDConversacion = idConversacion;
+        mensajeSaliente.IDLineaConversacion = idLineaConversacion;
     }
 
-    private async Task<SolicitudContextoConversacion> CrearSolicitudContextoAsync(
-        DAOProcesamientoInternoMensaje procesamiento,
-        DAOMensaje mensajeEntrada,
-        DAOLineaConversacion linea,
-        DAOConversacion conversacion,
+    private async Task<DatosProcesamientoMensaje?> PrepararProcesamientoAsync(
+        long idProcesamientoInternoMensaje,
         CancellationToken cancellationToken)
     {
+        await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
+        IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
+
+        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
+
+        if (procesamiento.IDEstadoProcesamientoInternoMensaje is EstadoProcesado or EstadoError)
+        {
+            return null;
+        }
+
+        if (procesamiento.IDEstadoProcesamientoInternoMensaje is not EstadoPendiente and not EstadoEnProceso)
+        {
+            throw new InvalidOperationException(
+                $"El procesamiento {idProcesamientoInternoMensaje} tiene el estado no soportado '{procesamiento.IDEstadoProcesamientoInternoMensaje}'.");
+        }
+
+        DAOMensaje mensajeEntrada = await unitOfWork.MensajeRepositorio.Get()
+            .SingleAsync(mensajeActual => mensajeActual.ID == procesamiento.IDMensaje, cancellationToken);
+        DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
+            .SingleAsync(lineaActual => lineaActual.ID == mensajeEntrada.IDLineaConversacion, cancellationToken);
+
+        if (!linea.Activa)
+        {
+            linea = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
+                .Where(lineaActual => lineaActual.IDConversacion == linea.IDConversacion && lineaActual.Activa)
+                .OrderByDescending(lineaActual => lineaActual.FechaInicio)
+                .ThenByDescending(lineaActual => lineaActual.ID)
+                .FirstAsync(cancellationToken);
+            mensajeEntrada.IDLineaConversacion = linea.ID;
+        }
+
+        DAOConversacion conversacion = await unitOfWork.ConversacionRepositorio.GetNoTracking()
+            .SingleAsync(conversacionActual => conversacionActual.ID == linea.IDConversacion, cancellationToken);
+
         List<DTOArchivoMensaje> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
             .Where(archivoActual => archivoActual.IDMensaje == mensajeEntrada.ID)
             .Select(archivoActual => new DTOArchivoMensaje
@@ -142,20 +173,71 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
             })
             .ToListAsync(cancellationToken);
 
-        return new SolicitudContextoConversacion
+        procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoEnProceso;
+        procesamiento.Error = null;
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new DatosProcesamientoMensaje
         {
-            IDProcesamientoInternoMensaje = procesamiento.ID,
             IDMensaje = mensajeEntrada.ID,
             IDConversacion = conversacion.ID,
             IDLineaConversacion = linea.ID,
-            IDCuentaCanal = conversacion.IDCuentaCanal,
-            TipoMensaje = mensajeEntrada.IDTipoMensaje,
-            TelefonoOrigen = mensajeEntrada.TelefonoOrigen,
-            TelefonoDestino = mensajeEntrada.TelefonoDestino,
-            Contenido = mensajeEntrada.Contenido,
-            IdentificadorExternoMensaje = mensajeEntrada.IdentificadorExternoMensaje,
-            FechaMensaje = mensajeEntrada.FechaMensaje,
-            Archivos = archivos
+            SolicitudContexto = new SolicitudContextoConversacion
+            {
+                IDProcesamientoInternoMensaje = procesamiento.ID,
+                IDMensaje = mensajeEntrada.ID,
+                IDConversacion = conversacion.ID,
+                IDLineaConversacion = linea.ID,
+                IDCuentaCanal = conversacion.IDCuentaCanal,
+                TipoMensaje = mensajeEntrada.IDTipoMensaje,
+                TelefonoOrigen = mensajeEntrada.TelefonoOrigen,
+                TelefonoDestino = mensajeEntrada.TelefonoDestino,
+                Contenido = mensajeEntrada.Contenido,
+                IdentificadorExternoMensaje = mensajeEntrada.IdentificadorExternoMensaje,
+                FechaMensaje = mensajeEntrada.FechaMensaje,
+                Archivos = archivos
+            }
         };
+    }
+
+    private async Task MarcarProcesadoAsync(
+        long idProcesamientoInternoMensaje,
+        CancellationToken cancellationToken)
+    {
+        await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
+        IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
+        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
+
+        procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoProcesado;
+        procesamiento.FechaProcesado = DateTime.Now;
+        procesamiento.Error = null;
+        unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task MarcarErrorAsync(
+        long idProcesamientoInternoMensaje,
+        string error,
+        CancellationToken cancellationToken)
+    {
+        await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
+        IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
+        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
+
+        procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoError;
+        procesamiento.Intentos++;
+        procesamiento.Error = error;
+        unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private class DatosProcesamientoMensaje
+    {
+        public long IDMensaje { get; init; }
+        public long IDConversacion { get; init; }
+        public long IDLineaConversacion { get; init; }
+        public required SolicitudContextoConversacion SolicitudContexto { get; init; }
     }
 }

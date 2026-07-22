@@ -9,43 +9,73 @@ public sealed class ResultadoCompactacionIntencionContexto
     public bool Exitoso { get; private set; }
     public string? Error { get; private set; }
     public string Contenido { get; private set; } = string.Empty;
-    public MetadataRazonamientoIAContexto Metadata { get; private set; } = null!;
+    public IReadOnlyList<InformacionTecnicaLlamadaIAContexto> InformacionesTecnicasLlamadasIA { get; private set; } = [];
+    public InformacionTecnicaLlamadaIAContexto InformacionTecnicaLlamadaIA => InformacionesTecnicasLlamadasIA[^1];
 
     public static ResultadoCompactacionIntencionContexto Exito(
         string contenido,
-        MetadataRazonamientoIAContexto metadata)
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA)
+    {
+        return Exito(contenido, [informacionTecnicaLlamadaIA]);
+    }
+
+    public static ResultadoCompactacionIntencionContexto Exito(
+        string contenido,
+        IReadOnlyList<InformacionTecnicaLlamadaIAContexto> informacionesTecnicasLlamadasIA)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contenido);
-        ValidarMetadata(metadata);
+        ValidarInformacionesTecnicasLlamadasIA(informacionesTecnicasLlamadasIA);
 
         return new ResultadoCompactacionIntencionContexto
         {
             Exitoso = true,
             Contenido = contenido,
-            Metadata = metadata
+            InformacionesTecnicasLlamadasIA = informacionesTecnicasLlamadasIA.ToList()
         };
     }
 
     public static ResultadoCompactacionIntencionContexto Fallo(
         string error,
-        MetadataRazonamientoIAContexto metadata)
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA)
+    {
+        return Fallo(error, [informacionTecnicaLlamadaIA]);
+    }
+
+    public static ResultadoCompactacionIntencionContexto Fallo(
+        string error,
+        IReadOnlyList<InformacionTecnicaLlamadaIAContexto> informacionesTecnicasLlamadasIA)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(error);
-        ValidarMetadata(metadata);
+        ValidarInformacionesTecnicasLlamadasIA(informacionesTecnicasLlamadasIA);
 
         return new ResultadoCompactacionIntencionContexto
         {
             Exitoso = false,
             Error = error,
-            Metadata = metadata
+            InformacionesTecnicasLlamadasIA = informacionesTecnicasLlamadasIA.ToList()
         };
     }
 
-    private static void ValidarMetadata(MetadataRazonamientoIAContexto metadata)
+    private static void ValidarInformacionesTecnicasLlamadasIA(IReadOnlyList<InformacionTecnicaLlamadaIAContexto> informacionesTecnicasLlamadasIA)
     {
-        ArgumentNullException.ThrowIfNull(metadata);
-        ArgumentException.ThrowIfNullOrWhiteSpace(metadata.Proveedor);
-        ArgumentException.ThrowIfNullOrWhiteSpace(metadata.Modelo);
-        ArgumentException.ThrowIfNullOrWhiteSpace(metadata.Adaptador);
+        ArgumentNullException.ThrowIfNull(informacionesTecnicasLlamadasIA);
+        if (informacionesTecnicasLlamadasIA.Count == 0)
+        {
+            throw new ArgumentException("La compactacion debe contener informacion tecnica de al menos una llamada IA.", nameof(informacionesTecnicasLlamadasIA));
+        }
+
+        foreach (InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA in informacionesTecnicasLlamadasIA)
+        {
+            ValidarInformacionTecnicaLlamadaIA(informacionTecnicaLlamadaIA);
+        }
+    }
+
+    private static void ValidarInformacionTecnicaLlamadaIA(
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA)
+    {
+        ArgumentNullException.ThrowIfNull(informacionTecnicaLlamadaIA);
+        ArgumentException.ThrowIfNullOrWhiteSpace(informacionTecnicaLlamadaIA.Proveedor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(informacionTecnicaLlamadaIA.Modelo);
+        ArgumentException.ThrowIfNullOrWhiteSpace(informacionTecnicaLlamadaIA.Adaptador);
     }
 }

@@ -10,6 +10,9 @@ public sealed class ResultadoOrquestarMensajeEntrada
 
     public ResultadoOrquestarMensajeEntradaTipo Tipo { get; private set; }
     public ResultadoCompactacionIntencionContexto? Compactacion { get; private set; }
+    public long IDMensaje { get; private set; }
+    public long IDConversacion { get; private set; }
+    public long IDLineaConversacion { get; private set; }
     public string? Error { get; private set; }
 
     public static ResultadoOrquestarMensajeEntrada Procesado()
@@ -29,14 +32,20 @@ public sealed class ResultadoOrquestarMensajeEntrada
     }
 
     public static ResultadoOrquestarMensajeEntrada RenovarLinea(
-        ResultadoCompactacionIntencionContexto compactacion)
+        ResultadoCompactacionIntencionContexto compactacion,
+        long idMensaje,
+        long idConversacion,
+        long idLineaConversacion)
     {
         ArgumentNullException.ThrowIfNull(compactacion);
 
         return new ResultadoOrquestarMensajeEntrada
         {
             Tipo = ResultadoOrquestarMensajeEntradaTipo.RenovarLinea,
-            Compactacion = compactacion
+            Compactacion = compactacion,
+            IDMensaje = idMensaje,
+            IDConversacion = idConversacion,
+            IDLineaConversacion = idLineaConversacion
         };
     }
 

@@ -6,7 +6,6 @@ using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.Contexto;
-using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
 using PER.Mensajeria.Entidad.DTO;
 using LoggerOrquestarMensajeEntrada = AplicacionTest.Infraestructura.LoggerPrueba<PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada.OrquestarMensajeEntradaAplicacion>;
@@ -119,6 +118,38 @@ public class OrquestarMensajeEntradaAplicacionTest
 
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_HostCancela_DebeConservarProcesamientoEnProcesoYPropagarCancelacion(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        using CancellationTokenSource fuenteCancelacion = new();
+        FakeContextoConversacionServicio contextoConversacion =
+            FakeContextoConversacionServicio.ConCancelacion(fuenteCancelacion);
+        RegistroLoggerPrueba registroLogger = new();
+        IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(
+            baseDatos,
+            contextoConversacion,
+            registroLogger);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            aplicacion.EjecutarAsync(procesamiento.ID, fuenteCancelacion.Token));
+
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        DAOProcesamientoInternoMensaje procesamientoActualizado = await contexto.ProcesamientosInternosMensaje
+            .SingleAsync(procesamientoActual => procesamientoActual.ID == procesamiento.ID);
+
+        Assert.True(contextoConversacion.Ejecutado);
+        Assert.Equal("en_proceso", procesamientoActualizado.IDEstadoProcesamientoInternoMensaje);
+        Assert.Equal(0, procesamientoActualizado.Intentos);
+        Assert.Null(procesamientoActualizado.FechaProcesado);
+        Assert.Null(procesamientoActualizado.Error);
+        registroLogger.AssertSinErrores();
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
     public async Task EjecutarAsync_DebeEnviarSolicitudContextoConIDsYDatosCargadosDesdeBD(MotorBaseDatosPrueba motor)
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
@@ -152,7 +183,7 @@ public class OrquestarMensajeEntradaAplicacionTest
             await baseDatos.CrearMensajeEntradaPendienteAsync();
         ResultadoCompactacionIntencionContexto compactacion = ResultadoCompactacionIntencionContexto.Exito(
             "snapshot",
-            new MetadataRazonamientoIAContexto
+            new InformacionTecnicaLlamadaIAContexto
             {
                 Proveedor = "fake",
                 Modelo = "fake",
@@ -171,11 +202,99 @@ public class OrquestarMensajeEntradaAplicacionTest
         DAOProcesamientoInternoMensaje procesamientoActualizado = await contexto.ProcesamientosInternosMensaje.SingleAsync();
         Assert.Equal(ResultadoOrquestarMensajeEntradaTipo.RenovarLinea, resultado.Tipo);
         Assert.Same(compactacion, resultado.Compactacion);
+        Assert.Equal(mensaje.ID, resultado.IDMensaje);
+        Assert.Equal(mensaje.IDLineaConversacion, resultado.IDLineaConversacion);
         Assert.Equal("en_proceso", procesamientoActualizado.IDEstadoProcesamientoInternoMensaje);
         Assert.Null(procesamientoActualizado.FechaProcesado);
         Assert.Null(procesamientoActualizado.Error);
         Assert.Equal(1, await contexto.Mensajes.CountAsync());
         Assert.Empty(await contexto.EnviosMensaje.ToListAsync());
+        registroLogger.AssertSinErrores();
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_MensajeEnLineaInactiva_DebeRealinearloALineaActiva(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        long idLineaActiva;
+
+        await using (MensajeriaContextoDB contextoPreparacion = baseDatos.CrearContexto())
+        {
+            DAOLineaConversacion lineaAnterior = await contextoPreparacion.LineasConversacion
+                .SingleAsync(linea => linea.ID == mensaje.IDLineaConversacion);
+            lineaAnterior.Activa = false;
+            DAOLineaConversacion lineaActiva = new()
+            {
+                IDConversacion = lineaAnterior.IDConversacion,
+                FechaInicio = DateTime.Now,
+                FechaUltimaActividad = DateTime.Now,
+                Activa = true
+            };
+            await contextoPreparacion.LineasConversacion.AddAsync(lineaActiva);
+            await contextoPreparacion.SaveChangesAsync();
+            idLineaActiva = lineaActiva.ID;
+        }
+
+        FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.SinSalidas();
+        RegistroLoggerPrueba registroLogger = new();
+        IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(
+            baseDatos,
+            contextoConversacion,
+            registroLogger);
+
+        await aplicacion.EjecutarAsync(procesamiento.ID, CancellationToken.None);
+
+        SolicitudContextoConversacion solicitud = Assert.IsType<SolicitudContextoConversacion>(
+            contextoConversacion.SolicitudRecibida);
+        await using MensajeriaContextoDB contextoVerificacion = baseDatos.CrearContexto();
+        long idLineaMensaje = await contextoVerificacion.Mensajes
+            .Where(mensajeActual => mensajeActual.ID == mensaje.ID)
+            .Select(mensajeActual => mensajeActual.IDLineaConversacion)
+            .SingleAsync();
+
+        Assert.Equal(idLineaActiva, solicitud.IDLineaConversacion);
+        Assert.Equal(idLineaActiva, idLineaMensaje);
+        registroLogger.AssertSinErrores();
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_ProcesamientoTerminal_DebeIgnorarRedelivery(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje _, DAOProcesamientoInternoMensaje procesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+
+        await using (MensajeriaContextoDB contextoPreparacion = baseDatos.CrearContexto())
+        {
+            DAOProcesamientoInternoMensaje procesamientoTerminal = await contextoPreparacion.ProcesamientosInternosMensaje
+                .SingleAsync(procesamientoActual => procesamientoActual.ID == procesamiento.ID);
+            procesamientoTerminal.IDEstadoProcesamientoInternoMensaje = "procesado";
+            procesamientoTerminal.FechaProcesado = DateTime.Now;
+            await contextoPreparacion.SaveChangesAsync();
+        }
+
+        FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.SinSalidas();
+        RegistroLoggerPrueba registroLogger = new();
+        IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(
+            baseDatos,
+            contextoConversacion,
+            registroLogger);
+
+        ResultadoOrquestarMensajeEntrada resultado = await aplicacion.EjecutarAsync(
+            procesamiento.ID,
+            CancellationToken.None);
+
+        Assert.Equal(ResultadoOrquestarMensajeEntradaTipo.Procesado, resultado.Tipo);
+        Assert.False(contextoConversacion.Ejecutado);
+        await using MensajeriaContextoDB contextoVerificacion = baseDatos.CrearContexto();
+        Assert.Equal(1, await contextoVerificacion.Mensajes.CountAsync());
+        Assert.Empty(await contextoVerificacion.EnviosMensaje.ToListAsync());
         registroLogger.AssertSinErrores();
     }
 
@@ -201,12 +320,12 @@ public class OrquestarMensajeEntradaAplicacionTest
 
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
-    public async Task EjecutarAsync_ContextoSimulaHistorialIntermedio_DebeProcesarSoloResultadoFinal(MotorBaseDatosPrueba motor)
+    public async Task EjecutarAsync_ContextoSimulaConsultaMensajesAnteriores_DebeProcesarSoloResultadoFinal(MotorBaseDatosPrueba motor)
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
         DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
-        FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConHistorialIntermedio(mensajeSaliente);
+        FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConConsultaMensajesAnterioresIntermedia(mensajeSaliente);
         RegistroLoggerPrueba registroLogger = new();
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion, registroLogger);
 
@@ -219,19 +338,57 @@ public class OrquestarMensajeEntradaAplicacionTest
         registroLogger.AssertSinErrores();
     }
 
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_DebeDisponerUnitOfWorkAntesDeResolverContexto(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje _, DAOProcesamientoInternoMensaje procesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        UnitOfWorkFactoryPrueba unitOfWorkFactory = new(baseDatos);
+        FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.SinSalidas();
+        contextoConversacion.AntesDeResolver = () =>
+        {
+            Assert.True(unitOfWorkFactory.AlcancesCreados > 0);
+            Assert.Equal(0, unitOfWorkFactory.AlcancesActivos);
+            Assert.Equal(unitOfWorkFactory.AlcancesCreados, unitOfWorkFactory.AlcancesDispuestos);
+        };
+        RegistroLoggerPrueba registroLogger = new();
+        IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(
+            unitOfWorkFactory,
+            contextoConversacion,
+            registroLogger);
+
+        await aplicacion.EjecutarAsync(procesamiento.ID, CancellationToken.None);
+
+        Assert.Equal(0, unitOfWorkFactory.AlcancesActivos);
+        Assert.Equal(unitOfWorkFactory.AlcancesCreados, unitOfWorkFactory.AlcancesDispuestos);
+        registroLogger.AssertSinErrores();
+    }
+
     private static IOrquestarMensajeEntradaAplicacion CrearAplicacion(
         BaseDatosPrueba baseDatos,
         IContextoConversacionServicio contextoConversacionServicio,
         RegistroLoggerPrueba registroLogger)
     {
-        MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        UnitOfWork unitOfWork = new(contexto);
-        RegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion = new(unitOfWork);
+        return CrearAplicacion(
+            new UnitOfWorkFactoryPrueba(baseDatos),
+            contextoConversacionServicio,
+            registroLogger);
+    }
+
+    private static IOrquestarMensajeEntradaAplicacion CrearAplicacion(
+        UnitOfWorkFactoryPrueba unitOfWorkFactory,
+        IContextoConversacionServicio contextoConversacionServicio,
+        RegistroLoggerPrueba registroLogger)
+    {
+        RegistrarMensajeSalidaAplicacion registrarMensajeSalidaAplicacion = new(unitOfWorkFactory);
 
         ILogger<OrquestarMensajeEntradaAplicacion> logger = new LoggerOrquestarMensajeEntrada(registroLogger);
 
         return new OrquestarMensajeEntradaAplicacion(
-            unitOfWork,
+            unitOfWorkFactory,
             contextoConversacionServicio,
             registrarMensajeSalidaAplicacion,
             logger);

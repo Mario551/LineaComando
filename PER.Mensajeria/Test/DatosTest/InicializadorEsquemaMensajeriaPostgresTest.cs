@@ -17,6 +17,7 @@ public class InicializadorEsquemaMensajeriaPostgresTest
         "per_estados_envio_mensaje",
         "per_roles_contexto_ia",
         "per_tipos_entrada_contexto_ia",
+        "per_estados_ejecucion_comando_contexto",
         "per_cuentas_canal",
         "per_participantes_conversacion",
         "per_conversaciones",
@@ -25,9 +26,10 @@ public class InicializadorEsquemaMensajeriaPostgresTest
         "per_mensajes",
         "per_archivos_mensaje",
         "per_procesamientos_internos_mensaje",
-        "per_metadata_razonamiento_ia_linea_conversacion",
-        "per_entradas_contexto_ia",
-        "per_estados_contexto_conversacion",
+        "per_informacion_tecnica_llamadas_ia_linea_conversacion",
+        "per_metadata_entradas_contexto_ia",
+        "per_ejecuciones_comando_contexto",
+        "per_compactaciones_contexto_conversacion",
         "per_envios_mensaje"
     ];
 
@@ -73,21 +75,30 @@ public class InicializadorEsquemaMensajeriaPostgresTest
 
             int tiposEntradaContextoIA = await ConsultarEnteroAsync(
                 connectionString,
-                $"SELECT COUNT(*) FROM {nombres.TiposEntradaContextoIA} WHERE id IN ('mensaje_entrada', 'decision_comando', 'decision_historial', 'respuesta_final', 'no_responder', 'error_intencion', 'resultado_comando', 'resultado_historial', 'limite_ventana');");
+                $"SELECT COUNT(*) FROM {nombres.TiposEntradaContextoIA} WHERE id IN ('mensaje_entrada', 'decision_comando', 'decision_consulta_mensajes_linea_anterior', 'respuesta_final', 'no_responder', 'error_intencion', 'resultado_comando', 'resultado_consulta_mensajes_linea_anterior', 'limite_ventana');");
+
+            int estadosEjecucionComando = await ConsultarEnteroAsync(
+                connectionString,
+                $"SELECT COUNT(*) FROM {nombres.EstadosEjecucionComandoContexto} WHERE id IN ('preparada', 'encolando', 'encolada', 'abandonando', 'completada', 'fallida', 'abandonada', 'incierta');");
 
             int indices = await ConsultarEnteroAsync(
                 connectionString,
-                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = @esquema AND indexname IN ('ux_mensajes_idempotencia', 'ix_procesamientos_internos_mensaje_estado_fecha', 'ix_envios_mensaje_estado_fecha', 'ix_entradas_contexto_ia_linea_orden', 'ix_entradas_contexto_ia_procesamiento_orden', 'ix_metadata_ia_linea_iteracion', 'ix_metadata_ia_procesamiento_iteracion', 'ux_lineas_conversacion_estado_contexto_inicial', 'ux_estados_contexto_linea_origen', 'ux_estados_contexto_conversacion_version', 'ix_estados_contexto_anterior', 'ux_estados_contexto_metadata');",
+                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = @esquema AND indexname IN ('ux_mensajes_idempotencia', 'ix_procesamientos_internos_mensaje_estado_fecha', 'ix_envios_mensaje_estado_fecha', 'ix_metadata_entradas_ia_linea_orden', 'ix_metadata_entradas_ia_procesamiento_orden', 'ix_metadata_entradas_ia_compactacion', 'ix_informacion_tecnica_ia_linea_iteracion', 'ix_informacion_tecnica_ia_procesamiento_iteracion', 'ux_lineas_conversacion_compactacion_contexto_inicial', 'ux_compactaciones_contexto_linea_origen', 'ux_compactaciones_contexto_conversacion_version', 'ix_compactaciones_contexto_anterior', 'ux_compactaciones_contexto_informacion_ia', 'ux_ejecuciones_comando_contexto_activa_procesamiento', 'ux_ejecuciones_comando_contexto_decision_intento', 'ux_ejecuciones_comando_contexto_externa', 'ux_ejecuciones_comando_contexto_anterior', 'ux_ejecuciones_comando_contexto_resultado');",
                 comando => comando.Parameters.AddWithValue("esquema", esquema));
 
             int llavesForaneasContextoIA = await ConsultarEnteroAsync(
                 connectionString,
-                "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = @esquema AND constraint_name IN ('fk_entradas_contexto_ia_linea', 'fk_entradas_contexto_ia_mensaje', 'fk_entradas_contexto_ia_procesamiento', 'fk_entradas_contexto_ia_metadata', 'fk_entradas_contexto_ia_rol', 'fk_entradas_contexto_ia_tipo', 'fk_metadata_ia_linea', 'fk_metadata_ia_procesamiento', 'fk_metadata_ia_mensaje') AND constraint_type = 'FOREIGN KEY';",
+                "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = @esquema AND constraint_name IN ('fk_metadata_entradas_contexto_ia_linea', 'fk_metadata_entradas_contexto_ia_mensaje', 'fk_metadata_entradas_contexto_ia_procesamiento', 'fk_metadata_entradas_contexto_ia_informacion', 'fk_metadata_entradas_contexto_ia_compactacion', 'fk_metadata_entradas_contexto_ia_rol', 'fk_metadata_entradas_contexto_ia_tipo', 'fk_informacion_tecnica_ia_linea', 'fk_informacion_tecnica_ia_procesamiento', 'fk_informacion_tecnica_ia_mensaje') AND constraint_type = 'FOREIGN KEY';",
                 comando => comando.Parameters.AddWithValue("esquema", esquema));
 
             int llavesForaneasSnapshot = await ConsultarEnteroAsync(
                 connectionString,
-                "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = @esquema AND constraint_name IN ('fk_lineas_conversacion_estado_contexto_inicial', 'fk_estados_contexto_conversacion', 'fk_estados_contexto_linea_origen', 'fk_estados_contexto_anterior', 'fk_estados_contexto_metadata') AND constraint_type = 'FOREIGN KEY';",
+                "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = @esquema AND constraint_name IN ('fk_lineas_conversacion_compactacion_contexto_inicial', 'fk_compactaciones_contexto_conversacion', 'fk_compactaciones_contexto_linea_origen', 'fk_compactaciones_contexto_anterior', 'fk_compactaciones_contexto_informacion_ia') AND constraint_type = 'FOREIGN KEY';",
+                comando => comando.Parameters.AddWithValue("esquema", esquema));
+
+            int llavesForaneasEjecucionComando = await ConsultarEnteroAsync(
+                connectionString,
+                "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = @esquema AND constraint_name IN ('fk_ejecuciones_comando_contexto_anterior', 'fk_ejecuciones_comando_contexto_linea', 'fk_ejecuciones_comando_contexto_procesamiento', 'fk_ejecuciones_comando_contexto_decision', 'fk_ejecuciones_comando_contexto_resultado', 'fk_ejecuciones_comando_contexto_estado') AND constraint_type = 'FOREIGN KEY';",
                 comando => comando.Parameters.AddWithValue("esquema", esquema));
 
             int totalDirecciones = await ConsultarEnteroAsync(connectionString, $"SELECT COUNT(*) FROM {nombres.DireccionesMensaje};");
@@ -102,9 +113,11 @@ public class InicializadorEsquemaMensajeriaPostgresTest
             Assert.Equal(4, estadosProcesamiento);
             Assert.Equal(4, rolesContextoIA);
             Assert.Equal(9, tiposEntradaContextoIA);
-            Assert.Equal(12, indices);
-            Assert.Equal(9, llavesForaneasContextoIA);
+            Assert.Equal(8, estadosEjecucionComando);
+            Assert.Equal(18, indices);
+            Assert.Equal(10, llavesForaneasContextoIA);
             Assert.Equal(5, llavesForaneasSnapshot);
+            Assert.Equal(6, llavesForaneasEjecucionComando);
             Assert.Equal(2, totalDirecciones);
             Assert.Equal(4, totalEstadosProcesamiento);
             Assert.Equal("Entrada personalizada", descripcionEntrada);
@@ -126,7 +139,7 @@ public class InicializadorEsquemaMensajeriaPostgresTest
 
         Assert.Contains("esta incompleto", excepcion.Message);
         Assert.Contains("per_mensajes", excepcion.Message);
-        Assert.Contains("per_estados_contexto_conversacion", excepcion.Message);
+        Assert.Contains("per_compactaciones_contexto_conversacion", excepcion.Message);
     }
 
     private static string LeerConnectionString()

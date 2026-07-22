@@ -30,6 +30,8 @@ public class SqlModeloBaseTest
         Assert.Contains("('error', 'Error')", sql);
         Assert.Contains("('enviado', 'Enviado')", sql);
         Assert.Contains("('fallido', 'Fallido')", sql);
+        Assert.Contains("INSERT INTO per_estados_ejecucion_comando_contexto", sql);
+        Assert.Contains("('incierta', 'No se pudo determinar la ejecucion externa')", sql);
     }
 
     [Fact]
@@ -44,6 +46,11 @@ public class SqlModeloBaseTest
         Assert.Contains("CREATE UNIQUE INDEX ux_mensajes_idempotencia", sql);
         Assert.Contains("CREATE INDEX ix_procesamientos_internos_mensaje_estado_fecha", sql);
         Assert.Contains("CREATE INDEX ix_envios_mensaje_estado_fecha", sql);
+        Assert.Contains("CREATE TABLE per_ejecuciones_comando_contexto", sql);
+        Assert.Contains("fk_ejecuciones_comando_contexto_anterior", sql);
+        Assert.Contains("ux_ejecuciones_comando_contexto_activa_procesamiento", sql);
+        Assert.DoesNotContain("MERGE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ON CONFLICT", sql, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string LeerTablasSql()

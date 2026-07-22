@@ -17,32 +17,31 @@ public class OrquestadorContextoWorkerTest
         List<string> pasos = new();
         FakeCargarEventosMensajeriaPendientesAplicacion cargarEventos = new(pasos);
         FakeOrquestadorContextoServicio orquestador = new(pasos);
-        ServiceProvider serviceProvider = CrearServiceProvider(cargarEventos, orquestador);
+        ServiceProvider serviceProvider = CrearServiceProvider(cargarEventos);
         RegistroLoggerPrueba registroLogger = new();
         OrquestadorContextoWorker worker = new(
             cola,
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            orquestador,
             new LoggerPrueba<OrquestadorContextoWorker>(registroLogger));
         using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(3));
 
         Task tareaWorker = worker.EjecutarAsync(cancellationTokenSource.Token);
-        EventoMensajeria eventoProcesado = await orquestador.EventoProcesado.Task.WaitAsync(cancellationTokenSource.Token);
+        EventoMensajeria eventoEncolado = await orquestador.EventoEncolado.Task.WaitAsync(cancellationTokenSource.Token);
         cancellationTokenSource.Cancel();
 
         await EsperarCancelacionAsync(tareaWorker);
 
-        Assert.Equal(cargarEventos.Evento.IDProcesamientoInternoMensaje, eventoProcesado.IDProcesamientoInternoMensaje);
-        Assert.Equal(new[] { "carga", "procesa" }, pasos);
+        Assert.Equal(cargarEventos.Evento.IDProcesamientoInternoMensaje, eventoEncolado.IDProcesamientoInternoMensaje);
+        Assert.Equal(new[] { "carga", "encola" }, pasos);
         registroLogger.AssertSinErrores();
     }
 
     private static ServiceProvider CrearServiceProvider(
-        ICargarEventosMensajeriaPendientesAplicacion cargarEventos,
-        IOrquestadorContextoServicio orquestador)
+        ICargarEventosMensajeriaPendientesAplicacion cargarEventos)
     {
         ServiceCollection servicios = new();
         servicios.AddScoped(_ => cargarEventos);
-        servicios.AddScoped(_ => orquestador);
         return servicios.BuildServiceProvider();
     }
 
@@ -148,13 +147,18 @@ public class OrquestadorContextoWorkerTest
             this.pasos = pasos;
         }
 
-        public TaskCompletionSource<EventoMensajeria> EventoProcesado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<EventoMensajeria> EventoEncolado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task ProcesarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken)
+        public Task EncolarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken)
         {
-            pasos.Add("procesa");
-            EventoProcesado.TrySetResult(eventoMensajeria);
+            pasos.Add("encola");
+            EventoEncolado.TrySetResult(eventoMensajeria);
             return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 }

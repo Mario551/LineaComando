@@ -18,11 +18,13 @@ public class ModeloEntityFrameworkTest
         Assert.Equal("per_envios_mensaje", ObtenerEntidad(contexto, typeof(DAOEnvioMensaje)).GetTableName());
         Assert.Equal("per_roles_contexto_ia", ObtenerEntidad(contexto, typeof(DAORolContextoIA)).GetTableName());
         Assert.Equal("per_tipos_entrada_contexto_ia", ObtenerEntidad(contexto, typeof(DAOTipoEntradaContextoIA)).GetTableName());
-        Assert.Equal("per_entradas_contexto_ia", ObtenerEntidad(contexto, typeof(DAOEntradaContextoIA)).GetTableName());
-        Assert.Equal("per_estados_contexto_conversacion", ObtenerEntidad(contexto, typeof(DAOEstadoContextoConversacion)).GetTableName());
+        Assert.Equal("per_metadata_entradas_contexto_ia", ObtenerEntidad(contexto, typeof(DAOMetadataEntradaContextoIA)).GetTableName());
+        Assert.Equal("per_compactaciones_contexto_conversacion", ObtenerEntidad(contexto, typeof(DAOCompactacionContextoConversacion)).GetTableName());
+        Assert.Equal("per_estados_ejecucion_comando_contexto", ObtenerEntidad(contexto, typeof(DAOEstadoEjecucionComandoContexto)).GetTableName());
+        Assert.Equal("per_ejecuciones_comando_contexto", ObtenerEntidad(contexto, typeof(DAOEjecucionComandoContexto)).GetTableName());
         Assert.Equal(
-            "per_metadata_razonamiento_ia_linea_conversacion",
-            ObtenerEntidad(contexto, typeof(DAOMetadataRazonamientoIALineaConversacion)).GetTableName());
+            "per_informacion_tecnica_llamadas_ia_linea_conversacion",
+            ObtenerEntidad(contexto, typeof(DAOInformacionTecnicaLlamadaIALineaConversacion)).GetTableName());
     }
 
     [Fact]
@@ -62,9 +64,10 @@ public class ModeloEntityFrameworkTest
         using MensajeriaContextoDB contexto = CrearContextoSqlServer("mensajeria_sql_test");
         IEntityType entidadMensaje = ObtenerEntidad(contexto, typeof(DAOMensaje));
         IEntityType entidadEnvio = ObtenerEntidad(contexto, typeof(DAOEnvioMensaje));
-        IEntityType entidadEntradaContextoIA = ObtenerEntidad(contexto, typeof(DAOEntradaContextoIA));
-        IEntityType entidadMetadataIA = ObtenerEntidad(contexto, typeof(DAOMetadataRazonamientoIALineaConversacion));
-        IEntityType entidadEstadoContexto = ObtenerEntidad(contexto, typeof(DAOEstadoContextoConversacion));
+        IEntityType entidadMetadataEntradaContextoIA = ObtenerEntidad(contexto, typeof(DAOMetadataEntradaContextoIA));
+        IEntityType entidadInformacionTecnicaLlamadasIA = ObtenerEntidad(contexto, typeof(DAOInformacionTecnicaLlamadaIALineaConversacion));
+        IEntityType entidadCompactacionContexto = ObtenerEntidad(contexto, typeof(DAOCompactacionContextoConversacion));
+        IEntityType entidadEjecucionComando = ObtenerEntidad(contexto, typeof(DAOEjecucionComandoContexto));
 
         Assert.Contains("SqlServer", contexto.Database.ProviderName, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("mensajeria_sql_test", contexto.Model.GetDefaultSchema());
@@ -72,15 +75,17 @@ public class ModeloEntityFrameworkTest
         Assert.Equal("datetime2", entidadMensaje.FindProperty(nameof(DAOMensaje.FechaCreacion))?.GetColumnType());
         Assert.Equal("GETDATE()", entidadMensaje.FindProperty(nameof(DAOMensaje.FechaCreacion))?.GetDefaultValueSql());
         Assert.Equal("datetime2", entidadEnvio.FindProperty(nameof(DAOEnvioMensaje.FechaEnviado))?.GetColumnType());
-        Assert.Equal("datetime2", entidadEntradaContextoIA.FindProperty(nameof(DAOEntradaContextoIA.FechaEntrada))?.GetColumnType());
-        Assert.Equal("datetime2", entidadMetadataIA.FindProperty(nameof(DAOMetadataRazonamientoIALineaConversacion.FechaCreacion))?.GetColumnType());
-        Assert.Equal("datetime2", entidadEstadoContexto.FindProperty(nameof(DAOEstadoContextoConversacion.FechaCreacion))?.GetColumnType());
+        Assert.Equal("datetime2", entidadMetadataEntradaContextoIA.FindProperty(nameof(DAOMetadataEntradaContextoIA.FechaEntrada))?.GetColumnType());
+        Assert.Equal("datetime2", entidadInformacionTecnicaLlamadasIA.FindProperty(nameof(DAOInformacionTecnicaLlamadaIALineaConversacion.FechaCreacion))?.GetColumnType());
+        Assert.Equal("datetime2", entidadCompactacionContexto.FindProperty(nameof(DAOCompactacionContextoConversacion.FechaCreacion))?.GetColumnType());
+        Assert.Equal("datetime2", entidadEjecucionComando.FindProperty(nameof(DAOEjecucionComandoContexto.FechaEncolado))?.GetColumnType());
         AssertModeloContextoIA(contexto);
-        AssertModeloSnapshot(contexto);
+        AssertModeloCompactacionContexto(contexto);
+        AssertModeloEjecucionComando(contexto, true);
     }
 
     [Fact]
-    public void ContextoIA_DebeConfigurarCuatroIndicesYNueveRelaciones()
+    public void ContextoIA_DebeConfigurarCincoIndicesYDiezRelaciones()
     {
         using MensajeriaContextoDB contexto = CrearContexto();
 
@@ -92,7 +97,15 @@ public class ModeloEntityFrameworkTest
     {
         using MensajeriaContextoDB contexto = CrearContexto();
 
-        AssertModeloSnapshot(contexto);
+        AssertModeloCompactacionContexto(contexto);
+    }
+
+    [Fact]
+    public void EjecucionComando_DebeConfigurarRelacionesYUnicidadesPostgreSql()
+    {
+        using MensajeriaContextoDB contexto = CrearContexto();
+
+        AssertModeloEjecucionComando(contexto, false);
     }
 
     private static MensajeriaContextoDB CrearContexto()
@@ -122,34 +135,36 @@ public class ModeloEntityFrameworkTest
 
     private static void AssertModeloContextoIA(MensajeriaContextoDB contexto)
     {
-        IEntityType entrada = ObtenerEntidad(contexto, typeof(DAOEntradaContextoIA));
-        IEntityType metadata = ObtenerEntidad(contexto, typeof(DAOMetadataRazonamientoIALineaConversacion));
+        IEntityType entrada = ObtenerEntidad(contexto, typeof(DAOMetadataEntradaContextoIA));
+        IEntityType metadata = ObtenerEntidad(contexto, typeof(DAOInformacionTecnicaLlamadaIALineaConversacion));
 
         AssertIndice(
             entrada,
-            nameof(DAOEntradaContextoIA.IDLineaConversacion),
-            nameof(DAOEntradaContextoIA.Orden));
+            nameof(DAOMetadataEntradaContextoIA.IDLineaConversacion),
+            nameof(DAOMetadataEntradaContextoIA.Orden));
         AssertIndice(
             entrada,
-            nameof(DAOEntradaContextoIA.IDProcesamientoInternoMensaje),
-            nameof(DAOEntradaContextoIA.Orden));
+            nameof(DAOMetadataEntradaContextoIA.IDProcesamientoInternoMensaje),
+            nameof(DAOMetadataEntradaContextoIA.Orden));
+        AssertIndice(entrada, nameof(DAOMetadataEntradaContextoIA.IDCompactacionContextoIncorporada));
         AssertIndice(
             metadata,
-            nameof(DAOMetadataRazonamientoIALineaConversacion.IDLineaConversacion),
-            nameof(DAOMetadataRazonamientoIALineaConversacion.Iteracion));
+            nameof(DAOInformacionTecnicaLlamadaIALineaConversacion.IDLineaConversacion),
+            nameof(DAOInformacionTecnicaLlamadaIALineaConversacion.Iteracion));
         AssertIndice(
             metadata,
-            nameof(DAOMetadataRazonamientoIALineaConversacion.IDProcesamientoInternoMensaje),
-            nameof(DAOMetadataRazonamientoIALineaConversacion.Iteracion));
+            nameof(DAOInformacionTecnicaLlamadaIALineaConversacion.IDProcesamientoInternoMensaje),
+            nameof(DAOInformacionTecnicaLlamadaIALineaConversacion.Iteracion));
 
-        Assert.Equal(6, entrada.GetForeignKeys().Count());
+        Assert.Equal(7, entrada.GetForeignKeys().Count());
         Assert.Equal(3, metadata.GetForeignKeys().Count());
         AssertRelaciones(
             entrada,
             typeof(DAOLineaConversacion),
             typeof(DAOMensaje),
             typeof(DAOProcesamientoInternoMensaje),
-            typeof(DAOMetadataRazonamientoIALineaConversacion),
+            typeof(DAOInformacionTecnicaLlamadaIALineaConversacion),
+            typeof(DAOCompactacionContextoConversacion),
             typeof(DAORolContextoIA),
             typeof(DAOTipoEntradaContextoIA));
         AssertRelaciones(
@@ -159,29 +174,62 @@ public class ModeloEntityFrameworkTest
             typeof(DAOProcesamientoInternoMensaje));
     }
 
-    private static void AssertModeloSnapshot(MensajeriaContextoDB contexto)
+    private static void AssertModeloCompactacionContexto(MensajeriaContextoDB contexto)
     {
-        IEntityType estado = ObtenerEntidad(contexto, typeof(DAOEstadoContextoConversacion));
+        IEntityType compactacion = ObtenerEntidad(contexto, typeof(DAOCompactacionContextoConversacion));
         IEntityType linea = ObtenerEntidad(contexto, typeof(DAOLineaConversacion));
 
-        Assert.Equal(4, estado.GetForeignKeys().Count());
+        Assert.Equal(4, compactacion.GetForeignKeys().Count());
         AssertRelaciones(
-            estado,
+            compactacion,
             typeof(DAOConversacion),
             typeof(DAOLineaConversacion),
-            typeof(DAOEstadoContextoConversacion),
-            typeof(DAOMetadataRazonamientoIALineaConversacion));
-        AssertIndiceUnico(estado, nameof(DAOEstadoContextoConversacion.IDLineaConversacionOrigen));
+            typeof(DAOCompactacionContextoConversacion),
+            typeof(DAOInformacionTecnicaLlamadaIALineaConversacion));
+        AssertIndiceUnico(compactacion, nameof(DAOCompactacionContextoConversacion.IDLineaConversacionOrigen));
         AssertIndiceUnico(
-            estado,
-            nameof(DAOEstadoContextoConversacion.IDConversacion),
-            nameof(DAOEstadoContextoConversacion.Version));
-        AssertIndice(estado, nameof(DAOEstadoContextoConversacion.IDEstadoContextoAnterior));
-        AssertIndiceUnico(estado, nameof(DAOEstadoContextoConversacion.IDMetadataRazonamientoIA));
-        AssertIndiceUnico(linea, nameof(DAOLineaConversacion.IDEstadoContextoInicial));
+            compactacion,
+            nameof(DAOCompactacionContextoConversacion.IDConversacion),
+            nameof(DAOCompactacionContextoConversacion.Version));
+        AssertIndice(compactacion, nameof(DAOCompactacionContextoConversacion.IDCompactacionContextoAnterior));
+        AssertIndiceUnico(compactacion, nameof(DAOCompactacionContextoConversacion.IDInformacionTecnicaLlamadaIA));
+        AssertIndiceUnico(linea, nameof(DAOLineaConversacion.IDCompactacionContextoInicial));
         Assert.Contains(
             linea.GetForeignKeys(),
-            llave => llave.PrincipalEntityType.ClrType == typeof(DAOEstadoContextoConversacion));
+            llave => llave.PrincipalEntityType.ClrType == typeof(DAOCompactacionContextoConversacion));
+    }
+
+    private static void AssertModeloEjecucionComando(
+        MensajeriaContextoDB contexto,
+        bool esSqlServer)
+    {
+        IEntityType ejecucion = ObtenerEntidad(contexto, typeof(DAOEjecucionComandoContexto));
+
+        Assert.Equal(6, ejecucion.GetForeignKeys().Count());
+        AssertRelaciones(
+            ejecucion,
+            typeof(DAOEjecucionComandoContexto),
+            typeof(DAOLineaConversacion),
+            typeof(DAOProcesamientoInternoMensaje),
+            typeof(DAOMetadataEntradaContextoIA),
+            typeof(DAOMetadataEntradaContextoIA),
+            typeof(DAOEstadoEjecucionComandoContexto));
+        AssertIndiceUnico(ejecucion, nameof(DAOEjecucionComandoContexto.IDProcesamientoInternoMensaje));
+        AssertIndiceUnico(
+            ejecucion,
+            nameof(DAOEjecucionComandoContexto.IDMetadataEntradaDecisionContextoIA),
+            nameof(DAOEjecucionComandoContexto.NumeroIntento));
+        AssertIndiceUnico(
+            ejecucion,
+            nameof(DAOEjecucionComandoContexto.ProveedorEjecucion),
+            nameof(DAOEjecucionComandoContexto.IdentificadorExterno));
+        AssertIndiceUnico(ejecucion, nameof(DAOEjecucionComandoContexto.IDEjecucionAnterior));
+        AssertIndiceUnico(ejecucion, nameof(DAOEjecucionComandoContexto.IDMetadataEntradaResultadoContextoIA));
+
+        IIndex indiceActivo = ejecucion.GetIndexes().Single(indice =>
+            indice.Properties.Select(propiedad => propiedad.Name)
+                .SequenceEqual([nameof(DAOEjecucionComandoContexto.IDProcesamientoInternoMensaje)]));
+        Assert.Equal(esSqlServer ? "[activa] = 1" : "\"activa\" = TRUE", indiceActivo.GetFilter());
     }
 
     private static void AssertIndice(IEntityType entidad, params string[] propiedades)

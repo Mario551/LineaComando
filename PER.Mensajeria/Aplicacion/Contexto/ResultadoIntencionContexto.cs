@@ -9,118 +9,127 @@ public sealed class ResultadoIntencionContexto
     }
 
     public AccionContextoTipo TipoAccion { get; private set; }
-    public MetadataRazonamientoIAContexto Metadata { get; private set; } = null!;
+    public InformacionTecnicaLlamadaIAContexto InformacionTecnicaLlamadaIA { get; private set; } = null!;
     public string ContenidoDecision { get; private set; } = string.Empty;
     public string? Error { get; private set; }
     public string? CodigoComando { get; private set; }
+    public string? ToolCallID { get; private set; }
+    public int? CiclosHaciaAtras { get; private set; }
     public Dictionary<string, string> ParametrosComando { get; private set; } = [];
     public List<DTOMensajeSaliente> MensajesSalientes { get; private set; } = [];
     public DeteccionLimiteVentanaContextoTipo? DeteccionLimiteVentana { get; private set; }
 
     public static ResultadoIntencionContexto Responder(
-        MetadataRazonamientoIAContexto metadata,
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision,
         params DTOMensajeSaliente[] mensajesSalientes)
     {
-        ValidarContrato(metadata, contenidoDecision);
+        ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
 
         return new ResultadoIntencionContexto
         {
             TipoAccion = AccionContextoTipo.Responder,
-            Metadata = metadata,
+            InformacionTecnicaLlamadaIA = informacionTecnicaLlamadaIA,
             ContenidoDecision = contenidoDecision,
             MensajesSalientes = mensajesSalientes.ToList()
         };
     }
 
     public static ResultadoIntencionContexto NoResponder(
-        MetadataRazonamientoIAContexto metadata,
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision)
     {
-        ValidarContrato(metadata, contenidoDecision);
+        ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
 
         return new ResultadoIntencionContexto
         {
             TipoAccion = AccionContextoTipo.NoResponder,
-            Metadata = metadata,
+            InformacionTecnicaLlamadaIA = informacionTecnicaLlamadaIA,
             ContenidoDecision = contenidoDecision
         };
     }
 
     public static ResultadoIntencionContexto PedirComando(
-        MetadataRazonamientoIAContexto metadata,
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision,
         string codigoComando,
-        Dictionary<string, string>? parametros = null)
+        Dictionary<string, string>? parametros = null,
+        string? toolCallID = null)
     {
-        ValidarContrato(metadata, contenidoDecision);
+        ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
         ArgumentException.ThrowIfNullOrWhiteSpace(codigoComando);
 
         return new ResultadoIntencionContexto
         {
             TipoAccion = AccionContextoTipo.Comando,
-            Metadata = metadata,
+            InformacionTecnicaLlamadaIA = informacionTecnicaLlamadaIA,
             ContenidoDecision = contenidoDecision,
             CodigoComando = codigoComando,
+            ToolCallID = toolCallID,
             ParametrosComando = parametros ?? []
         };
     }
 
-    public static ResultadoIntencionContexto PedirHistorial(
-        MetadataRazonamientoIAContexto metadata,
-        string contenidoDecision)
+    public static ResultadoIntencionContexto ConsultarMensajesLineaAnterior(
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
+        string contenidoDecision,
+        int ciclosHaciaAtras,
+        string? toolCallID = null)
     {
-        ValidarContrato(metadata, contenidoDecision);
+        ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ciclosHaciaAtras);
 
         return new ResultadoIntencionContexto
         {
-            TipoAccion = AccionContextoTipo.Historial,
-            Metadata = metadata,
-            ContenidoDecision = contenidoDecision
+            TipoAccion = AccionContextoTipo.ConsultarMensajesLineaAnterior,
+            InformacionTecnicaLlamadaIA = informacionTecnicaLlamadaIA,
+            ContenidoDecision = contenidoDecision,
+            CiclosHaciaAtras = ciclosHaciaAtras,
+            ToolCallID = toolCallID
         };
     }
 
     public static ResultadoIntencionContexto ConError(
-        MetadataRazonamientoIAContexto metadata,
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision,
         string error)
     {
-        ValidarContrato(metadata, contenidoDecision);
+        ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
         ArgumentException.ThrowIfNullOrWhiteSpace(error);
 
         return new ResultadoIntencionContexto
         {
             TipoAccion = AccionContextoTipo.Error,
-            Metadata = metadata,
+            InformacionTecnicaLlamadaIA = informacionTecnicaLlamadaIA,
             ContenidoDecision = contenidoDecision,
             Error = error
         };
     }
 
     public static ResultadoIntencionContexto LimiteVentanaAlcanzado(
-        MetadataRazonamientoIAContexto metadata,
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision,
         DeteccionLimiteVentanaContextoTipo deteccion)
     {
-        ValidarContrato(metadata, contenidoDecision);
+        ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
 
         return new ResultadoIntencionContexto
         {
             TipoAccion = AccionContextoTipo.LimiteVentanaAlcanzado,
-            Metadata = metadata,
+            InformacionTecnicaLlamadaIA = informacionTecnicaLlamadaIA,
             ContenidoDecision = contenidoDecision,
             DeteccionLimiteVentana = deteccion
         };
     }
 
     private static void ValidarContrato(
-        MetadataRazonamientoIAContexto metadata,
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision)
     {
-        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentNullException.ThrowIfNull(informacionTecnicaLlamadaIA);
         ArgumentException.ThrowIfNullOrWhiteSpace(contenidoDecision);
-        ArgumentException.ThrowIfNullOrWhiteSpace(metadata.Proveedor);
-        ArgumentException.ThrowIfNullOrWhiteSpace(metadata.Modelo);
-        ArgumentException.ThrowIfNullOrWhiteSpace(metadata.Adaptador);
+        ArgumentException.ThrowIfNullOrWhiteSpace(informacionTecnicaLlamadaIA.Proveedor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(informacionTecnicaLlamadaIA.Modelo);
+        ArgumentException.ThrowIfNullOrWhiteSpace(informacionTecnicaLlamadaIA.Adaptador);
     }
 }

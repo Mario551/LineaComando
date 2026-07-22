@@ -2,7 +2,7 @@ using PER.Mensajeria.Servicio.Cola;
 
 namespace PER.Mensajeria.Servicio.Orquestador;
 
-public interface IOrquestadorContextoServicio
+public interface IOrquestadorContextoServicio : IAsyncDisposable
 {
-    Task ProcesarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken);
+    Task EncolarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken);
 }

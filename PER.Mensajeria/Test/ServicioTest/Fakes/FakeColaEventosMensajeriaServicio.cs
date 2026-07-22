@@ -11,6 +11,11 @@ public class FakeColaEventosMensajeriaServicio : IColaEventosMensajeriaServicio
         EventoPublicado = eventoMensajeria;
     }
 
+    public void PublicarRehidratado(EventoMensajeria eventoMensajeria)
+    {
+        EventoPublicado = eventoMensajeria;
+    }
+
     public Task<EventoMensajeria> ConsumirAsync(CancellationToken cancellationToken)
     {
         if (EventoPublicado is null)

@@ -1,4 +1,6 @@
+using System.Text.Json;
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
 using PER.Mensajeria.Entidad.DTO;
 
 namespace AplicacionTest;
@@ -39,7 +41,7 @@ public class ContextoConversacionServicioTest
         Assert.Contains("Filtro B no pasa", resultado.Error);
         Assert.Equal(["A", "B"], orden);
         Assert.Empty(intencion.Llamadas);
-        Assert.Empty(registrar.Metadatas);
+        Assert.Empty(registrar.InformacionesTecnicasLlamadasIA);
         AssertEntradas(registrar, ("user", "mensaje_entrada"));
     }
 
@@ -79,7 +81,7 @@ public class ContextoConversacionServicioTest
 
         Assert.Equal(ResultadoContextoConversacionTipo.ConSalidas, resultado.TipoResultado);
         Assert.Single(resultado.MensajesSalientes);
-        MetadataRazonamientoIAContexto metadata = Assert.Single(registrar.Metadatas);
+        InformacionTecnicaLlamadaIAContexto metadata = Assert.Single(registrar.InformacionesTecnicasLlamadasIA);
         Assert.Equal(1, metadata.Iteracion);
         Assert.Equal(nameof(AccionContextoTipo.Responder), metadata.AccionDecidida);
         AssertEntradas(
@@ -102,7 +104,7 @@ public class ContextoConversacionServicioTest
 
         Assert.Equal(ResultadoContextoConversacionTipo.SinSalidas, resultado.TipoResultado);
         Assert.Empty(resultado.MensajesSalientes);
-        Assert.Single(registrar.Metadatas);
+        Assert.Single(registrar.InformacionesTecnicasLlamadasIA);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
@@ -115,7 +117,7 @@ public class ContextoConversacionServicioTest
         List<string> orden = [];
         FiltroContextoFake filtro = new("filtro", orden);
         IntencionContextoFake intencion = new(
-            PedirComando("consultar_pedido"),
+            PedirComando("consultar_pedido", toolCallID: "call-comando-1"),
             Responder(CrearMensajeSaliente()));
         EjecutorComandoContextoFake ejecutor = EjecutorComandoContextoFake.Exitoso("pedido encontrado");
         RegistrarContextoIAAplicacionFake registrar = new();
@@ -133,13 +135,21 @@ public class ContextoConversacionServicioTest
         Assert.Equal(2, intencion.Llamadas.Count);
         Assert.Equal(2, filtro.Llamadas);
         Assert.Contains(intencion.Llamadas[1].DatosIntermedios, dato => dato.Tipo == "comando" && dato.Contenido == "pedido encontrado");
-        Assert.Equal(2, registrar.Metadatas.Count);
+        Assert.Equal(2, registrar.InformacionesTecnicasLlamadasIA.Count);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
             ("assistant", "decision_comando"),
             ("tool", "resultado_comando"),
             ("assistant", "respuesta_final"));
+        MetadataEntradaContextoIA decisionComando = Assert.Single(
+            registrar.Entradas,
+            entrada => entrada.IDTipoEntradaContextoIA == "decision_comando");
+        MetadataEntradaContextoIA resultadoComando = Assert.Single(
+            registrar.Entradas,
+            entrada => entrada.IDTipoEntradaContextoIA == "resultado_comando");
+        Assert.Equal("call-comando-1", decisionComando.ToolCallID);
+        Assert.Equal(decisionComando.ToolCallID, resultadoComando.ToolCallID);
     }
 
     [Fact]
@@ -160,7 +170,7 @@ public class ContextoConversacionServicioTest
         Assert.Equal(ResultadoContextoConversacionTipo.Error, resultado.TipoResultado);
         Assert.Contains("Comando no autorizado", resultado.Error);
         Assert.Equal(0, ejecutor.Llamadas);
-        Assert.Single(registrar.Metadatas);
+        Assert.Single(registrar.InformacionesTecnicasLlamadasIA);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
@@ -186,49 +196,289 @@ public class ContextoConversacionServicioTest
         Assert.Contains("cola no disponible", resultado.Error);
         Assert.Equal(1, ejecutor.Llamadas);
         Assert.Single(intencion.Llamadas);
-        Assert.Single(registrar.Metadatas);
+        Assert.Single(registrar.InformacionesTecnicasLlamadasIA);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
-            ("assistant", "decision_comando"));
+            ("assistant", "decision_comando"),
+            ("tool", "resultado_comando"));
     }
 
     [Fact]
-    public async Task ResolverAsync_HistorialExitoso_DebeReingresarHistorialAFiltrosEIA()
+    public async Task ResolverAsync_ConsultaMensajesAnteriores_DebeIncorporarCicloDespuesDelResultadoTool()
     {
         FiltroContextoFake filtro = new("filtro", []);
         IntencionContextoFake intencion = new(
-            PedirHistorial(),
+            ConsultarMensajesLineaAnterior(1, "call-consulta-1"),
             Responder(CrearMensajeSaliente()));
-        ProveedorHistorialContextoFake historial = ProveedorHistorialContextoFake.Exitoso("historial conversacion");
+        ConsultaMensajesLineaAnteriorFake consulta = ConsultaMensajesLineaAnteriorFake.ConCiclo(
+            new MetadataEntradaContextoIA
+            {
+                ID = 90,
+                IDLineaConversacion = 3,
+                IDMensaje = 80,
+                IDProcesamientoInternoMensaje = 70,
+                Orden = 1,
+                IDRolContextoIA = "user",
+                IDTipoEntradaContextoIA = "mensaje_entrada",
+                Contenido = "mensaje anterior",
+                FechaEntrada = DateTime.Now.AddDays(-1)
+            },
+            new MetadataEntradaContextoIA
+            {
+                ID = 91,
+                IDLineaConversacion = 3,
+                IDMensaje = 80,
+                IDProcesamientoInternoMensaje = 70,
+                Orden = 2,
+                IDRolContextoIA = "assistant",
+                IDTipoEntradaContextoIA = "respuesta_final",
+                Contenido = "respuesta anterior",
+                FechaEntrada = DateTime.Now.AddDays(-1).AddMinutes(1)
+            });
         RegistrarContextoIAAplicacionFake registrar = new();
         ContextoConversacionServicio servicio = CrearServicio(
             [filtro],
             intencion,
-            historial: historial,
+            consultaMensajesAnteriores: consulta,
             registrarContextoIA: registrar);
 
         ResultadoContextoConversacion resultado = await servicio.ResolverAsync(CrearSolicitud(), CancellationToken.None);
 
         Assert.Equal(ResultadoContextoConversacionTipo.ConSalidas, resultado.TipoResultado);
-        Assert.Equal(1, historial.Llamadas);
+        Assert.Equal(1, consulta.ConsultasPorPosicion);
+        Assert.Equal(1, consulta.ConsultasPorReferencia);
         Assert.Equal(2, intencion.Llamadas.Count);
         Assert.Equal(2, filtro.Llamadas);
-        Assert.Contains(intencion.Llamadas[1].DatosIntermedios, dato => dato.Tipo == "historial" && dato.Contenido == "historial conversacion");
-        Assert.Equal(2, registrar.Metadatas.Count);
+        Assert.Empty(intencion.Llamadas[1].DatosIntermedios);
+        Assert.Equal(
+            ["mensaje_entrada", "decision_consulta_mensajes_linea_anterior", "resultado_consulta_mensajes_linea_anterior", "mensaje_entrada", "respuesta_final"],
+            intencion.Llamadas[1].MetadataEntradasContextoIA.Select(entrada => entrada.IDTipoEntradaContextoIA));
+        Assert.Equal(2, registrar.InformacionesTecnicasLlamadasIA.Count);
         Assert.Empty(intencion.Compactaciones);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
-            ("assistant", "decision_historial"),
-            ("tool", "resultado_historial"),
+            ("assistant", "decision_consulta_mensajes_linea_anterior"),
+            ("tool", "resultado_consulta_mensajes_linea_anterior"),
             ("assistant", "respuesta_final"));
+        MetadataEntradaContextoIA decisionConsulta = Assert.Single(
+            registrar.Entradas,
+            entrada => entrada.IDTipoEntradaContextoIA == "decision_consulta_mensajes_linea_anterior");
+        MetadataEntradaContextoIA resultadoConsulta = Assert.Single(
+            registrar.Entradas,
+            entrada => entrada.IDTipoEntradaContextoIA == "resultado_consulta_mensajes_linea_anterior");
+        Assert.Equal("call-consulta-1", decisionConsulta.ToolCallID);
+        Assert.Equal(decisionConsulta.ToolCallID, resultadoConsulta.ToolCallID);
+        Assert.DoesNotContain(registrar.Entradas, entrada => entrada.IDLineaConversacion == 3);
+    }
+
+    [Fact]
+    public async Task ResolverAsync_DosConsultasAnteriores_DebeConservarCadaCicloEnSuPosicionSinPersistirCopias()
+    {
+        MetadataEntradaContextoIA entradaCicloReciente = new()
+        {
+            ID = 90,
+            IDLineaConversacion = 30,
+            IDMensaje = 80,
+            IDProcesamientoInternoMensaje = 70,
+            Orden = 1,
+            IDRolContextoIA = "user",
+            IDTipoEntradaContextoIA = "mensaje_entrada",
+            Contenido = "ciclo anterior reciente",
+            FechaEntrada = DateTime.Now.AddDays(-1)
+        };
+        MetadataEntradaContextoIA entradaCicloAntiguo = new()
+        {
+            ID = 91,
+            IDLineaConversacion = 20,
+            IDMensaje = 60,
+            IDProcesamientoInternoMensaje = 50,
+            Orden = 1,
+            IDRolContextoIA = "user",
+            IDTipoEntradaContextoIA = "mensaje_entrada",
+            Contenido = "ciclo anterior antiguo",
+            FechaEntrada = DateTime.Now.AddDays(-2)
+        };
+        ConsultaMensajesLineaAnteriorFake consulta = ConsultaMensajesLineaAnteriorFake.ConCiclos(
+            [entradaCicloReciente],
+            [entradaCicloAntiguo]);
+        IntencionContextoFake intencion = new(
+            ConsultarMensajesLineaAnterior(1, "call-consulta-1"),
+            ConsultarMensajesLineaAnterior(2, "call-consulta-2"),
+            Responder(CrearMensajeSaliente()));
+        RegistrarContextoIAAplicacionFake registrar = new();
+        ContextoConversacionServicio servicio = CrearServicio(
+            [new FiltroContextoFake("filtro", [])],
+            intencion,
+            consultaMensajesAnteriores: consulta,
+            registrarContextoIA: registrar);
+
+        ResultadoContextoConversacion resultado = await servicio.ResolverAsync(
+            CrearSolicitud(),
+            CancellationToken.None);
+
+        Assert.Equal(ResultadoContextoConversacionTipo.ConSalidas, resultado.TipoResultado);
+        Assert.Equal(3, intencion.Llamadas.Count);
+        Assert.Equal(
+            [
+                "mensaje_entrada",
+                "decision_consulta_mensajes_linea_anterior",
+                "resultado_consulta_mensajes_linea_anterior",
+                "mensaje_entrada",
+                "decision_consulta_mensajes_linea_anterior",
+                "resultado_consulta_mensajes_linea_anterior",
+                "mensaje_entrada"
+            ],
+            intencion.Llamadas[2].MetadataEntradasContextoIA.Select(entrada => entrada.IDTipoEntradaContextoIA));
+        Assert.Equal(
+            [
+                "Necesito consultar un pedido",
+                JsonSerializer.Serialize(new { accion = "consultar_mensajes_linea_anterior", ciclosHaciaAtras = 1 }),
+                Assert.IsType<string>(registrar.Entradas.Single(entrada => entrada.ToolCallID == "call-consulta-1" && entrada.IDRolContextoIA == "tool").Contenido),
+                "ciclo anterior reciente",
+                JsonSerializer.Serialize(new { accion = "consultar_mensajes_linea_anterior", ciclosHaciaAtras = 2 }),
+                Assert.IsType<string>(registrar.Entradas.Single(entrada => entrada.ToolCallID == "call-consulta-2" && entrada.IDRolContextoIA == "tool").Contenido),
+                "ciclo anterior antiguo"
+            ],
+            intencion.Llamadas[2].MetadataEntradasContextoIA.Select(entrada => entrada.Contenido));
+        Assert.Equal(2, consulta.ConsultasPorPosicion);
+        Assert.Equal(3, consulta.ConsultasPorReferencia);
+        Assert.DoesNotContain(registrar.Entradas, entrada => entrada.ID is 90 or 91);
+        Assert.DoesNotContain(registrar.Entradas, entrada => entrada.IDLineaConversacion is 20 or 30);
+    }
+
+    [Fact]
+    public async Task ResolverAsync_LimiteTrasConsultaAnterior_DebeCompactarCicloPrestadoYConservarConsultaActual()
+    {
+        MetadataEntradaContextoIA entradaAnterior = new()
+        {
+            ID = 90,
+            IDLineaConversacion = 30,
+            IDMensaje = 80,
+            IDProcesamientoInternoMensaje = 70,
+            Orden = 1,
+            IDRolContextoIA = "user",
+            IDTipoEntradaContextoIA = "mensaje_entrada",
+            Contenido = "dato anterior que causa el limite",
+            FechaEntrada = DateTime.Now.AddDays(-1)
+        };
+        ConsultaMensajesLineaAnteriorFake consulta = ConsultaMensajesLineaAnteriorFake.ConCiclo(entradaAnterior);
+        ResultadoCompactacionIntencionContexto compactacion = ResultadoCompactacionIntencionContexto.Exito(
+            "snapshot con ciclo anterior",
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado));
+        IntencionContextoFake intencion = new(
+            compactacion,
+            ConsultarMensajesLineaAnterior(1, "call-consulta-1"),
+            ResultadoIntencionContexto.LimiteVentanaAlcanzado(
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado),
+                "limite despues de incorporar ciclo anterior",
+                DeteccionLimiteVentanaContextoTipo.RechazoProveedor));
+        RegistrarContextoIAAplicacionFake registrar = new();
+        ContextoConversacionServicio servicio = CrearServicio(
+            [new FiltroContextoFake("filtro", [])],
+            intencion,
+            consultaMensajesAnteriores: consulta,
+            registrarContextoIA: registrar);
+
+        ResultadoContextoConversacion resultado = await servicio.ResolverAsync(
+            CrearSolicitud(),
+            CancellationToken.None);
+
+        Assert.Equal(ResultadoContextoConversacionTipo.LimiteVentanaAlcanzado, resultado.TipoResultado);
+        SolicitudCompactacionIntencionContexto solicitudCompactacion = Assert.Single(intencion.Compactaciones);
+        MetadataEntradaContextoIA cicloCompactado = Assert.Single(solicitudCompactacion.MetadataEntradasContextoIA);
+        Assert.Same(entradaAnterior, cicloCompactado);
+        Assert.DoesNotContain(
+            solicitudCompactacion.MetadataEntradasContextoIA,
+            entrada => entrada.IDProcesamientoInternoMensaje == 1);
+        Assert.Contains(
+            registrar.Entradas,
+            entrada => entrada.IDTipoEntradaContextoIA == "resultado_consulta_mensajes_linea_anterior");
+        Assert.DoesNotContain(registrar.Entradas, entrada => entrada.ID == entradaAnterior.ID);
+    }
+
+    [Fact]
+    public async Task ResolverAsync_ReferenciaConsultaCargadaCorrupta_DebeFallarAntesDeInvocarIA()
+    {
+        RegistrarContextoIAAplicacionFake registrar = new(
+            new MetadataEntradaContextoIA
+            {
+                ID = 77,
+                IDLineaConversacion = 4,
+                IDMensaje = 2,
+                IDProcesamientoInternoMensaje = 1,
+                Orden = 1,
+                IDRolContextoIA = "tool",
+                IDTipoEntradaContextoIA = "resultado_consulta_mensajes_linea_anterior",
+                Contenido = "{\"estado\":\"cargada\"}",
+                FechaEntrada = DateTime.Now.AddMinutes(-1)
+            });
+        IntencionContextoFake intencion = new(NoResponder());
+        ContextoConversacionServicio servicio = CrearServicio(
+            [new FiltroContextoFake("filtro", [])],
+            intencion,
+            registrarContextoIA: registrar);
+
+        InvalidOperationException excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.ResolverAsync(CrearSolicitud(), CancellationToken.None));
+
+        Assert.Contains("no identifica el ciclo anterior", excepcion.Message);
+        Assert.Empty(intencion.Llamadas);
+    }
+
+    [Fact]
+    public async Task ResolverAsync_ConsultaYaIncorporadaEnCompactacion_NoDebeExpandirOtraVezElCiclo()
+    {
+        RegistrarContextoIAAplicacionFake registrar = new(
+            new MetadataEntradaContextoIA
+            {
+                ID = 77,
+                IDLineaConversacion = 4,
+                IDMensaje = 2,
+                IDProcesamientoInternoMensaje = 1,
+                IDCompactacionContextoIncorporada = 55,
+                Orden = 1,
+                IDRolContextoIA = "tool",
+                IDTipoEntradaContextoIA = "resultado_consulta_mensajes_linea_anterior",
+                Contenido = "{\"idLineaConversacion\":30,\"idProcesamientoInternoMensaje\":70,\"estado\":\"cargada\"}",
+                FechaEntrada = DateTime.Now.AddMinutes(-1)
+            });
+        ConsultaMensajesLineaAnteriorFake consulta = ConsultaMensajesLineaAnteriorFake.ConCiclo(
+            new MetadataEntradaContextoIA
+            {
+                ID = 90,
+                IDLineaConversacion = 30,
+                IDProcesamientoInternoMensaje = 70,
+                Orden = 1,
+                IDRolContextoIA = "user",
+                IDTipoEntradaContextoIA = "mensaje_entrada",
+                Contenido = "no debe volver a expandirse",
+                FechaEntrada = DateTime.Now.AddDays(-1)
+            });
+        IntencionContextoFake intencion = new(NoResponder());
+        ContextoConversacionServicio servicio = CrearServicio(
+            [new FiltroContextoFake("filtro", [])],
+            intencion,
+            consultaMensajesAnteriores: consulta,
+            registrarContextoIA: registrar);
+
+        ResultadoContextoConversacion resultado = await servicio.ResolverAsync(
+            CrearSolicitud(),
+            CancellationToken.None);
+
+        Assert.Equal(ResultadoContextoConversacionTipo.SinSalidas, resultado.TipoResultado);
+        SolicitudIntencionContexto solicitudIA = Assert.Single(intencion.Llamadas);
+        Assert.DoesNotContain(
+            solicitudIA.MetadataEntradasContextoIA,
+            entrada => entrada.Contenido == "no debe volver a expandirse");
+        Assert.Equal(0, consulta.ConsultasPorReferencia);
     }
 
     [Fact]
     public async Task ResolverAsync_LimiteVentana_DebeCompactarContextoAnteriorYRetornarRenovacion()
     {
-        EstadoContextoConversacion estadoInicial = new()
+        CompactacionContextoConversacion compactacionInicial = new()
         {
             ID = 71,
             IDConversacion = 3,
@@ -238,7 +488,7 @@ public class ContextoConversacionServicioTest
             FechaCreacion = DateTime.Now.AddHours(-1)
         };
         RegistrarContextoIAAplicacionFake registrar = new(
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 80,
                 IDLineaConversacion = 4,
@@ -252,18 +502,18 @@ public class ContextoConversacionServicioTest
             });
         ResultadoCompactacionIntencionContexto compactacion = ResultadoCompactacionIntencionContexto.Exito(
             "snapshot acumulado",
-            CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado));
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado));
         IntencionContextoFake intencion = new(
             compactacion,
             ResultadoIntencionContexto.LimiteVentanaAlcanzado(
-                CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado),
                 "limite alcanzado",
                 DeteccionLimiteVentanaContextoTipo.Estimado));
         ContextoConversacionServicio servicio = CrearServicio(
             [new FiltroContextoFake("A", [])],
             intencion,
             registrarContextoIA: registrar,
-            estadoContextoInicial: estadoInicial);
+            compactacionContextoInicial: compactacionInicial);
 
         ResultadoContextoConversacion resultado = await servicio.ResolverAsync(
             CrearSolicitud(),
@@ -272,15 +522,15 @@ public class ContextoConversacionServicioTest
         Assert.Equal(ResultadoContextoConversacionTipo.LimiteVentanaAlcanzado, resultado.TipoResultado);
         Assert.Same(compactacion, resultado.Compactacion);
         SolicitudCompactacionIntencionContexto solicitudCompactacion = Assert.Single(intencion.Compactaciones);
-        Assert.Same(estadoInicial, solicitudCompactacion.EstadoContextoInicial);
-        EntradaContextoIA entradaCompactada = Assert.Single(solicitudCompactacion.EntradasContextoIA);
+        Assert.Same(compactacionInicial, solicitudCompactacion.CompactacionContextoInicial);
+        MetadataEntradaContextoIA entradaCompactada = Assert.Single(solicitudCompactacion.MetadataEntradasContextoIA);
         Assert.Equal(78, entradaCompactada.IDProcesamientoInternoMensaje);
         Assert.DoesNotContain(
-            solicitudCompactacion.EntradasContextoIA,
+            solicitudCompactacion.MetadataEntradasContextoIA,
             entrada => entrada.IDProcesamientoInternoMensaje == 1);
         SolicitudIntencionContexto solicitudDecision = Assert.Single(intencion.Llamadas);
-        Assert.Same(estadoInicial, solicitudDecision.EstadoContextoInicial);
-        Assert.Equal("Compactar", compactacion.Metadata.AccionDecidida);
+        Assert.Same(compactacionInicial, solicitudDecision.CompactacionContextoInicial);
+        Assert.Equal("Compactar", compactacion.InformacionTecnicaLlamadaIA.AccionDecidida);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
@@ -294,9 +544,9 @@ public class ContextoConversacionServicioTest
         IntencionContextoFake intencion = new(
             ResultadoCompactacionIntencionContexto.Exito(
                 "no debe usarse",
-                CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado)),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado)),
             ResultadoIntencionContexto.LimiteVentanaAlcanzado(
-                CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado),
                 "limite alcanzado",
                 DeteccionLimiteVentanaContextoTipo.Estimado));
         ContextoConversacionServicio servicio = CrearServicio(
@@ -316,7 +566,7 @@ public class ContextoConversacionServicioTest
     public async Task ResolverAsync_CompactacionFallida_DebeTerminarEnError()
     {
         RegistrarContextoIAAplicacionFake registrar = new(
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 90,
                 IDLineaConversacion = 4,
@@ -331,9 +581,9 @@ public class ContextoConversacionServicioTest
         IntencionContextoFake intencion = new(
             ResultadoCompactacionIntencionContexto.Fallo(
                 "fallo al resumir",
-                CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado)),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado)),
             ResultadoIntencionContexto.LimiteVentanaAlcanzado(
-                CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado),
                 "limite alcanzado",
                 DeteccionLimiteVentanaContextoTipo.RechazoProveedor));
         ContextoConversacionServicio servicio = CrearServicio(
@@ -352,16 +602,16 @@ public class ContextoConversacionServicioTest
     }
 
     [Fact]
-    public async Task ResolverAsync_MetadataCompactacionIncompleta_DebeImpedirRenovacion()
+    public async Task ResolverAsync_InformacionTecnicaCompactacionIncompleta_DebeImpedirRenovacion()
     {
-        MetadataRazonamientoIAContexto metadataCompactacion = CrearMetadata(
+        InformacionTecnicaLlamadaIAContexto informacionTecnicaCompactacion = CrearInformacionTecnicaLlamadaIA(
             AccionContextoTipo.LimiteVentanaAlcanzado);
         ResultadoCompactacionIntencionContexto compactacion = ResultadoCompactacionIntencionContexto.Exito(
             "snapshot",
-            metadataCompactacion);
-        metadataCompactacion.Adaptador = string.Empty;
+            informacionTecnicaCompactacion);
+        informacionTecnicaCompactacion.Adaptador = string.Empty;
         RegistrarContextoIAAplicacionFake registrar = new(
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 100,
                 IDLineaConversacion = 4,
@@ -375,7 +625,7 @@ public class ContextoConversacionServicioTest
         IntencionContextoFake intencion = new(
             compactacion,
             ResultadoIntencionContexto.LimiteVentanaAlcanzado(
-                CrearMetadata(AccionContextoTipo.LimiteVentanaAlcanzado),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.LimiteVentanaAlcanzado),
                 "limite alcanzado",
                 DeteccionLimiteVentanaContextoTipo.RechazoProveedor));
         ContextoConversacionServicio servicio = CrearServicio(
@@ -394,15 +644,26 @@ public class ContextoConversacionServicioTest
     public async Task ResolverAsync_MaximoIteraciones_DebeCortarCicloInfinito()
     {
         IntencionContextoFake intencion = new(
-            PedirHistorial(),
-            PedirHistorial(),
-            PedirHistorial());
-        ProveedorHistorialContextoFake historial = ProveedorHistorialContextoFake.Exitoso("historial");
+            ConsultarMensajesLineaAnterior(1),
+            ConsultarMensajesLineaAnterior(1),
+            ConsultarMensajesLineaAnterior(1));
+        ConsultaMensajesLineaAnteriorFake consulta = ConsultaMensajesLineaAnteriorFake.ConCiclo(
+            new MetadataEntradaContextoIA
+            {
+                ID = 501,
+                IDLineaConversacion = 3,
+                IDProcesamientoInternoMensaje = 500,
+                Orden = 1,
+                IDRolContextoIA = "user",
+                IDTipoEntradaContextoIA = "mensaje_entrada",
+                Contenido = "anterior",
+                FechaEntrada = DateTime.Now.AddDays(-1)
+            });
         RegistrarContextoIAAplicacionFake registrar = new();
         ContextoConversacionServicio servicio = CrearServicio(
             [new FiltroContextoFake("A", [])],
             intencion,
-            historial: historial,
+            consultaMensajesAnteriores: consulta,
             registrarContextoIA: registrar,
             maximoIteraciones: 2);
 
@@ -411,25 +672,25 @@ public class ContextoConversacionServicioTest
         Assert.Equal(ResultadoContextoConversacionTipo.Error, resultado.TipoResultado);
         Assert.Contains("maximo de iteraciones", resultado.Error);
         Assert.Equal(2, intencion.Llamadas.Count);
-        Assert.Equal(2, historial.Llamadas);
-        Assert.Equal(2, registrar.Metadatas.Count);
+        Assert.Equal(2, consulta.ConsultasPorPosicion);
+        Assert.Equal(2, registrar.InformacionesTecnicasLlamadasIA.Count);
         AssertEntradas(
             registrar,
             ("user", "mensaje_entrada"),
-            ("assistant", "decision_historial"),
-            ("tool", "resultado_historial"),
-            ("assistant", "decision_historial"),
-            ("tool", "resultado_historial"));
+            ("assistant", "decision_consulta_mensajes_linea_anterior"),
+            ("tool", "resultado_consulta_mensajes_linea_anterior"),
+            ("assistant", "decision_consulta_mensajes_linea_anterior"),
+            ("tool", "resultado_consulta_mensajes_linea_anterior"));
     }
 
     [Fact]
-    public async Task ResolverAsync_DebeEnviarALaIALasEntradasDeTodaLaLineaConMetadata()
+    public async Task ResolverAsync_DebeEnviarALaIALasEntradasDeTodaLaLineaConInformacionTecnica()
     {
-        MetadataRazonamientoIAContexto metadataAnterior = CrearMetadata(AccionContextoTipo.Responder);
+        InformacionTecnicaLlamadaIAContexto metadataAnterior = CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Responder);
         metadataAnterior.Iteracion = 1;
         metadataAnterior.Reasoning = "razonamiento anterior";
         RegistrarContextoIAAplicacionFake registrar = new(
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 10,
                 IDLineaConversacion = 4,
@@ -441,19 +702,19 @@ public class ContextoConversacionServicioTest
                 Contenido = "mensaje anterior",
                 FechaEntrada = DateTime.Now.AddMinutes(-5)
             },
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 11,
                 IDLineaConversacion = 4,
                 IDMensaje = 20,
                 IDProcesamientoInternoMensaje = 30,
-                IDMetadataRazonamientoIA = 40,
+                IDInformacionTecnicaLlamadaIA = 40,
                 Orden = 2,
                 IDRolContextoIA = "assistant",
                 IDTipoEntradaContextoIA = "respuesta_final",
                 Contenido = "respuesta anterior",
                 FechaEntrada = DateTime.Now.AddMinutes(-4),
-                Metadata = metadataAnterior
+                InformacionTecnicaLlamadaIA = metadataAnterior
             });
         IntencionContextoFake intencion = new(NoResponder());
         ContextoConversacionServicio servicio = CrearServicio(
@@ -464,22 +725,22 @@ public class ContextoConversacionServicioTest
         await servicio.ResolverAsync(CrearSolicitud(), CancellationToken.None);
 
         SolicitudIntencionContexto solicitudIA = Assert.Single(intencion.Llamadas);
-        Assert.Equal(3, solicitudIA.EntradasContextoIA.Count);
-        Assert.Equal([1, 2, 3], solicitudIA.EntradasContextoIA.Select(entrada => entrada.Orden));
-        EntradaContextoIA entradaAnterior = solicitudIA.EntradasContextoIA[1];
-        Assert.NotNull(entradaAnterior.Metadata);
-        Assert.Equal("razonamiento anterior", entradaAnterior.Metadata.Reasoning);
-        Assert.Equal(2, solicitudIA.EntradasContextoIA.Count(
+        Assert.Equal(3, solicitudIA.MetadataEntradasContextoIA.Count);
+        Assert.Equal([1, 2, 3], solicitudIA.MetadataEntradasContextoIA.Select(entrada => entrada.Orden));
+        MetadataEntradaContextoIA entradaAnterior = solicitudIA.MetadataEntradasContextoIA[1];
+        Assert.NotNull(entradaAnterior.InformacionTecnicaLlamadaIA);
+        Assert.Equal("razonamiento anterior", entradaAnterior.InformacionTecnicaLlamadaIA.Reasoning);
+        Assert.Equal(2, solicitudIA.MetadataEntradasContextoIA.Count(
             entrada => entrada.IDProcesamientoInternoMensaje != 1));
     }
 
     [Fact]
     public async Task ResolverAsync_ReinicioConResultadoComandoPersistido_DebeContinuarSinReejecutarComando()
     {
-        MetadataRazonamientoIAContexto metadataComando = CrearMetadata(AccionContextoTipo.Comando);
+        InformacionTecnicaLlamadaIAContexto metadataComando = CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Comando);
         metadataComando.Iteracion = 1;
         RegistrarContextoIAAplicacionFake registrar = new(
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 10,
                 IDLineaConversacion = 4,
@@ -491,7 +752,7 @@ public class ContextoConversacionServicioTest
                 Contenido = "resultado de otro procesamiento",
                 FechaEntrada = DateTime.Now.AddMinutes(-3)
             },
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 11,
                 IDLineaConversacion = 4,
@@ -503,21 +764,21 @@ public class ContextoConversacionServicioTest
                 Contenido = "Necesito consultar un pedido",
                 FechaEntrada = DateTime.Now.AddMinutes(-2)
             },
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 12,
                 IDLineaConversacion = 4,
                 IDMensaje = 2,
                 IDProcesamientoInternoMensaje = 1,
-                IDMetadataRazonamientoIA = 50,
+                IDInformacionTecnicaLlamadaIA = 50,
                 Orden = 3,
                 IDRolContextoIA = "assistant",
                 IDTipoEntradaContextoIA = "decision_comando",
                 Contenido = "comando:consultar_pedido",
                 FechaEntrada = DateTime.Now.AddMinutes(-1),
-                Metadata = metadataComando
+                InformacionTecnicaLlamadaIA = metadataComando
             },
-            new EntradaContextoIA
+            new MetadataEntradaContextoIA
             {
                 ID = 13,
                 IDLineaConversacion = 4,
@@ -552,13 +813,60 @@ public class ContextoConversacionServicioTest
             datoActual => datoActual.Contenido == "resultado de otro procesamiento");
     }
 
+    [Fact]
+    public async Task ResolverAsync_EjecucionActiva_DebeResolverlaAntesDeInvocarIA()
+    {
+        TaskCompletionSource<ResultadoEjecucionComandoContexto?> recuperacion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        IntencionContextoFake intencion = new(NoResponder());
+        RegistrarContextoIAAplicacionFake registrar = new();
+        ContextoConversacionServicio servicio = CrearServicio(
+            [new FiltroContextoFake("A", [])],
+            intencion,
+            catalogo: [CrearComando("consultar_pedido")],
+            registrarContextoIA: registrar,
+            recuperacionEjecucion: recuperacion.Task);
+
+        Task<ResultadoContextoConversacion> tarea = servicio.ResolverAsync(
+            CrearSolicitud(),
+            CancellationToken.None);
+        await Task.Yield();
+
+        Assert.Empty(intencion.Llamadas);
+
+        recuperacion.SetResult(new ResultadoEjecucionComandoContexto
+        {
+            Resultado = ResultadoComandoContexto.Exito("resultado recuperado"),
+            MetadataEntradaResultado = new MetadataEntradaContextoIA
+            {
+                ID = 90,
+                IDLineaConversacion = 4,
+                IDMensaje = 2,
+                IDProcesamientoInternoMensaje = 1,
+                Orden = 2,
+                IDRolContextoIA = "tool",
+                IDTipoEntradaContextoIA = "resultado_comando",
+                Contenido = "resultado recuperado",
+                FechaEntrada = DateTime.Now
+            }
+        });
+
+        ResultadoContextoConversacion resultado = await tarea;
+
+        Assert.Equal(ResultadoContextoConversacionTipo.SinSalidas, resultado.TipoResultado);
+        SolicitudIntencionContexto solicitudIA = Assert.Single(intencion.Llamadas);
+        Assert.Contains(
+            solicitudIA.DatosIntermedios,
+            dato => dato.Tipo == "comando" && dato.Contenido == "resultado recuperado");
+    }
+
     [Theory]
     [InlineData("proveedor")]
     [InlineData("modelo")]
     [InlineData("adaptador")]
-    public async Task ResolverAsync_MetadataIncompleta_DebeFallarAntesDePersistir(string campo)
+    public async Task ResolverAsync_InformacionTecnicaIncompleta_DebeFallarAntesDePersistir(string campo)
     {
-        MetadataRazonamientoIAContexto metadata = CrearMetadata(AccionContextoTipo.NoResponder);
+        InformacionTecnicaLlamadaIAContexto metadata = CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.NoResponder);
         ResultadoIntencionContexto decision = ResultadoIntencionContexto.NoResponder(metadata, "no_responder");
 
         if (campo == "proveedor")
@@ -583,25 +891,25 @@ public class ContextoConversacionServicioTest
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => servicio.ResolverAsync(CrearSolicitud(), CancellationToken.None));
 
-        Assert.Empty(registrar.Metadatas);
+        Assert.Empty(registrar.InformacionesTecnicasLlamadasIA);
         AssertEntradas(registrar, ("user", "mensaje_entrada"));
     }
 
     [Fact]
-    public void ResultadoIntencionContexto_DebeExigirMetadataYContenido()
+    public void ResultadoIntencionContexto_DebeExigirInformacionTecnicaYContenido()
     {
-        MetadataRazonamientoIAContexto metadataSinProveedor = CrearMetadata(AccionContextoTipo.NoResponder);
+        InformacionTecnicaLlamadaIAContexto metadataSinProveedor = CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.NoResponder);
         metadataSinProveedor.Proveedor = string.Empty;
-        MetadataRazonamientoIAContexto metadataSinModelo = CrearMetadata(AccionContextoTipo.NoResponder);
+        InformacionTecnicaLlamadaIAContexto metadataSinModelo = CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.NoResponder);
         metadataSinModelo.Modelo = string.Empty;
-        MetadataRazonamientoIAContexto metadataSinAdaptador = CrearMetadata(AccionContextoTipo.NoResponder);
+        InformacionTecnicaLlamadaIAContexto metadataSinAdaptador = CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.NoResponder);
         metadataSinAdaptador.Adaptador = string.Empty;
 
         Assert.Throws<ArgumentNullException>(
             () => ResultadoIntencionContexto.NoResponder(null!, "contenido"));
         Assert.Throws<ArgumentException>(
             () => ResultadoIntencionContexto.NoResponder(
-                CrearMetadata(AccionContextoTipo.NoResponder),
+                CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.NoResponder),
                 string.Empty));
         Assert.Throws<ArgumentException>(
             () => ResultadoIntencionContexto.NoResponder(metadataSinProveedor, "contenido"));
@@ -631,19 +939,22 @@ public class ContextoConversacionServicioTest
         IntencionContextoFake intencion,
         IReadOnlyList<ComandoContexto>? catalogo = null,
         EjecutorComandoContextoFake? ejecutor = null,
-        ProveedorHistorialContextoFake? historial = null,
+        ConsultaMensajesLineaAnteriorFake? consultaMensajesAnteriores = null,
         RegistrarContextoIAAplicacionFake? registrarContextoIA = null,
-        EstadoContextoConversacion? estadoContextoInicial = null,
+        CompactacionContextoConversacion? compactacionContextoInicial = null,
+        Task<ResultadoEjecucionComandoContexto?>? recuperacionEjecucion = null,
         int maximoIteraciones = 5)
     {
+        RegistrarContextoIAAplicacionFake registrar = registrarContextoIA ?? new RegistrarContextoIAAplicacionFake();
+        EjecutorComandoContextoFake ejecutorFinal = ejecutor ?? EjecutorComandoContextoFake.Exitoso("resultado");
         return new ContextoConversacionServicio(
             filtros,
             intencion,
             new ProveedorCatalogoComandoContextoFake(catalogo ?? []),
-            ejecutor ?? EjecutorComandoContextoFake.Exitoso("resultado"),
-            historial ?? ProveedorHistorialContextoFake.Exitoso("historial"),
-            registrarContextoIA ?? new RegistrarContextoIAAplicacionFake(),
-            new EstadoContextoConversacionAplicacionFake(estadoContextoInicial),
+            new EjecucionComandoContextoAplicacionFake(ejecutorFinal, registrar, recuperacionEjecucion),
+            consultaMensajesAnteriores ?? ConsultaMensajesLineaAnteriorFake.SinResultados(),
+            registrar,
+            new CompactacionContextoConversacionAplicacionFake(compactacionContextoInicial),
             new ConfiguracionContextoConversacion
             {
                 MaximoIteraciones = maximoIteraciones
@@ -697,47 +1008,53 @@ public class ContextoConversacionServicioTest
     private static ResultadoIntencionContexto NoResponder()
     {
         return ResultadoIntencionContexto.NoResponder(
-            CrearMetadata(AccionContextoTipo.NoResponder),
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.NoResponder),
             "no_responder");
     }
 
     private static ResultadoIntencionContexto Responder(DTOMensajeSaliente mensaje)
     {
         return ResultadoIntencionContexto.Responder(
-            CrearMetadata(AccionContextoTipo.Responder),
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Responder),
             mensaje.Contenido ?? "respuesta",
             mensaje);
     }
 
     private static ResultadoIntencionContexto PedirComando(
         string codigoComando,
-        Dictionary<string, string>? parametros = null)
+        Dictionary<string, string>? parametros = null,
+        string? toolCallID = null)
     {
         return ResultadoIntencionContexto.PedirComando(
-            CrearMetadata(AccionContextoTipo.Comando),
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Comando),
             $"comando:{codigoComando}",
             codigoComando,
-            parametros);
+            parametros,
+            toolCallID);
     }
 
-    private static ResultadoIntencionContexto PedirHistorial()
+    private static ResultadoIntencionContexto ConsultarMensajesLineaAnterior(
+        int ciclosHaciaAtras,
+        string? toolCallID = null)
     {
-        return ResultadoIntencionContexto.PedirHistorial(
-            CrearMetadata(AccionContextoTipo.Historial),
-            "historial");
+        return ResultadoIntencionContexto.ConsultarMensajesLineaAnterior(
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.ConsultarMensajesLineaAnterior),
+            JsonSerializer.Serialize(new { accion = "consultar_mensajes_linea_anterior", ciclosHaciaAtras }),
+            ciclosHaciaAtras,
+            toolCallID);
     }
 
     private static ResultadoIntencionContexto ConError(string error)
     {
         return ResultadoIntencionContexto.ConError(
-            CrearMetadata(AccionContextoTipo.Error),
+            CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Error),
             error,
             error);
     }
 
-    private static MetadataRazonamientoIAContexto CrearMetadata(AccionContextoTipo accion)
+    private static InformacionTecnicaLlamadaIAContexto CrearInformacionTecnicaLlamadaIA(AccionContextoTipo accion)
     {
-        return new MetadataRazonamientoIAContexto
+        return new InformacionTecnicaLlamadaIAContexto
         {
             Proveedor = "fake",
             Modelo = "fake",
@@ -808,8 +1125,8 @@ public class ContextoConversacionServicioTest
                 Solicitud = solicitud.Solicitud,
                 Comandos = solicitud.Comandos.ToList(),
                 DatosIntermedios = solicitud.DatosIntermedios.ToList(),
-                EntradasContextoIA = solicitud.EntradasContextoIA.ToList(),
-                EstadoContextoInicial = solicitud.EstadoContextoInicial,
+                MetadataEntradasContextoIA = solicitud.MetadataEntradasContextoIA.ToList(),
+                CompactacionContextoInicial = solicitud.CompactacionContextoInicial,
                 Iteracion = solicitud.Iteracion
             });
             ResultadoIntencionContexto resultado = resultados.Count > 0
@@ -826,8 +1143,8 @@ public class ContextoConversacionServicioTest
             Compactaciones.Add(new SolicitudCompactacionIntencionContexto
             {
                 Solicitud = solicitud.Solicitud,
-                EstadoContextoInicial = solicitud.EstadoContextoInicial,
-                EntradasContextoIA = solicitud.EntradasContextoIA.ToList(),
+                CompactacionContextoInicial = solicitud.CompactacionContextoInicial,
+                MetadataEntradasContextoIA = solicitud.MetadataEntradasContextoIA.ToList(),
                 Iteracion = solicitud.Iteracion
             });
 
@@ -835,24 +1152,24 @@ public class ContextoConversacionServicioTest
                 resultadoCompactacion
                 ?? ResultadoCompactacionIntencionContexto.Fallo(
                     "Compactacion no configurada.",
-                    ContextoConversacionServicioTest.CrearMetadata(AccionContextoTipo.Error)));
+                    ContextoConversacionServicioTest.CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Error)));
         }
     }
 
-    private sealed class EstadoContextoConversacionAplicacionFake : IEstadoContextoConversacionAplicacion
+    private sealed class CompactacionContextoConversacionAplicacionFake : ICompactacionContextoConversacionAplicacion
     {
-        private readonly EstadoContextoConversacion? estado;
+        private readonly CompactacionContextoConversacion? compactacion;
 
-        public EstadoContextoConversacionAplicacionFake(EstadoContextoConversacion? estado)
+        public CompactacionContextoConversacionAplicacionFake(CompactacionContextoConversacion? compactacion)
         {
-            this.estado = estado;
+            this.compactacion = compactacion;
         }
 
-        public Task<EstadoContextoConversacion?> ObtenerInicialAsync(
+        public Task<CompactacionContextoConversacion?> ObtenerInicialAsync(
             long idLineaConversacion,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(estado);
+            return Task.FromResult(compactacion);
         }
     }
 
@@ -861,26 +1178,26 @@ public class ContextoConversacionServicioTest
         private long siguienteEntrada = 1;
         private long siguienteMetadata = 1;
 
-        public RegistrarContextoIAAplicacionFake(params EntradaContextoIA[] entradas)
+        public RegistrarContextoIAAplicacionFake(params MetadataEntradaContextoIA[] entradas)
         {
             Entradas.AddRange(entradas.OrderBy(entrada => entrada.Orden));
             siguienteEntrada = Entradas.Count == 0 ? 1 : Entradas.Max(entrada => entrada.ID) + 1;
             siguienteMetadata = Entradas
-                .Where(entrada => entrada.IDMetadataRazonamientoIA.HasValue)
-                .Select(entrada => entrada.IDMetadataRazonamientoIA!.Value)
+                .Where(entrada => entrada.IDInformacionTecnicaLlamadaIA.HasValue)
+                .Select(entrada => entrada.IDInformacionTecnicaLlamadaIA!.Value)
                 .DefaultIfEmpty()
                 .Max() + 1;
         }
 
-        public List<EntradaContextoIA> Entradas { get; } = [];
-        public List<MetadataRazonamientoIAContexto> Metadatas { get; } = [];
+        public List<MetadataEntradaContextoIA> Entradas { get; } = [];
+        public List<InformacionTecnicaLlamadaIAContexto> InformacionesTecnicasLlamadasIA { get; } = [];
         public List<string> Operaciones { get; } = [];
 
-        public Task<IReadOnlyList<EntradaContextoIA>> ObtenerEntradasAsync(
+        public Task<IReadOnlyList<MetadataEntradaContextoIA>> ObtenerMetadataEntradasAsync(
             long idLineaConversacion,
             CancellationToken cancellationToken)
         {
-            IReadOnlyList<EntradaContextoIA> resultado = Entradas
+            IReadOnlyList<MetadataEntradaContextoIA> resultado = Entradas
                 .Where(entrada => entrada.IDLineaConversacion == idLineaConversacion)
                 .OrderBy(entrada => entrada.Orden)
                 .ThenBy(entrada => entrada.ID)
@@ -889,57 +1206,102 @@ public class ContextoConversacionServicioTest
             return Task.FromResult(resultado);
         }
 
-        public Task<EntradaContextoIA> RegistrarDecisionAsync(
+        public Task<IReadOnlyList<MetadataEntradaContextoIA>> ObtenerMetadataEntradasProcesamientoAsync(
+            long idLineaConversacion,
+            long idProcesamientoInternoMensaje,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<MetadataEntradaContextoIA> resultado = Entradas
+                .Where(entrada => entrada.IDLineaConversacion == idLineaConversacion
+                    && entrada.IDProcesamientoInternoMensaje == idProcesamientoInternoMensaje)
+                .OrderBy(entrada => entrada.Orden)
+                .ThenBy(entrada => entrada.ID)
+                .ToList();
+            return Task.FromResult(resultado);
+        }
+
+        public Task<ResultadoRegistrarDecisionContextoIA> RegistrarDecisionAsync(
             SolicitudContextoConversacion solicitud,
-            MetadataRazonamientoIAContexto metadata,
-            SolicitudRegistrarEntradaContextoIA entrada,
+            InformacionTecnicaLlamadaIAContexto metadata,
+            SolicitudRegistrarMetadataEntradaContextoIA entrada,
+            SolicitudPrepararEjecucionComandoContexto? preparacionEjecucion,
             CancellationToken cancellationToken)
         {
             long idMetadata = siguienteMetadata;
             siguienteMetadata++;
-            Metadatas.Add(metadata);
+            InformacionesTecnicasLlamadasIA.Add(metadata);
             Operaciones.Add($"metadata:{metadata.AccionDecidida}");
 
-            EntradaContextoIA resultado = CrearEntrada(entrada, idMetadata, metadata);
+            MetadataEntradaContextoIA resultado = CrearEntrada(entrada, idMetadata, metadata);
             Entradas.Add(resultado);
             Operaciones.Add($"entrada:{resultado.IDRolContextoIA}/{resultado.IDTipoEntradaContextoIA}");
-            return Task.FromResult(resultado);
+            EjecucionComandoContexto? ejecucion = preparacionEjecucion is null
+                ? null
+                : new EjecucionComandoContexto
+                {
+                    ID = siguienteEntrada + 1000,
+                    IDLineaConversacion = solicitud.IDLineaConversacion,
+                    IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,
+                    IDMetadataEntradaDecisionContextoIA = resultado.ID,
+                    NumeroIntento = 1,
+                    ProveedorEjecucion = preparacionEjecucion.ProveedorEjecucion,
+                    CodigoComando = preparacionEjecucion.CodigoComando,
+                    ParametrosJson = preparacionEjecucion.ParametrosJson,
+                    Estado = EstadosEjecucionComandoContexto.Preparada,
+                    Activa = true,
+                    ToolCallID = resultado.ToolCallID
+                };
+            return Task.FromResult(new ResultadoRegistrarDecisionContextoIA
+            {
+                MetadataEntradaDecision = resultado,
+                EjecucionComando = ejecucion
+            });
         }
 
-        public Task<EntradaContextoIA> RegistrarEntradaAsync(
-            SolicitudRegistrarEntradaContextoIA solicitud,
+        public Task<MetadataEntradaContextoIA> RegistrarMetadataResultadoComandoAsync(
+            long idEjecucionComandoContexto,
+            SolicitudRegistrarMetadataEntradaContextoIA entrada,
+            ResultadoComandoContexto resultadoComando,
             CancellationToken cancellationToken)
         {
-            EntradaContextoIA entrada = CrearEntrada(solicitud, solicitud.IDMetadataRazonamientoIA, null);
+            return RegistrarMetadataEntradaAsync(entrada, cancellationToken);
+        }
+
+        public Task<MetadataEntradaContextoIA> RegistrarMetadataEntradaAsync(
+            SolicitudRegistrarMetadataEntradaContextoIA solicitud,
+            CancellationToken cancellationToken)
+        {
+            MetadataEntradaContextoIA entrada = CrearEntrada(solicitud, solicitud.IDInformacionTecnicaLlamadaIA, null);
             Entradas.Add(entrada);
             Operaciones.Add($"entrada:{entrada.IDRolContextoIA}/{entrada.IDTipoEntradaContextoIA}");
             return Task.FromResult(entrada);
         }
 
-        private EntradaContextoIA CrearEntrada(
-            SolicitudRegistrarEntradaContextoIA solicitud,
+        private MetadataEntradaContextoIA CrearEntrada(
+            SolicitudRegistrarMetadataEntradaContextoIA solicitud,
             long? idMetadata,
-            MetadataRazonamientoIAContexto? metadata)
+            InformacionTecnicaLlamadaIAContexto? metadata)
         {
             int ultimoOrden = Entradas
                 .Where(entrada => entrada.IDLineaConversacion == solicitud.IDLineaConversacion)
                 .Select(entrada => entrada.Orden)
                 .DefaultIfEmpty()
                 .Max();
-            EntradaContextoIA entrada = new()
+            MetadataEntradaContextoIA entrada = new()
             {
                 ID = siguienteEntrada,
                 IDLineaConversacion = solicitud.IDLineaConversacion,
                 IDMensaje = solicitud.IDMensaje,
                 IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,
-                IDMetadataRazonamientoIA = idMetadata,
+                IDInformacionTecnicaLlamadaIA = idMetadata,
                 Orden = ultimoOrden + 1,
                 IDRolContextoIA = solicitud.IDRolContextoIA,
                 IDTipoEntradaContextoIA = solicitud.IDTipoEntradaContextoIA,
                 Contenido = solicitud.Contenido,
                 ToolCallID = solicitud.ToolCallID,
                 FechaEntrada = solicitud.FechaEntrada,
-                Metadata = metadata
+                FechaCreacion = DateTime.Now,
+                InformacionTecnicaLlamadaIA = metadata
             };
 
             siguienteEntrada++;
@@ -964,7 +1326,7 @@ public class ContextoConversacionServicioTest
         }
     }
 
-    private sealed class EjecutorComandoContextoFake : IEjecutorComandoContextoServicio
+    private sealed class EjecutorComandoContextoFake
     {
         private readonly ResultadoComandoContexto resultado;
 
@@ -994,27 +1356,131 @@ public class ContextoConversacionServicioTest
         }
     }
 
-    private sealed class ProveedorHistorialContextoFake : IProveedorHistorialContextoServicio
+    private sealed class EjecucionComandoContextoAplicacionFake : IEjecucionComandoContextoAplicacion
     {
-        private readonly ResultadoHistorialContexto resultado;
+        private readonly EjecutorComandoContextoFake ejecutor;
+        private readonly RegistrarContextoIAAplicacionFake registrar;
+        private readonly Task<ResultadoEjecucionComandoContexto?> recuperacion;
 
-        private ProveedorHistorialContextoFake(ResultadoHistorialContexto resultado)
+        public EjecucionComandoContextoAplicacionFake(
+            EjecutorComandoContextoFake ejecutor,
+            RegistrarContextoIAAplicacionFake registrar,
+            Task<ResultadoEjecucionComandoContexto?>? recuperacion = null)
         {
-            this.resultado = resultado;
+            this.ejecutor = ejecutor;
+            this.registrar = registrar;
+            this.recuperacion = recuperacion
+                ?? Task.FromResult<ResultadoEjecucionComandoContexto?>(null);
         }
 
-        public int Llamadas { get; private set; }
+        public string Proveedor => "fake";
 
-        public static ProveedorHistorialContextoFake Exitoso(string historial)
-        {
-            return new ProveedorHistorialContextoFake(ResultadoHistorialContexto.Exito(historial));
-        }
-
-        public Task<ResultadoHistorialContexto> ObtenerAsync(
+        public async Task<ResultadoEjecucionComandoContexto?> ReanudarActivaAsync(
             SolicitudContextoConversacion solicitud,
+            IReadOnlyList<ComandoContexto> comandos,
             CancellationToken cancellationToken)
         {
-            Llamadas++;
+            return await recuperacion.WaitAsync(cancellationToken);
+        }
+
+        public async Task<ResultadoEjecucionComandoContexto> EjecutarAsync(
+            SolicitudContextoConversacion solicitud,
+            EjecucionComandoContexto ejecucion,
+            ComandoContexto comando,
+            IReadOnlyDictionary<string, string> parametros,
+            CancellationToken cancellationToken)
+        {
+            ResultadoComandoContexto resultado = await ejecutor.EjecutarAsync(
+                new SolicitudEjecutarComandoContexto
+                {
+                    Solicitud = solicitud,
+                    Comando = comando,
+                    Parametros = parametros
+                },
+                cancellationToken);
+            string contenido = resultado.Exitoso
+                ? resultado.Resultado ?? string.Empty
+                : resultado.Error ?? "error";
+            MetadataEntradaContextoIA entrada = await registrar.RegistrarMetadataResultadoComandoAsync(
+                ejecucion.ID,
+                new SolicitudRegistrarMetadataEntradaContextoIA
+                {
+                    IDLineaConversacion = solicitud.IDLineaConversacion,
+                    IDMensaje = solicitud.IDMensaje,
+                    IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,
+                    IDRolContextoIA = "tool",
+                    IDTipoEntradaContextoIA = "resultado_comando",
+                    Contenido = contenido,
+                    ToolCallID = ejecucion.ToolCallID,
+                    FechaEntrada = DateTime.Now
+                },
+                resultado,
+                cancellationToken);
+
+            return new ResultadoEjecucionComandoContexto
+            {
+                Resultado = resultado,
+                MetadataEntradaResultado = entrada
+            };
+        }
+    }
+
+    private sealed class ConsultaMensajesLineaAnteriorFake : IConsultaMensajesLineaConversacionAnteriorAplicacion
+    {
+        private readonly IReadOnlyDictionary<int, IReadOnlyList<MetadataEntradaContextoIA>> ciclos;
+
+        private ConsultaMensajesLineaAnteriorFake(
+            IReadOnlyDictionary<int, IReadOnlyList<MetadataEntradaContextoIA>> ciclos)
+        {
+            this.ciclos = ciclos;
+        }
+
+        public int ConsultasPorPosicion { get; private set; }
+        public int ConsultasPorReferencia { get; private set; }
+
+        public static ConsultaMensajesLineaAnteriorFake ConCiclo(params MetadataEntradaContextoIA[] entradas)
+        {
+            return ConCiclos(entradas);
+        }
+
+        public static ConsultaMensajesLineaAnteriorFake ConCiclos(
+            params IReadOnlyList<MetadataEntradaContextoIA>[] ciclos)
+        {
+            return new ConsultaMensajesLineaAnteriorFake(
+                ciclos.Select((ciclo, indice) => (Posicion: indice + 1, Ciclo: ciclo))
+                    .ToDictionary(elemento => elemento.Posicion, elemento => elemento.Ciclo));
+        }
+
+        public static ConsultaMensajesLineaAnteriorFake SinResultados()
+        {
+            return new ConsultaMensajesLineaAnteriorFake(
+                new Dictionary<int, IReadOnlyList<MetadataEntradaContextoIA>>());
+        }
+
+        public Task<IReadOnlyList<MetadataEntradaContextoIA>> ObtenerCicloAsync(
+            long idConversacion,
+            long idLineaConversacionActual,
+            int ciclosHaciaAtras,
+            CancellationToken cancellationToken)
+        {
+            ConsultasPorPosicion++;
+            IReadOnlyList<MetadataEntradaContextoIA> ciclo = ciclos.GetValueOrDefault(ciclosHaciaAtras) ?? [];
+            return Task.FromResult(ciclo);
+        }
+
+        public Task<IReadOnlyList<MetadataEntradaContextoIA>> ObtenerCicloReferenciadoAsync(
+            long idConversacion,
+            long idLineaConversacionActual,
+            long idLineaConversacionOrigen,
+            long idProcesamientoInternoMensaje,
+            CancellationToken cancellationToken)
+        {
+            ConsultasPorReferencia++;
+            IReadOnlyList<MetadataEntradaContextoIA> resultado = ciclos.Values
+                .SelectMany(ciclo => ciclo)
+                .Where(entrada => entrada.IDLineaConversacion == idLineaConversacionOrigen
+                    && entrada.IDProcesamientoInternoMensaje == idProcesamientoInternoMensaje)
+                .ToList();
             return Task.FromResult(resultado);
         }
     }

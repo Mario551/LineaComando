@@ -24,9 +24,10 @@ public interface IUnitOfWork
     IConversacionParticipanteRepositorio ConversacionParticipanteRepositorio => throw new NotImplementedException();
     ILineaConversacionRepositorio LineaConversacionRepositorio => throw new NotImplementedException();
     IArchivoMensajeRepositorio ArchivoMensajeRepositorio => throw new NotImplementedException();
-    IEntradaContextoIARepositorio EntradaContextoIARepositorio => throw new NotImplementedException();
-    IMetadataRazonamientoIALineaConversacionRepositorio MetadataRazonamientoIALineaConversacionRepositorio => throw new NotImplementedException();
-    IEstadoContextoConversacionRepositorio EstadoContextoConversacionRepositorio => throw new NotImplementedException();
+    IMetadataEntradaContextoIARepositorio MetadataEntradaContextoIARepositorio => throw new NotImplementedException();
+    IInformacionTecnicaLlamadaIALineaConversacionRepositorio InformacionTecnicaLlamadaIALineaConversacionRepositorio => throw new NotImplementedException();
+    ICompactacionContextoConversacionRepositorio CompactacionContextoConversacionRepositorio => throw new NotImplementedException();
+    IEjecucionComandoContextoRepositorio EjecucionComandoContextoRepositorio => throw new NotImplementedException();
 
     Task<int> SaveChangesAsync();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);

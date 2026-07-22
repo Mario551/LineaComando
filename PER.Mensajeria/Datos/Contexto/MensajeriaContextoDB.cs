@@ -26,7 +26,7 @@ public class MensajeriaContextoDB : DbContext
     public DbSet<DAOParticipanteConversacion> ParticipantesConversacion { get; set; }
     public DbSet<DAOTipoParticipanteConversacion> TiposParticipanteConversacion { get; set; }
     public DbSet<DAOLineaConversacion> LineasConversacion { get; set; }
-    public DbSet<DAOEstadoContextoConversacion> EstadosContextoConversacion { get; set; }
+    public DbSet<DAOCompactacionContextoConversacion> CompactacionesContextoConversacion { get; set; }
     public DbSet<DAOMensaje> Mensajes { get; set; }
     public DbSet<DAODireccionMensaje> DireccionesMensaje { get; set; }
     public DbSet<DAOTipoMensaje> TiposMensaje { get; set; }
@@ -37,8 +37,10 @@ public class MensajeriaContextoDB : DbContext
     public DbSet<DAOEstadoProcesamientoInternoMensaje> EstadosProcesamientoInternoMensaje { get; set; }
     public DbSet<DAORolContextoIA> RolesContextoIA { get; set; }
     public DbSet<DAOTipoEntradaContextoIA> TiposEntradaContextoIA { get; set; }
-    public DbSet<DAOEntradaContextoIA> EntradasContextoIA { get; set; }
-    public DbSet<DAOMetadataRazonamientoIALineaConversacion> MetadataRazonamientoIALineaConversacion { get; set; }
+    public DbSet<DAOMetadataEntradaContextoIA> MetadataEntradasContextoIA { get; set; }
+    public DbSet<DAOInformacionTecnicaLlamadaIALineaConversacion> InformacionTecnicaLlamadasIALineaConversacion { get; set; }
+    public DbSet<DAOEstadoEjecucionComandoContexto> EstadosEjecucionComandoContexto { get; set; }
+    public DbSet<DAOEjecucionComandoContexto> EjecucionesComandoContexto { get; set; }
     public DbSet<DAOEnvioMensaje> EnviosMensaje { get; set; }
     public DbSet<DAOEstadoEnvioMensaje> EstadosEnvioMensaje { get; set; }
 
@@ -56,7 +58,7 @@ public class MensajeriaContextoDB : DbContext
         modelBuilder.ApplyConfiguration(new ParticipanteConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new TipoParticipanteConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new LineaConversacionConfiguracion());
-        modelBuilder.ApplyConfiguration(new EstadoContextoConversacionConfiguracion());
+        modelBuilder.ApplyConfiguration(new CompactacionContextoConversacionConfiguracion());
         modelBuilder.ApplyConfiguration(new MensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new DireccionMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new TipoMensajeConfiguracion());
@@ -67,8 +69,11 @@ public class MensajeriaContextoDB : DbContext
         modelBuilder.ApplyConfiguration(new EstadoProcesamientoInternoMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new RolContextoIAConfiguracion());
         modelBuilder.ApplyConfiguration(new TipoEntradaContextoIAConfiguracion());
-        modelBuilder.ApplyConfiguration(new EntradaContextoIAConfiguracion());
-        modelBuilder.ApplyConfiguration(new MetadataRazonamientoIALineaConversacionConfiguracion());
+        modelBuilder.ApplyConfiguration(new MetadataEntradaContextoIAConfiguracion());
+        modelBuilder.ApplyConfiguration(new InformacionTecnicaLlamadaIALineaConversacionConfiguracion());
+        modelBuilder.ApplyConfiguration(new EstadoEjecucionComandoContextoConfiguracion());
+        bool esSqlServer = Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true;
+        modelBuilder.ApplyConfiguration(new EjecucionComandoContextoConfiguracion(esSqlServer));
         modelBuilder.ApplyConfiguration(new EnvioMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new EstadoEnvioMensajeConfiguracion());
 

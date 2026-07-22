@@ -1,8 +1,8 @@
 using AplicacionTest.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
 using PER.Mensajeria.Datos.Contexto;
-using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
 
 namespace AplicacionTest;
@@ -11,7 +11,7 @@ public class RegistrarContextoIAAplicacionTest
 {
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
-    public async Task ObtenerEntradasAsync_DebeCargarTodaLaLineaConMetadataEnOrdenSinRastreo(
+    public async Task ObtenerMetadataEntradasAsync_DebeCargarTodaLaLineaConInformacionTecnicaEnOrdenSinRastreo(
         MotorBaseDatosPrueba motor)
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
@@ -23,55 +23,64 @@ public class RegistrarContextoIAAplicacionTest
             await baseDatos.CrearMensajeEntradaPendienteAsync();
 
         await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        UnitOfWork unitOfWork = new(contexto);
-        RegistrarContextoIAAplicacion aplicacion = new(unitOfWork);
+        RegistrarContextoIAAplicacion aplicacion = new(new UnitOfWorkFactoryPrueba(baseDatos));
 
-        await aplicacion.RegistrarEntradaAsync(
+        await aplicacion.RegistrarMetadataEntradaAsync(
             CrearEntrada(mensaje, procesamiento, "user", "mensaje_entrada", "pregunta"),
             CancellationToken.None);
-        EntradaContextoIA decision = await aplicacion.RegistrarDecisionAsync(
+        ResultadoRegistrarDecisionContextoIA decision = await aplicacion.RegistrarDecisionAsync(
             CrearSolicitud(mensaje, procesamiento),
-            CrearMetadata(),
+            CrearInformacionTecnicaLlamadaIA(),
             CrearEntrada(mensaje, procesamiento, "assistant", "decision_comando", "decision"),
+            null,
             CancellationToken.None);
-        await aplicacion.RegistrarEntradaAsync(
+        await aplicacion.RegistrarMetadataEntradaAsync(
             CrearEntrada(mensaje, procesamiento, "tool", "resultado_comando", "resultado"),
             CancellationToken.None);
-        await aplicacion.RegistrarEntradaAsync(
+        await aplicacion.RegistrarMetadataEntradaAsync(
             CrearEntrada(mensajeMismaLinea, procesamientoMismaLinea, "user", "mensaje_entrada", "segunda pregunta"),
             CancellationToken.None);
-        await aplicacion.RegistrarEntradaAsync(
+        await aplicacion.RegistrarMetadataEntradaAsync(
             CrearEntrada(mensajeOtraLinea, procesamientoOtraLinea, "user", "mensaje_entrada", "otra linea"),
             CancellationToken.None);
 
-        IReadOnlyList<EntradaContextoIA> entradas = await aplicacion.ObtenerEntradasAsync(
+        IReadOnlyList<MetadataEntradaContextoIA> entradas = await aplicacion.ObtenerMetadataEntradasAsync(
             mensaje.IDLineaConversacion,
             CancellationToken.None);
+        IReadOnlyList<MetadataEntradaContextoIA> entradasPrimerProcesamiento =
+            await aplicacion.ObtenerMetadataEntradasProcesamientoAsync(
+                mensaje.IDLineaConversacion,
+                procesamiento.ID,
+                CancellationToken.None);
 
         Assert.Equal(4, entradas.Count);
         Assert.Equal([1, 2, 3, 4], entradas.Select(entrada => entrada.Orden));
         Assert.All(entradas, entrada => Assert.Equal(mensaje.IDLineaConversacion, entrada.IDLineaConversacion));
-        EntradaContextoIA entradaDecision = Assert.Single(
+        Assert.Equal(3, entradasPrimerProcesamiento.Count);
+        Assert.All(
+            entradasPrimerProcesamiento,
+            entrada => Assert.Equal(procesamiento.ID, entrada.IDProcesamientoInternoMensaje));
+        Assert.All(entradas, entrada => Assert.NotEqual(default, entrada.FechaCreacion));
+        MetadataEntradaContextoIA metadataEntradaDecision = Assert.Single(
             entradas,
-            entrada => entrada.ID == decision.ID);
-        Assert.NotNull(entradaDecision.Metadata);
-        Assert.Equal("razonamiento de prueba", entradaDecision.Metadata.Reasoning);
-        Assert.Equal("finish", entradaDecision.Metadata.FinishReason);
+            entrada => entrada.ID == decision.MetadataEntradaDecision.ID);
+        Assert.NotNull(metadataEntradaDecision.InformacionTecnicaLlamadaIA);
+        Assert.Equal("razonamiento de prueba", metadataEntradaDecision.InformacionTecnicaLlamadaIA.Reasoning);
+        Assert.Equal("finish", metadataEntradaDecision.InformacionTecnicaLlamadaIA.FinishReason);
         Assert.Empty(contexto.ChangeTracker.Entries());
     }
 
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
-    public async Task RegistrarDecisionAsync_EntradaInvalida_DebeRevertirMetadataYLiberarRastreo(
+    public async Task RegistrarDecisionAsync_EntradaInvalida_DebeRevertirInformacionTecnicaYLiberarRastreo(
         MotorBaseDatosPrueba motor)
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) =
             await baseDatos.CrearMensajeEntradaPendienteAsync();
         await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        UnitOfWork unitOfWork = new(contexto);
-        RegistrarContextoIAAplicacion aplicacion = new(unitOfWork);
-        SolicitudRegistrarEntradaContextoIA entrada = CrearEntrada(
+        RegistrarContextoIAAplicacion aplicacion = new(new UnitOfWorkFactoryPrueba(baseDatos));
+        SolicitudRegistrarMetadataEntradaContextoIA entrada = CrearEntrada(
             mensaje,
             procesamiento,
             "rol_inexistente",
@@ -81,17 +90,87 @@ public class RegistrarContextoIAAplicacionTest
         await Assert.ThrowsAsync<DbUpdateException>(
             () => aplicacion.RegistrarDecisionAsync(
                 CrearSolicitud(mensaje, procesamiento),
-                CrearMetadata(),
+                CrearInformacionTecnicaLlamadaIA(),
                 entrada,
+                null,
                 CancellationToken.None));
 
         Assert.Empty(contexto.ChangeTracker.Entries());
         Assert.Equal(
             0,
-            await contexto.MetadataRazonamientoIALineaConversacion.AsNoTracking().CountAsync());
+            await contexto.InformacionTecnicaLlamadasIALineaConversacion.AsNoTracking().CountAsync());
         Assert.Equal(
             0,
-            await contexto.EntradasContextoIA.AsNoTracking().CountAsync());
+            await contexto.MetadataEntradasContextoIA.AsNoTracking().CountAsync());
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task RegistrarDecisionAsync_ConEjecucion_DebeCrearYCerrarIntentoAtomicamente(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        RegistrarContextoIAAplicacion aplicacion = new(new UnitOfWorkFactoryPrueba(baseDatos));
+
+        ResultadoRegistrarDecisionContextoIA registro = await aplicacion.RegistrarDecisionAsync(
+            CrearSolicitud(mensaje, procesamiento),
+            CrearInformacionTecnicaLlamadaIA(),
+            CrearEntrada(mensaje, procesamiento, "assistant", "decision_comando", "decision"),
+            new SolicitudPrepararEjecucionComandoContexto
+            {
+                ProveedorEjecucion = "lineacomando",
+                CodigoComando = "pedido consultar",
+                ParametrosJson = "{\"pedido\":\"54013\"}"
+            },
+            CancellationToken.None);
+
+        EjecucionComandoContexto ejecucion = Assert.IsType<EjecucionComandoContexto>(registro.EjecucionComando);
+        Assert.Equal(EstadosEjecucionComandoContexto.Preparada, ejecucion.Estado);
+        Assert.True(ejecucion.Activa);
+
+        MetadataEntradaContextoIA metadataEntradaResultado = await aplicacion.RegistrarMetadataResultadoComandoAsync(
+            ejecucion.ID,
+            CrearEntrada(mensaje, procesamiento, "tool", "resultado_comando", "pedido encontrado"),
+            ResultadoComandoContexto.Exito("pedido encontrado"),
+            CancellationToken.None);
+
+        DAOEjecucionComandoContexto dao = await contexto.EjecucionesComandoContexto.AsNoTracking().SingleAsync();
+        Assert.Equal(EstadosEjecucionComandoContexto.Completada, dao.IDEstadoEjecucionComandoContexto);
+        Assert.False(dao.Activa);
+        Assert.Equal(metadataEntradaResultado.ID, dao.IDMetadataEntradaResultadoContextoIA);
+        Assert.Empty(contexto.ChangeTracker.Entries());
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task RegistrarDecisionAsync_EjecucionInvalida_DebeRevertirDecisionCompleta(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        RegistrarContextoIAAplicacion aplicacion = new(new UnitOfWorkFactoryPrueba(baseDatos));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => aplicacion.RegistrarDecisionAsync(
+            CrearSolicitud(mensaje, procesamiento),
+            CrearInformacionTecnicaLlamadaIA(),
+            CrearEntrada(mensaje, procesamiento, "assistant", "decision_comando", "decision"),
+            new SolicitudPrepararEjecucionComandoContexto
+            {
+                ProveedorEjecucion = new string('x', 65),
+                CodigoComando = "pedido consultar",
+                ParametrosJson = "{}"
+            },
+            CancellationToken.None));
+
+        Assert.Equal(0, await contexto.InformacionTecnicaLlamadasIALineaConversacion.AsNoTracking().CountAsync());
+        Assert.Equal(0, await contexto.MetadataEntradasContextoIA.AsNoTracking().CountAsync());
+        Assert.Equal(0, await contexto.EjecucionesComandoContexto.AsNoTracking().CountAsync());
+        Assert.Empty(contexto.ChangeTracker.Entries());
     }
 
     private static async Task<(DAOMensaje Mensaje, DAOProcesamientoInternoMensaje Procesamiento)> CrearMensajeAsync(
@@ -142,14 +221,14 @@ public class RegistrarContextoIAAplicacionTest
         };
     }
 
-    private static SolicitudRegistrarEntradaContextoIA CrearEntrada(
+    private static SolicitudRegistrarMetadataEntradaContextoIA CrearEntrada(
         DAOMensaje mensaje,
         DAOProcesamientoInternoMensaje procesamiento,
         string rol,
         string tipo,
         string contenido)
     {
-        return new SolicitudRegistrarEntradaContextoIA
+        return new SolicitudRegistrarMetadataEntradaContextoIA
         {
             IDLineaConversacion = mensaje.IDLineaConversacion,
             IDMensaje = mensaje.ID,
@@ -161,9 +240,9 @@ public class RegistrarContextoIAAplicacionTest
         };
     }
 
-    private static MetadataRazonamientoIAContexto CrearMetadata()
+    private static InformacionTecnicaLlamadaIAContexto CrearInformacionTecnicaLlamadaIA()
     {
-        return new MetadataRazonamientoIAContexto
+        return new InformacionTecnicaLlamadaIAContexto
         {
             Proveedor = "proveedor_prueba",
             Modelo = "modelo_prueba",

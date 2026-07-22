@@ -40,6 +40,42 @@ public class ColaEventosMensajeriaServicioTest
     }
 
     [Fact]
+    public async Task PublicarRehidratado_DebeAnteponerloALaColaViva()
+    {
+        ColaEventosMensajeriaServicio cola = new();
+        EventoMensajeria eventoVivo = CrearEvento(2);
+        EventoMensajeria eventoRehidratado = CrearEvento(1);
+
+        cola.Publicar(eventoVivo);
+        cola.PublicarRehidratado(eventoRehidratado);
+
+        EventoMensajeria primero = await cola.ConsumirAsync(CancellationToken.None);
+        EventoMensajeria segundo = await cola.ConsumirAsync(CancellationToken.None);
+
+        Assert.Same(eventoRehidratado, primero);
+        Assert.Same(eventoVivo, segundo);
+    }
+
+    [Fact]
+    public async Task PublicarRehidratado_MismoProcesamientoYaPublicado_DebeConservarUnaSolaCopia()
+    {
+        ColaEventosMensajeriaServicio cola = new();
+        EventoMensajeria eventoVivo = CrearEvento(1);
+        EventoMensajeria eventoRehidratado = CrearEvento(2);
+        eventoRehidratado.IDProcesamientoInternoMensaje = eventoVivo.IDProcesamientoInternoMensaje;
+
+        cola.Publicar(eventoVivo);
+        cola.PublicarRehidratado(eventoRehidratado);
+
+        EventoMensajeria consumido = await cola.ConsumirAsync(CancellationToken.None);
+
+        Assert.Same(eventoVivo, consumido);
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromMilliseconds(200));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            cola.ConsumirAsync(cancellationTokenSource.Token));
+    }
+
+    [Fact]
     public async Task Publicar_MismoProcesamientoDosVeces_DebeEvitarDuplicadoEnCola()
     {
         ColaEventosMensajeriaServicio cola = new();

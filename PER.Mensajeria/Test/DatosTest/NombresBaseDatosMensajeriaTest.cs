@@ -11,7 +11,8 @@ public class NombresBaseDatosMensajeriaTest
 
         Assert.Equal("\"mensajeria\".\"per_mensajes\"", nombres.Mensajes);
         Assert.Equal("\"mensajeria\".\"per_procesamientos_internos_mensaje\"", nombres.ProcesamientosInternosMensaje);
-        Assert.Equal("\"mensajeria\".\"per_estados_contexto_conversacion\"", nombres.EstadosContextoConversacion);
+        Assert.Equal("\"mensajeria\".\"per_compactaciones_contexto_conversacion\"", nombres.CompactacionesContextoConversacion);
+        Assert.Equal("\"mensajeria\".\"per_ejecuciones_comando_contexto\"", nombres.EjecucionesComandoContexto);
     }
 
     [Fact]
@@ -21,7 +22,8 @@ public class NombresBaseDatosMensajeriaTest
 
         Assert.Equal("[mensajeria].[per_mensajes]", nombres.Mensajes);
         Assert.Equal("[mensajeria].[per_procesamientos_internos_mensaje]", nombres.ProcesamientosInternosMensaje);
-        Assert.Equal("[mensajeria].[per_estados_contexto_conversacion]", nombres.EstadosContextoConversacion);
+        Assert.Equal("[mensajeria].[per_compactaciones_contexto_conversacion]", nombres.CompactacionesContextoConversacion);
+        Assert.Equal("[mensajeria].[per_ejecuciones_comando_contexto]", nombres.EjecucionesComandoContexto);
     }
 
     [Fact]

@@ -90,8 +90,6 @@ public class RegistrarMensajeEntranteAplicacion : IRegistrarMensajeEntranteAplic
             await unitOfWork.ProcesamientoInternoMensajeRepositorio.AgregarAsync(procesamiento, cancellationToken);
             linea.FechaUltimaActividad = fecha;
             conversacion.FechaActualizacion = fecha;
-            unitOfWork.LineaConversacionRepositorio.Actualizar(linea);
-            unitOfWork.ConversacionRepositorio.Actualizar(conversacion);
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);

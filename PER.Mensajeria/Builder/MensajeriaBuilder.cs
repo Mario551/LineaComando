@@ -2,8 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using PER.Mensajeria.Builder.Persistencia;
 using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Aplicacion.EnviarMensaje;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
@@ -13,7 +15,6 @@ using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Servicio.Cola;
-using PER.Mensajeria.Servicio.Contexto;
 using PER.Mensajeria.Servicio.Envio;
 using PER.Mensajeria.Servicio.Mensaje;
 using PER.Mensajeria.Servicio.Orquestador;
@@ -78,6 +79,12 @@ public class MensajeriaBuilder : IMensajeriaBuilder
         return this;
     }
 
+    public IMensajeriaBuilder ConfigurarOrquestadorContexto(ConfiguracionOrquestadorContexto configuracion)
+    {
+        ReemplazarSingleton(configuracion);
+        return this;
+    }
+
     public IMensajeriaBuilder AgregarWorkerOrquestador()
     {
         servicios.AddHostedService<OrquestadorContextoWorker>();
@@ -87,19 +94,21 @@ public class MensajeriaBuilder : IMensajeriaBuilder
     private void RegistrarServiciosBase()
     {
         AgregarSiNoExisteSingleton<IColaEventosMensajeriaServicio, ColaEventosMensajeriaServicio>();
-        AgregarSiNoExisteSingleton<IContextoConversacionActivoServicio, ContextoConversacionActivoServicio>();
         AgregarSiNoExisteScoped<IUnitOfWork, UnitOfWork>();
+        AgregarSiNoExisteSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
         AgregarSiNoExisteScoped<ICargarEventosMensajeriaPendientesAplicacion, CargarEventosMensajeriaPendientesAplicacion>();
         AgregarSiNoExisteScoped<IRegistrarMensajeEntranteAplicacion, RegistrarMensajeEntranteAplicacion>();
         AgregarSiNoExisteScoped<IRegistrarMensajeSalidaAplicacion, RegistrarMensajeSalidaAplicacion>();
         AgregarSiNoExisteScoped<IEnviarMensajeAplicacion, EnviarMensajeAplicacion>();
         AgregarSiNoExisteScoped<IOrquestarMensajeEntradaAplicacion, OrquestarMensajeEntradaAplicacion>();
         AgregarSiNoExisteScoped<IRegistrarContextoIAAplicacion, RegistrarContextoIAAplicacion>();
-        AgregarSiNoExisteScoped<IEstadoContextoConversacionAplicacion, EstadoContextoConversacionAplicacion>();
+        AgregarSiNoExisteScoped<IConsultaMensajesLineaConversacionAnteriorAplicacion, ConsultaMensajesLineaConversacionAnteriorAplicacion>();
+        AgregarSiNoExisteScoped<IEjecucionComandoContextoAplicacion, EjecucionComandoContextoAplicacion>();
+        AgregarSiNoExisteScoped<ICompactacionContextoConversacionAplicacion, CompactacionContextoConversacionAplicacion>();
         AgregarSiNoExisteScoped<IRenovarLineaContextoAplicacion, RenovarLineaContextoAplicacion>();
         AgregarSiNoExisteScoped<IMensajeServicio, MensajeServicio>();
         AgregarSiNoExisteScoped<IEnvioMensajeServicio, EnvioMensajeServicio>();
-        AgregarSiNoExisteScoped<IOrquestadorContextoServicio, OrquestadorContextoServicio>();
+        AgregarSiNoExisteSingleton<IOrquestadorContextoServicio, OrquestadorContextoServicio>();
         AgregarSiNoExisteScoped<IContextoConversacionServicio, ContextoConversacionServicio>();
 
         AgregarSiNoExisteSingleton(new ConfiguracionMensajeriaContextoDB());
@@ -110,6 +119,7 @@ public class MensajeriaBuilder : IMensajeriaBuilder
         });
 
         AgregarSiNoExisteSingleton(new ConfiguracionContextoConversacion());
+        AgregarSiNoExisteSingleton(new ConfiguracionOrquestadorContexto());
     }
 
     private void AgregarSiNoExisteScoped<TServicio, TImplementacion>()

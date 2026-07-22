@@ -7,15 +7,18 @@ using PER.Mensajeria.Entidad.DTO;
 
 public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacion
 {
-    private readonly IUnitOfWork unitOfWork;
+    private readonly IUnitOfWorkFactory unitOfWorkFactory;
 
-    public RegistrarMensajeSalidaAplicacion(IUnitOfWork unitOfWork)
+    public RegistrarMensajeSalidaAplicacion(IUnitOfWorkFactory unitOfWorkFactory)
     {
-        this.unitOfWork = unitOfWork;
+        this.unitOfWorkFactory = unitOfWorkFactory;
     }
 
     public async Task<DTORegistrarMensajeSalidaRespuesta> EjecutarAsync(DTORegistrarMensajeSalidaSolicitud solicitud, CancellationToken cancellationToken)
     {
+        await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
+        IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
+
         DTOMensajeSaliente mensajeSolicitud = solicitud.Mensaje;
         DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.Get()
             .SingleAsync(lineaActual => lineaActual.ID == mensajeSolicitud.IDLineaConversacion, cancellationToken);
