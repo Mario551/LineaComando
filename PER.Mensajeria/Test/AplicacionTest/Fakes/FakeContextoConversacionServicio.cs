@@ -1,5 +1,4 @@
 using PER.Mensajeria.Aplicacion.Contexto;
-using PER.Mensajeria.Entidad.DTO;
 
 namespace AplicacionTest.Fakes;
 
@@ -24,7 +23,7 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
     public int PasosInternosSimulados { get; private set; }
     public Action? AntesDeResolver { get; set; }
 
-    public static FakeContextoConversacionServicio ConSalidas(params DTOMensajeSaliente[] mensajesSalientes)
+    public static FakeContextoConversacionServicio ConSalidas(params MensajeSalienteContexto[] mensajesSalientes)
     {
         return new FakeContextoConversacionServicio(new ResultadoContextoConversacion
         {
@@ -70,14 +69,14 @@ public class FakeContextoConversacionServicio : IContextoConversacionServicio
         return new FakeContextoConversacionServicio(null, null, fuenteCancelacion);
     }
 
-    public static FakeContextoConversacionServicio ConComandoIntermedio(DTOMensajeSaliente mensajeSaliente)
+    public static FakeContextoConversacionServicio ConComandoIntermedio(MensajeSalienteContexto mensajeSaliente)
     {
         FakeContextoConversacionServicio fake = ConSalidas(mensajeSaliente);
         fake.PasosInternosSimulados = 1;
         return fake;
     }
 
-    public static FakeContextoConversacionServicio ConConsultaMensajesAnterioresIntermedia(DTOMensajeSaliente mensajeSaliente)
+    public static FakeContextoConversacionServicio ConConsultaMensajesAnterioresIntermedia(MensajeSalienteContexto mensajeSaliente)
     {
         FakeContextoConversacionServicio fake = ConSalidas(mensajeSaliente);
         fake.PasosInternosSimulados = 1;

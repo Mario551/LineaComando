@@ -7,7 +7,6 @@ using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Entidad.DAO;
-using PER.Mensajeria.Entidad.DTO;
 using LoggerOrquestarMensajeEntrada = AplicacionTest.Infraestructura.LoggerPrueba<PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada.OrquestarMensajeEntradaAplicacion>;
 using RegistroLoggerPrueba = AplicacionTest.Infraestructura.RegistroLoggerPrueba;
 
@@ -21,7 +20,7 @@ public class OrquestarMensajeEntradaAplicacionTest
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
-        DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
+        MensajeSalienteContexto mensajeSaliente = CrearMensajeSalienteDesdeEntrada(mensaje);
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConSalidas(mensajeSaliente);
         RegistroLoggerPrueba registroLogger = new();
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion, registroLogger);
@@ -30,13 +29,15 @@ public class OrquestarMensajeEntradaAplicacionTest
 
         await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
         DAOProcesamientoInternoMensaje procesamientoActualizado = await contexto.ProcesamientosInternosMensaje.SingleAsync();
+        DAOMensaje mensajeSalida = await contexto.Mensajes.SingleAsync(
+            mensajeActual => mensajeActual.IDDireccionMensaje == "salida");
 
         Assert.True(contextoConversacion.Ejecutado);
         Assert.Equal(ResultadoOrquestarMensajeEntradaTipo.Procesado, resultado.Tipo);
         Assert.Equal("procesado", procesamientoActualizado.IDEstadoProcesamientoInternoMensaje);
         Assert.NotNull(procesamientoActualizado.FechaProcesado);
         Assert.Null(procesamientoActualizado.Error);
-        Assert.True(await contexto.Mensajes.CountAsync(mensajeActual => mensajeActual.IDDireccionMensaje == "salida") > 0);
+        Assert.Equal(mensaje.IDLineaConversacion, mensajeSalida.IDLineaConversacion);
         Assert.True(await contexto.EnviosMensaje.CountAsync(envioActual => envioActual.IDEstadoEnvioMensaje == "pendiente") > 0);
         registroLogger.AssertSinErrores();
     }
@@ -304,7 +305,7 @@ public class OrquestarMensajeEntradaAplicacionTest
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
-        DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
+        MensajeSalienteContexto mensajeSaliente = CrearMensajeSalienteDesdeEntrada(mensaje);
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConComandoIntermedio(mensajeSaliente);
         RegistroLoggerPrueba registroLogger = new();
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion, registroLogger);
@@ -324,7 +325,7 @@ public class OrquestarMensajeEntradaAplicacionTest
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await baseDatos.CrearMensajeEntradaPendienteAsync();
-        DTOMensajeSaliente mensajeSaliente = await CrearMensajeSalienteDesdeEntradaAsync(baseDatos, mensaje);
+        MensajeSalienteContexto mensajeSaliente = CrearMensajeSalienteDesdeEntrada(mensaje);
         FakeContextoConversacionServicio contextoConversacion = FakeContextoConversacionServicio.ConConsultaMensajesAnterioresIntermedia(mensajeSaliente);
         RegistroLoggerPrueba registroLogger = new();
         IOrquestarMensajeEntradaAplicacion aplicacion = CrearAplicacion(baseDatos, contextoConversacion, registroLogger);
@@ -394,18 +395,10 @@ public class OrquestarMensajeEntradaAplicacionTest
             logger);
     }
 
-    private static async Task<DTOMensajeSaliente> CrearMensajeSalienteDesdeEntradaAsync(
-        BaseDatosPrueba baseDatos,
-        DAOMensaje mensajeEntrada)
+    private static MensajeSalienteContexto CrearMensajeSalienteDesdeEntrada(DAOMensaje mensajeEntrada)
     {
-        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
-        DAOLineaConversacion linea = await contexto.LineasConversacion.SingleAsync(
-            lineaActual => lineaActual.ID == mensajeEntrada.IDLineaConversacion);
-
-        return new DTOMensajeSaliente
+        return new MensajeSalienteContexto
         {
-            IDConversacion = linea.IDConversacion,
-            IDLineaConversacion = mensajeEntrada.IDLineaConversacion,
             TipoMensaje = mensajeEntrada.IDTipoMensaje,
             TelefonoOrigen = mensajeEntrada.TelefonoDestino,
             TelefonoDestino = mensajeEntrada.TelefonoOrigen,

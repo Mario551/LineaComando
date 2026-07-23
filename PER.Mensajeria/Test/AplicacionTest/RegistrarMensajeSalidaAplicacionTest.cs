@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Entidad.DAO;
-using PER.Mensajeria.Entidad.DTO;
 
 namespace AplicacionTest;
 
@@ -16,9 +15,9 @@ public class RegistrarMensajeSalidaAplicacionTest
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOCuentaCanal cuenta, DAOConversacion conversacion, DAOLineaConversacion linea) = await baseDatos.CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         IRegistrarMensajeSalidaAplicacion aplicacion = CrearAplicacion(baseDatos);
-        DTORegistrarMensajeSalidaSolicitud solicitud = CrearSolicitud(conversacion.ID, linea.ID);
+        SolicitudRegistrarMensajeSalida solicitud = CrearSolicitud(conversacion.ID, linea.ID);
 
-        DTORegistrarMensajeSalidaRespuesta respuesta = await aplicacion.EjecutarAsync(solicitud, CancellationToken.None);
+        ResultadoRegistrarMensajeSalida respuesta = await aplicacion.EjecutarAsync(solicitud, CancellationToken.None);
 
         await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
         DAOMensaje mensaje = await contexto.Mensajes.SingleAsync();
@@ -40,7 +39,7 @@ public class RegistrarMensajeSalidaAplicacionTest
         (DAOCuentaCanal primeraCuenta, DAOConversacion conversacion, DAOLineaConversacion primeraLinea) = await baseDatos.CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         (DAOCuentaCanal segundaCuenta, DAOConversacion segundaConversacion, DAOLineaConversacion lineaAjena) = await baseDatos.CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         IRegistrarMensajeSalidaAplicacion aplicacion = CrearAplicacion(baseDatos);
-        DTORegistrarMensajeSalidaSolicitud solicitud = CrearSolicitud(conversacion.ID, lineaAjena.ID);
+        SolicitudRegistrarMensajeSalida solicitud = CrearSolicitud(conversacion.ID, lineaAjena.ID);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             aplicacion.EjecutarAsync(solicitud, CancellationToken.None));
@@ -55,18 +54,15 @@ public class RegistrarMensajeSalidaAplicacionTest
         return new RegistrarMensajeSalidaAplicacion(new UnitOfWorkFactoryPrueba(baseDatos));
     }
 
-    private static DTORegistrarMensajeSalidaSolicitud CrearSolicitud(long idConversacion, long idLineaConversacion)
+    private static SolicitudRegistrarMensajeSalida CrearSolicitud(long idConversacion, long idLineaConversacion)
     {
-        return new DTORegistrarMensajeSalidaSolicitud
+        return new SolicitudRegistrarMensajeSalida
         {
-            Mensaje = new DTOMensajeSaliente
-            {
-                IDConversacion = idConversacion,
-                IDLineaConversacion = idLineaConversacion,
-                TipoMensaje = "texto",
-                Contenido = "respuesta",
-                FechaMensaje = DateTime.Now
-            }
+            IDConversacion = idConversacion,
+            IDLineaConversacion = idLineaConversacion,
+            TipoMensaje = "texto",
+            Contenido = "respuesta",
+            FechaMensaje = DateTime.Now
         };
     }
 }

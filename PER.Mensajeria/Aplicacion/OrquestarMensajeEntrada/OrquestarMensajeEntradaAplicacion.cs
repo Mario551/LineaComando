@@ -6,7 +6,6 @@ using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
-using PER.Mensajeria.Entidad.DTO;
 
 public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicacion
 {
@@ -71,17 +70,16 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
                     datosProcesamiento.IDLineaConversacion);
             }
 
-            foreach (DTOMensajeSaliente mensajeSaliente in resultadoContexto.MensajesSalientes)
+            foreach (MensajeSalienteContexto mensajeSaliente in resultadoContexto.MensajesSalientes)
             {
-                ForzarRelacionSalida(
+                SolicitudRegistrarMensajeSalida solicitudRegistrarSalida = CrearSolicitudRegistrarSalida(
                     mensajeSaliente,
                     datosProcesamiento.IDConversacion,
                     datosProcesamiento.IDLineaConversacion);
 
-                await registrarMensajeSalidaAplicacion.EjecutarAsync(new DTORegistrarMensajeSalidaSolicitud
-                {
-                    Mensaje = mensajeSaliente
-                }, cancellationToken);
+                await registrarMensajeSalidaAplicacion.EjecutarAsync(
+                    solicitudRegistrarSalida,
+                    cancellationToken);
             }
 
             await MarcarProcesadoAsync(idProcesamientoInternoMensaje, cancellationToken);
@@ -112,13 +110,32 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
         }
     }
 
-    private static void ForzarRelacionSalida(
-        DTOMensajeSaliente mensajeSaliente,
+    private static SolicitudRegistrarMensajeSalida CrearSolicitudRegistrarSalida(
+        MensajeSalienteContexto mensajeSaliente,
         long idConversacion,
         long idLineaConversacion)
     {
-        mensajeSaliente.IDConversacion = idConversacion;
-        mensajeSaliente.IDLineaConversacion = idLineaConversacion;
+        return new SolicitudRegistrarMensajeSalida
+        {
+            IDConversacion = idConversacion,
+            IDLineaConversacion = idLineaConversacion,
+            TipoMensaje = mensajeSaliente.TipoMensaje,
+            TelefonoOrigen = mensajeSaliente.TelefonoOrigen,
+            TelefonoDestino = mensajeSaliente.TelefonoDestino,
+            Contenido = mensajeSaliente.Contenido,
+            FechaMensaje = mensajeSaliente.FechaMensaje,
+            Archivos = mensajeSaliente.Archivos
+                .Select(archivo => new ArchivoRegistrarMensajeSalida
+                {
+                    NombreArchivo = archivo.NombreArchivo,
+                    TipoContenido = archivo.TipoContenido,
+                    TamanoBytes = archivo.TamanoBytes,
+                    UbicacionArchivo = archivo.UbicacionArchivo,
+                    ProveedorAlmacenamiento = archivo.ProveedorAlmacenamiento,
+                    IdentificadorExternoArchivo = archivo.IdentificadorExternoArchivo
+                })
+                .ToList()
+        };
     }
 
     private async Task<DatosProcesamientoMensaje?> PrepararProcesamientoAsync(
@@ -160,9 +177,9 @@ public class OrquestarMensajeEntradaAplicacion : IOrquestarMensajeEntradaAplicac
         DAOConversacion conversacion = await unitOfWork.ConversacionRepositorio.GetNoTracking()
             .SingleAsync(conversacionActual => conversacionActual.ID == linea.IDConversacion, cancellationToken);
 
-        List<DTOArchivoMensaje> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
+        List<ArchivoMensajeContexto> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
             .Where(archivoActual => archivoActual.IDMensaje == mensajeEntrada.ID)
-            .Select(archivoActual => new DTOArchivoMensaje
+            .Select(archivoActual => new ArchivoMensajeContexto
             {
                 NombreArchivo = archivoActual.NombreArchivo,
                 TipoContenido = archivoActual.IDTipoContenidoArchivo,

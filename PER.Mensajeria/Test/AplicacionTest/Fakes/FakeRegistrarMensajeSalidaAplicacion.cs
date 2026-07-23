@@ -1,5 +1,4 @@
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
-using PER.Mensajeria.Entidad.DTO;
 
 namespace AplicacionTest.Fakes;
 
@@ -7,11 +6,13 @@ public class FakeRegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplic
 {
     public bool Ejecutado { get; private set; }
 
-    public Task<DTORegistrarMensajeSalidaRespuesta> EjecutarAsync(DTORegistrarMensajeSalidaSolicitud solicitud, CancellationToken cancellationToken)
+    public Task<ResultadoRegistrarMensajeSalida> EjecutarAsync(
+        SolicitudRegistrarMensajeSalida solicitud,
+        CancellationToken cancellationToken)
     {
         Ejecutado = true;
 
-        return Task.FromResult(new DTORegistrarMensajeSalidaRespuesta
+        return Task.FromResult(new ResultadoRegistrarMensajeSalida
         {
             IDMensaje = 10,
             IDEnvioMensaje = 20,

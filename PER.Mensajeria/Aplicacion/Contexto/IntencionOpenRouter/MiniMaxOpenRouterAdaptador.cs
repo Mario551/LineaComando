@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using PER.Mensajeria.Entidad.DTO;
 using PER.Mensajeria.Entidad.DTO.IntencionOpenRouter;
 
 namespace PER.Mensajeria.Aplicacion.Contexto.IntencionOpenRouter;
@@ -553,7 +552,7 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
 
             if (accion == "responder")
             {
-                List<DTOMensajeSaliente> mensajes = LeerMensajesSalientes(raiz);
+                List<MensajeSalienteContexto> mensajes = LeerMensajesSalientes(raiz);
                 if (mensajes.Count == 0)
                 {
                     return CrearErrorDecision(metadata, "La respuesta terminal no contiene mensajes salientes.");
@@ -709,15 +708,15 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
         return resultado;
     }
 
-    private static List<DTOMensajeSaliente> LeerMensajesSalientes(JsonElement raiz)
+    private static List<MensajeSalienteContexto> LeerMensajesSalientes(JsonElement raiz)
     {
-        List<DTOMensajeSaliente> mensajes = [];
+        List<MensajeSalienteContexto> mensajes = [];
         if (raiz.TryGetProperty("mensajes", out JsonElement mensajesJson)
             && mensajesJson.ValueKind == JsonValueKind.Array)
         {
             foreach (JsonElement mensajeJson in mensajesJson.EnumerateArray())
             {
-                mensajes.Add(new DTOMensajeSaliente
+                mensajes.Add(new MensajeSalienteContexto
                 {
                     TipoMensaje = LeerStringOpcional(mensajeJson, "tipoMensaje") ?? "texto",
                     Contenido = LeerString(mensajeJson, "contenido"),
@@ -731,7 +730,7 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
         string? contenido = LeerStringOpcional(raiz, "contenido");
         if (!string.IsNullOrWhiteSpace(contenido))
         {
-            mensajes.Add(new DTOMensajeSaliente
+            mensajes.Add(new MensajeSalienteContexto
             {
                 TipoMensaje = "texto",
                 Contenido = contenido,

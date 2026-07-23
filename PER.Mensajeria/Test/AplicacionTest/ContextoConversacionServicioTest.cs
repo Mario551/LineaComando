@@ -1,7 +1,6 @@
 using System.Text.Json;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
-using PER.Mensajeria.Entidad.DTO;
 
 namespace AplicacionTest;
 
@@ -69,7 +68,7 @@ public class ContextoConversacionServicioTest
     [Fact]
     public async Task ResolverAsync_ResultadoResponder_DebeRetornarConSalidas()
     {
-        DTOMensajeSaliente mensaje = CrearMensajeSaliente();
+        MensajeSalienteContexto mensaje = CrearMensajeSaliente();
         IntencionContextoFake intencion = new(Responder(mensaje));
         RegistrarContextoIAAplicacionFake registrar = new();
         ContextoConversacionServicio servicio = CrearServicio(
@@ -978,12 +977,10 @@ public class ContextoConversacionServicioTest
         };
     }
 
-    private static DTOMensajeSaliente CrearMensajeSaliente()
+    private static MensajeSalienteContexto CrearMensajeSaliente()
     {
-        return new DTOMensajeSaliente
+        return new MensajeSalienteContexto
         {
-            IDConversacion = 3,
-            IDLineaConversacion = 4,
             TipoMensaje = "texto",
             Contenido = "Respuesta final",
             FechaMensaje = DateTime.Now
@@ -1012,7 +1009,7 @@ public class ContextoConversacionServicioTest
             "no_responder");
     }
 
-    private static ResultadoIntencionContexto Responder(DTOMensajeSaliente mensaje)
+    private static ResultadoIntencionContexto Responder(MensajeSalienteContexto mensaje)
     {
         return ResultadoIntencionContexto.Responder(
             CrearInformacionTecnicaLlamadaIA(AccionContextoTipo.Responder),

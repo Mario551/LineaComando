@@ -1,6 +1,6 @@
-namespace PER.Mensajeria.Entidad.DTO;
+namespace PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 
-public class DTORegistrarMensajeSalidaRespuesta
+public class ResultadoRegistrarMensajeSalida
 {
     public long IDMensaje { get; set; }
     public long IDEnvioMensaje { get; set; }

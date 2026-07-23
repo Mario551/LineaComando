@@ -1,7 +1,5 @@
 namespace PER.Mensajeria.Aplicacion.Contexto;
 
-using PER.Mensajeria.Entidad.DTO;
-
 public sealed class ResultadoIntencionContexto
 {
     private ResultadoIntencionContexto()
@@ -16,13 +14,13 @@ public sealed class ResultadoIntencionContexto
     public string? ToolCallID { get; private set; }
     public int? CiclosHaciaAtras { get; private set; }
     public Dictionary<string, string> ParametrosComando { get; private set; } = [];
-    public List<DTOMensajeSaliente> MensajesSalientes { get; private set; } = [];
+    public List<MensajeSalienteContexto> MensajesSalientes { get; private set; } = [];
     public DeteccionLimiteVentanaContextoTipo? DeteccionLimiteVentana { get; private set; }
 
     public static ResultadoIntencionContexto Responder(
         InformacionTecnicaLlamadaIAContexto informacionTecnicaLlamadaIA,
         string contenidoDecision,
-        params DTOMensajeSaliente[] mensajesSalientes)
+        params MensajeSalienteContexto[] mensajesSalientes)
     {
         ValidarContrato(informacionTecnicaLlamadaIA, contenidoDecision);
 

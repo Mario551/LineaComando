@@ -3,7 +3,6 @@ namespace PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DAO;
-using PER.Mensajeria.Entidad.DTO;
 
 public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacion
 {
@@ -14,16 +13,17 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
         this.unitOfWorkFactory = unitOfWorkFactory;
     }
 
-    public async Task<DTORegistrarMensajeSalidaRespuesta> EjecutarAsync(DTORegistrarMensajeSalidaSolicitud solicitud, CancellationToken cancellationToken)
+    public async Task<ResultadoRegistrarMensajeSalida> EjecutarAsync(
+        SolicitudRegistrarMensajeSalida solicitud,
+        CancellationToken cancellationToken)
     {
         await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
         IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
 
-        DTOMensajeSaliente mensajeSolicitud = solicitud.Mensaje;
         DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.Get()
-            .SingleAsync(lineaActual => lineaActual.ID == mensajeSolicitud.IDLineaConversacion, cancellationToken);
+            .SingleAsync(lineaActual => lineaActual.ID == solicitud.IDLineaConversacion, cancellationToken);
 
-        if (linea.IDConversacion != mensajeSolicitud.IDConversacion)
+        if (linea.IDConversacion != solicitud.IDConversacion)
         {
             throw new InvalidOperationException("La linea no pertenece a la conversacion indicada.");
         }
@@ -39,13 +39,13 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
             List<DAOArchivoMensaje> archivos = [];
             DAOMensaje mensaje = new()
             {
-                IDLineaConversacion = mensajeSolicitud.IDLineaConversacion,
-                IDTipoMensaje = mensajeSolicitud.TipoMensaje,
+                IDLineaConversacion = solicitud.IDLineaConversacion,
+                IDTipoMensaje = solicitud.TipoMensaje,
                 IDDireccionMensaje = "salida",
-                TelefonoOrigen = mensajeSolicitud.TelefonoOrigen,
-                TelefonoDestino = mensajeSolicitud.TelefonoDestino,
-                Contenido = mensajeSolicitud.Contenido,
-                FechaMensaje = ObtenerFechaMensaje(mensajeSolicitud.FechaMensaje, fecha),
+                TelefonoOrigen = solicitud.TelefonoOrigen,
+                TelefonoDestino = solicitud.TelefonoDestino,
+                Contenido = solicitud.Contenido,
+                FechaMensaje = ObtenerFechaMensaje(solicitud.FechaMensaje, fecha),
                 FechaCreacion = fecha,
                 FechaActualizacion = fecha
             };
@@ -53,7 +53,7 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
             await unitOfWork.MensajeRepositorio.AgregarAsync(mensaje, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            foreach (DTOArchivoMensaje archivoSolicitud in mensajeSolicitud.Archivos)
+            foreach (ArchivoRegistrarMensajeSalida archivoSolicitud in solicitud.Archivos)
             {
                 DAOArchivoMensaje archivo = new()
                 {
@@ -99,7 +99,7 @@ public class RegistrarMensajeSalidaAplicacion : IRegistrarMensajeSalidaAplicacio
             unitOfWork.EnvioMensajeRepositorio.LiberarRastreo(envio);
             unitOfWork.LineaConversacionRepositorio.LiberarRastreo(linea);
 
-            return new DTORegistrarMensajeSalidaRespuesta
+            return new ResultadoRegistrarMensajeSalida
             {
                 IDMensaje = idMensaje,
                 IDEnvioMensaje = idEnvioMensaje,
