@@ -2,9 +2,9 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.Contexto;
-using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
+using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
-using PER.Mensajeria.Servicio.Cola;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
 using PER.Mensajeria.Servicio.Orquestador;
 using ServicioTest.Infraestructura;
 
@@ -37,7 +37,7 @@ public class OrquestadorContextoServicioTest
                 segundoMensajeFinalizado.TrySetResult(true);
             }
 
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
 
         await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -82,7 +82,7 @@ public class OrquestadorContextoServicioTest
                 dosConversacionesFinalizadas.TrySetResult(true);
             }
 
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
 
         await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -127,7 +127,7 @@ public class OrquestadorContextoServicioTest
                 tresConversacionesFinalizadas.TrySetResult(true);
             }
 
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
 
         await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -160,7 +160,7 @@ public class OrquestadorContextoServicioTest
             procesamientoIniciado.TrySetResult(true);
             await liberarProcesamiento.Task.WaitAsync(cancellationToken);
             procesamientoFinalizado.TrySetResult(true);
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
 
         Task encolado = escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -197,11 +197,11 @@ public class OrquestadorContextoServicioTest
                 segundoMensajeFinalizado.TrySetResult(true);
             }
 
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
 
-        EventoMensajeria eventoActivo = CrearEvento(1, 10);
-        EventoMensajeria eventoPendiente = CrearEvento(2, 10);
+        EventoMensajeriaEntrada eventoActivo = CrearEvento(1, 10);
+        EventoMensajeriaEntrada eventoPendiente = CrearEvento(2, 10);
 
         await escenario.Servicio.EncolarAsync(eventoActivo, CancellationToken.None);
         await primerMensajeIniciado.Task.WaitAsync(TiempoEspera);
@@ -233,7 +233,7 @@ public class OrquestadorContextoServicioTest
             }
 
             segundoMensajeFinalizado.TrySetResult(true);
-            return Task.FromResult(ResultadoOrquestarMensajeEntrada.Procesado());
+            return Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
         };
 
         await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -264,7 +264,7 @@ public class OrquestadorContextoServicioTest
             {
                 primerIntentoA1Iniciado.TrySetResult(true);
                 await permitirRenovacionA1.Task.WaitAsync(cancellationToken);
-                return ResultadoOrquestarMensajeEntrada.RenovarLinea(
+                return ResultadoOrquestarMensajeContexto.RenovarLinea(
                     compactacion,
                     idMensaje: 10,
                     idConversacion: 10,
@@ -276,7 +276,7 @@ public class OrquestadorContextoServicioTest
                 a2Finalizado.TrySetResult(true);
             }
 
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
         escenario.Control.EjecutarRenovacionAsync = (solicitud, _) =>
         {
@@ -322,7 +322,7 @@ public class OrquestadorContextoServicioTest
                 segundoMensajeFinalizado.TrySetResult(true);
             }
 
-            return Task.FromResult(ResultadoOrquestarMensajeEntrada.Procesado());
+            return Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
         };
 
         await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -363,7 +363,7 @@ public class OrquestadorContextoServicioTest
                 throw;
             }
 
-            return ResultadoOrquestarMensajeEntrada.Procesado();
+            return ResultadoOrquestarMensajeContexto.Procesado();
         };
 
         await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
@@ -382,9 +382,9 @@ public class OrquestadorContextoServicioTest
             escenario.Servicio.EncolarAsync(CrearEvento(2, 10), CancellationToken.None));
     }
 
-    private static EventoMensajeria CrearEvento(long idProcesamiento, long idConversacion)
+    private static EventoMensajeriaEntrada CrearEvento(long idProcesamiento, long idConversacion)
     {
-        return new EventoMensajeria
+        return new EventoMensajeriaEntrada
         {
             IDMensaje = idProcesamiento * 10,
             IDProcesamientoInternoMensaje = idProcesamiento,
@@ -456,8 +456,8 @@ public class OrquestadorContextoServicioTest
             RegistroLogger = new RegistroLoggerPrueba();
             ServiceCollection servicios = new();
             servicios.AddSingleton(Control);
-            servicios.AddScoped<IOrquestarMensajeEntradaAplicacion>(proveedor =>
-                new OrquestarMensajeEntradaAplicacionPrueba(
+            servicios.AddScoped<IOrquestarMensajeContextoAplicacion>(proveedor =>
+                new OrquestarMensajeContextoAplicacionPrueba(
                     proveedor.GetRequiredService<ControlOrquestacionPrueba>()));
             servicios.AddScoped<IRenovarLineaContextoAplicacion>(proveedor =>
                 new RenovarLineaContextoAplicacionPrueba(
@@ -489,8 +489,8 @@ public class OrquestadorContextoServicioTest
         private int alcancesCreados;
         private int alcancesDispuestos;
 
-        public Func<long, CancellationToken, Task<ResultadoOrquestarMensajeEntrada>> EjecutarOrquestacionAsync { get; set; }
-            = (_, _) => Task.FromResult(ResultadoOrquestarMensajeEntrada.Procesado());
+        public Func<long, CancellationToken, Task<ResultadoOrquestarMensajeContexto>> EjecutarOrquestacionAsync { get; set; }
+            = (_, _) => Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
 
         public Func<SolicitudRenovarLineaContexto, CancellationToken, Task<ResultadoRenovarLineaContexto>> EjecutarRenovacionAsync { get; set; }
             = (solicitud, _) => Task.FromResult(new ResultadoRenovarLineaContexto
@@ -516,17 +516,17 @@ public class OrquestadorContextoServicioTest
         }
     }
 
-    private sealed class OrquestarMensajeEntradaAplicacionPrueba : IOrquestarMensajeEntradaAplicacion, IAsyncDisposable
+    private sealed class OrquestarMensajeContextoAplicacionPrueba : IOrquestarMensajeContextoAplicacion, IAsyncDisposable
     {
         private readonly ControlOrquestacionPrueba control;
 
-        public OrquestarMensajeEntradaAplicacionPrueba(ControlOrquestacionPrueba control)
+        public OrquestarMensajeContextoAplicacionPrueba(ControlOrquestacionPrueba control)
         {
             this.control = control;
             control.RegistrarAlcanceCreado();
         }
 
-        public Task<ResultadoOrquestarMensajeEntrada> EjecutarAsync(
+        public Task<ResultadoOrquestarMensajeContexto> EjecutarAsync(
             long idProcesamientoInternoMensaje,
             CancellationToken cancellationToken)
         {

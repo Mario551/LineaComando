@@ -5,9 +5,18 @@ using PER.Mensajeria.Entidad.DTO;
 
 public interface IMensajeServicio
 {
-    Task<DTORegistrarMensajeEntranteRespuesta> RecibirAsync(DTORegistrarMensajeEntranteSolicitud solicitud, CancellationToken cancellationToken);
+    Task<DTORegistrarMensajeEntranteRespuesta> RecibirAsync(
+        DTORegistrarMensajeEntranteSolicitud solicitud,
+        CancellationToken cancellationToken);
 
     Task<ResultadoRenovarLineaContexto> RenovarLineaContextoAsync(
         SolicitudRenovarLineaContexto solicitud,
+        CancellationToken cancellationToken);
+
+    Task<DTOEnvioMensajePendiente> EsperarMensajeSalidaAsync(
+        CancellationToken cancellationToken);
+
+    Task RegistrarResultadoEnvioAsync(
+        DTOResultadoEnvioMensaje resultado,
         CancellationToken cancellationToken);
 }

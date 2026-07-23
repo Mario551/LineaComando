@@ -7,19 +7,27 @@ using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Mensajeria.API.Comunicacion;
 using PER.Mensajeria.Builder;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
+using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaSalidaPendientes;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Salida;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
 using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenRouter;
-using PER.Mensajeria.Aplicacion.EnviarMensaje;
-using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
+using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
+using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
+using PER.Mensajeria.Aplicacion.RegistrarResultadoEnvioMensaje;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Builder.Contexto.LineaComando;
+using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
+using PER.Mensajeria.Entidad.DTO;
+using PER.Mensajeria.Servicio.Mensaje;
 using PER.Mensajeria.Servicio.Orquestador;
 
 namespace BuilderTest;
@@ -109,6 +117,32 @@ public class MensajeriaBuilderTest
     }
 
     [Fact]
+    public void AgregarWorkerMensajeria_DebeRegistrarComunicacionSingletonYWorkerUnaVez()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+
+        servicios.AgregarMensajeria(builder =>
+        {
+            builder.AgregarWorkerMensajeria<ComunicacionMensajeriaPrueba>();
+            builder.AgregarWorkerMensajeria<ComunicacionMensajeriaPrueba>();
+        });
+
+        using ServiceProvider proveedor = servicios.BuildServiceProvider();
+        ComunicacionMensajeriaPrueba comunicacion = proveedor
+            .GetRequiredService<ComunicacionMensajeriaPrueba>();
+        IComunicacionMensajeriaAPI contrato = proveedor
+            .GetRequiredService<IComunicacionMensajeriaAPI>();
+        List<IHostedService> hostedServices = proveedor.GetServices<IHostedService>().ToList();
+
+        Assert.Same(comunicacion, contrato);
+        Assert.Single(hostedServices, servicio => servicio is MensajeriaWorker);
+        Assert.Equal(
+            ServiceLifetime.Singleton,
+            ObtenerDescriptor(servicios, typeof(IMensajeServicio)).Lifetime);
+    }
+
+    [Fact]
     public void AgregarMensajeria_DebeRegistrarCiclosDeVidaDelOrquestador()
     {
         ServiceCollection servicios = new();
@@ -124,14 +158,25 @@ public class MensajeriaBuilderTest
         Assert.Equal(
             ServiceLifetime.Scoped,
             ObtenerDescriptor(servicios, typeof(IUnitOfWork)).Lifetime);
+        Assert.Equal(
+            ServiceLifetime.Singleton,
+            ObtenerDescriptor(servicios, typeof(IMensajeServicio)).Lifetime);
+        Assert.Equal(
+            ServiceLifetime.Singleton,
+            ObtenerDescriptor(servicios, typeof(IColaEventosMensajeriaEntradaServicio)).Lifetime);
+        Assert.Equal(
+            ServiceLifetime.Singleton,
+            ObtenerDescriptor(servicios, typeof(IColaEventosMensajeriaSalidaServicio)).Lifetime);
 
         Type[] aplicacionesScoped =
         [
             typeof(ICargarEventosMensajeriaPendientesAplicacion),
+            typeof(ICargarEventosMensajeriaSalidaPendientesAplicacion),
             typeof(IRegistrarMensajeEntranteAplicacion),
             typeof(IRegistrarMensajeSalidaAplicacion),
-            typeof(IEnviarMensajeAplicacion),
-            typeof(IOrquestarMensajeEntradaAplicacion),
+            typeof(IObtenerMensajeSalidaPendienteAplicacion),
+            typeof(IRegistrarResultadoEnvioMensajeAplicacion),
+            typeof(IOrquestarMensajeContextoAplicacion),
             typeof(IRegistrarContextoIAAplicacion),
             typeof(IEjecucionComandoContextoAplicacion),
             typeof(ICompactacionContextoConversacionAplicacion),
@@ -165,9 +210,12 @@ public class MensajeriaBuilderTest
             .GetRequiredService<IOrquestadorContextoServicio>();
         IUnitOfWorkFactory primeraFactory = serviceProvider.GetRequiredService<IUnitOfWorkFactory>();
         IUnitOfWorkFactory segundaFactory = serviceProvider.GetRequiredService<IUnitOfWorkFactory>();
+        IMensajeServicio primerMensajeServicio = serviceProvider.GetRequiredService<IMensajeServicio>();
+        IMensajeServicio segundoMensajeServicio = serviceProvider.GetRequiredService<IMensajeServicio>();
 
         Assert.Same(primerOrquestador, segundoOrquestador);
         Assert.Same(primeraFactory, segundaFactory);
+        Assert.Same(primerMensajeServicio, segundoMensajeServicio);
     }
 
     [Fact]
@@ -351,6 +399,22 @@ public class MensajeriaBuilderTest
 
         public Task<ResultadoCompactacionIntencionContexto> CompactarAsync(
             SolicitudCompactacionIntencionContexto solicitud,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class ComunicacionMensajeriaPrueba : IComunicacionMensajeriaAPI
+    {
+        public Task<DTORegistrarMensajeEntranteSolicitud> EsperarMensajeEntranteAsync(
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<DTOResultadoEnvioMensaje> EnviarMensajeAsync(
+            DTOEnvioMensajePendiente mensaje,
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();

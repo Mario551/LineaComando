@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Entidad.DTO;
-using PER.Mensajeria.Servicio.Cola;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
 using PER.Mensajeria.Servicio.Orquestador;
 
 namespace BuilderTest;
@@ -13,7 +13,7 @@ public class OrquestadorContextoWorkerTest
     [Fact]
     public async Task EjecutarAsync_DebeCargarPendientesAntesDeProcesarCola()
     {
-        ColaEventosMensajeriaServicio cola = new();
+        ColaEventosMensajeriaEntradaServicio cola = new();
         List<string> pasos = new();
         FakeCargarEventosMensajeriaPendientesAplicacion cargarEventos = new(pasos);
         FakeOrquestadorContextoServicio orquestador = new(pasos);
@@ -27,7 +27,7 @@ public class OrquestadorContextoWorkerTest
         using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(3));
 
         Task tareaWorker = worker.EjecutarAsync(cancellationTokenSource.Token);
-        EventoMensajeria eventoEncolado = await orquestador.EventoEncolado.Task.WaitAsync(cancellationTokenSource.Token);
+        EventoMensajeriaEntrada eventoEncolado = await orquestador.EventoEncolado.Task.WaitAsync(cancellationTokenSource.Token);
         cancellationTokenSource.Cancel();
 
         await EsperarCancelacionAsync(tareaWorker);
@@ -147,9 +147,9 @@ public class OrquestadorContextoWorkerTest
             this.pasos = pasos;
         }
 
-        public TaskCompletionSource<EventoMensajeria> EventoEncolado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<EventoMensajeriaEntrada> EventoEncolado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task EncolarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken)
+        public Task EncolarAsync(EventoMensajeriaEntrada eventoMensajeria, CancellationToken cancellationToken)
         {
             pasos.Add("encola");
             EventoEncolado.TrySetResult(eventoMensajeria);

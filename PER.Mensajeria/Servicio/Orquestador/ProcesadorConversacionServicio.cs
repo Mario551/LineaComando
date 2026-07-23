@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
+using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
-using PER.Mensajeria.Servicio.Cola;
 
 namespace PER.Mensajeria.Servicio.Orquestador;
 
@@ -15,7 +15,7 @@ internal sealed class ProcesadorConversacionServicio
     private readonly CancellationToken cancellationToken;
     private readonly ILogger<OrquestadorContextoServicio> logger;
     private readonly object sincronizacion = new();
-    private readonly Queue<EventoMensajeria> eventos = new();
+    private readonly Queue<EventoMensajeriaEntrada> eventos = new();
     private readonly HashSet<long> idsProcesamientos = [];
     private Task? tareaProcesamiento;
     private bool cerrado;
@@ -47,7 +47,7 @@ internal sealed class ProcesadorConversacionServicio
         }
     }
 
-    public bool IntentarEncolar(EventoMensajeria eventoMensajeria)
+    public bool IntentarEncolar(EventoMensajeriaEntrada eventoMensajeria)
     {
         lock (sincronizacion)
         {
@@ -81,7 +81,7 @@ internal sealed class ProcesadorConversacionServicio
             await limiteConversaciones.WaitAsync(cancellationToken);
             cupoAdquirido = true;
 
-            while (IntentarObtenerSiguiente(out EventoMensajeria eventoMensajeria))
+            while (IntentarObtenerSiguiente(out EventoMensajeriaEntrada eventoMensajeria))
             {
                 try
                 {
@@ -134,7 +134,7 @@ internal sealed class ProcesadorConversacionServicio
         }
     }
 
-    private bool IntentarObtenerSiguiente(out EventoMensajeria eventoMensajeria)
+    private bool IntentarObtenerSiguiente(out EventoMensajeriaEntrada eventoMensajeria)
     {
         lock (sincronizacion)
         {
@@ -151,10 +151,10 @@ internal sealed class ProcesadorConversacionServicio
     }
 
     private async Task ProcesarEventoConRenovacionAsync(
-        EventoMensajeria eventoMensajeria,
+        EventoMensajeriaEntrada eventoMensajeria,
         CancellationToken cancellationToken)
     {
-        EventoMensajeria eventoActual = eventoMensajeria;
+        EventoMensajeriaEntrada eventoActual = eventoMensajeria;
 
         while (true)
         {
@@ -165,18 +165,18 @@ internal sealed class ProcesadorConversacionServicio
                 eventoActual.IDLineaConversacion);
 
             await using AsyncServiceScope alcance = serviceScopeFactory.CreateAsyncScope();
-            IOrquestarMensajeEntradaAplicacion orquestarMensajeEntradaAplicacion = alcance.ServiceProvider
-                .GetRequiredService<IOrquestarMensajeEntradaAplicacion>();
+            IOrquestarMensajeContextoAplicacion orquestarMensajeContextoAplicacion = alcance.ServiceProvider
+                .GetRequiredService<IOrquestarMensajeContextoAplicacion>();
             IRenovarLineaContextoAplicacion renovarLineaContextoAplicacion = alcance.ServiceProvider
                 .GetRequiredService<IRenovarLineaContextoAplicacion>();
 
-            ResultadoOrquestarMensajeEntrada resultado = await orquestarMensajeEntradaAplicacion.EjecutarAsync(
+            ResultadoOrquestarMensajeContexto resultado = await orquestarMensajeContextoAplicacion.EjecutarAsync(
                 eventoActual.IDProcesamientoInternoMensaje,
                 cancellationToken);
 
-            if (resultado.Tipo != ResultadoOrquestarMensajeEntradaTipo.RenovarLinea)
+            if (resultado.Tipo != ResultadoOrquestarMensajeContextoTipo.RenovarLinea)
             {
-                if (resultado.Tipo == ResultadoOrquestarMensajeEntradaTipo.Error)
+                if (resultado.Tipo == ResultadoOrquestarMensajeContextoTipo.Error)
                 {
                     logger.LogWarning(
                         "Finaliza orquestacion de contexto con error controlado. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}, Error={Error}",
@@ -207,7 +207,7 @@ internal sealed class ProcesadorConversacionServicio
                 },
                 cancellationToken);
 
-            eventoActual = new EventoMensajeria
+            eventoActual = new EventoMensajeriaEntrada
             {
                 IDMensaje = resultadoRenovacion.IDMensaje,
                 IDProcesamientoInternoMensaje = resultadoRenovacion.IDProcesamientoInternoMensaje,

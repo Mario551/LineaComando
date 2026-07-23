@@ -11,7 +11,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
 {
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
-    public async Task EjecutarAsync_ProcesamientoPendiente_DebeCrearEventoMensajeria(MotorBaseDatosPrueba motor)
+    public async Task EjecutarAsync_ProcesamientoPendiente_DebeCrearEventoMensajeriaEntrada(MotorBaseDatosPrueba motor)
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await CrearProcesamientoAsync(baseDatos, "pendiente", DateTime.Now);
@@ -28,7 +28,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
 
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
-    public async Task EjecutarAsync_ProcesamientoEnProceso_DebeCrearEventoMensajeria(MotorBaseDatosPrueba motor)
+    public async Task EjecutarAsync_ProcesamientoEnProceso_DebeCrearEventoMensajeriaEntrada(MotorBaseDatosPrueba motor)
     {
         await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
         (DAOMensaje mensaje, DAOProcesamientoInternoMensaje procesamiento) = await CrearProcesamientoAsync(baseDatos, "en_proceso", DateTime.Now);

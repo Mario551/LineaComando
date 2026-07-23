@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PER.Mensajeria.Servicio.Cola;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
 
 namespace PER.Mensajeria.Servicio.Orquestador;
 
@@ -40,7 +40,7 @@ public sealed class OrquestadorContextoServicio : IOrquestadorContextoServicio
             configuracion.MaximoConversacionesConcurrentes);
     }
 
-    public Task EncolarAsync(EventoMensajeria eventoMensajeria, CancellationToken cancellationToken)
+    public Task EncolarAsync(EventoMensajeriaEntrada eventoMensajeria, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(eventoMensajeria);
         cancellationToken.ThrowIfCancellationRequested();

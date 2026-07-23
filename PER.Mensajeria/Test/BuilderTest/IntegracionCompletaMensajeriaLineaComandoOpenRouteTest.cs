@@ -2,6 +2,7 @@ using BuilderTest.Infraestructura;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.Registro;
+using PER.Mensajeria.API.Comunicacion;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenRouter;
 using PER.Mensajeria.Builder;
@@ -73,6 +75,8 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         string directorioOpenRouter = CrearDirectorioOpenRouterPrueba();
         output.WriteLine($"Archivos OpenRouter: {directorioOpenRouter}");
         servicios.AddSingleton(registro);
+        ComunicacionMensajeriaIntegracionPrueba comunicacion = new();
+        servicios.AddSingleton(comunicacion);
 
         LineaComandoBuilder lineaComandoBuilder = servicios.AddLineaComando(async (serviceProvider, builderInicializador, cancellationToken) =>
         {
@@ -96,7 +100,8 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
                     minimax.Temperatura = 0;
                 }))
                 .UsarEjecutorLineaComando())
-            .AgregarWorkerOrquestador());
+            .AgregarWorkerOrquestador()
+            .AgregarWorkerMensajeria<ComunicacionMensajeriaIntegracionPrueba>());
 
         ReconfigurarMensajeriaContextoDBParaEsquemaPrueba(servicios, baseDatos);
         lineaComandoBuilder.Build();
@@ -116,12 +121,15 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         {
             await IniciarHostedServicesAsync(hostedServices, timeoutFlujo.Token);
 
-            DTORegistrarMensajeEntranteRespuesta respuestaEntrada;
-            using (IServiceScope alcance = serviceProvider.CreateScope())
-            {
-                IMensajeServicio mensajeServicio = alcance.ServiceProvider.GetRequiredService<IMensajeServicio>();
-                respuestaEntrada = await mensajeServicio.RecibirAsync(CrearSolicitudEntrada(baseDatos.CuentaCanal), timeoutFlujo.Token);
-            }
+            DTORegistrarMensajeEntranteSolicitud solicitudEntrada = CrearSolicitudEntrada(
+                baseDatos.CuentaCanal);
+            string identificadorExternoMensaje = solicitudEntrada.Mensaje.IdentificadorExternoMensaje
+                ?? throw new InvalidOperationException("La solicitud de prueba requiere identificador externo.");
+            await comunicacion.PublicarEntradaAsync(solicitudEntrada, timeoutFlujo.Token);
+            DTORegistrarMensajeEntranteRespuesta respuestaEntrada = await EsperarRegistroEntradaAsync(
+                serviceProvider,
+                identificadorExternoMensaje,
+                timeoutFlujo.Token);
             idProcesamientoInternoMensaje = respuestaEntrada.IDProcesamientoInternoMensaje;
 
             ILogger<IntegracionCompletaMensajeriaLineaComandoOpenRouteTest> logger = serviceProvider
@@ -151,7 +159,13 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             Assert.Contains(resultado.MensajesEntrada, mensaje => mensaje.ID == cicloAnterior.IDMensaje);
             Assert.Contains(resultado.MensajesEntrada, mensaje => mensaje.ID != cicloAnterior.IDMensaje && mensaje.Contenido?.Contains(Pedido) == true);
             Assert.NotEmpty(resultado.MensajesSalida);
-            Assert.NotEmpty(resultado.EnviosPendientes);
+            Assert.NotEmpty(resultado.Envios);
+            Assert.All(
+                resultado.Envios,
+                envio => Assert.Equal("enviado", envio.IDEstadoEnvioMensaje));
+            Assert.Contains(
+                comunicacion.MensajesEnviados,
+                mensaje => mensaje.IDEnvioMensaje == resultado.Envios.Single().ID);
             Assert.Equal(3, resultado.InformacionTecnicaLlamadasIA.Count);
             Assert.Equal(
                 [nameof(AccionContextoTipo.Comando), nameof(AccionContextoTipo.ConsultarMensajesLineaAnterior), nameof(AccionContextoTipo.Responder)],
@@ -482,6 +496,49 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         };
     }
 
+    private static async Task<DTORegistrarMensajeEntranteRespuesta> EsperarRegistroEntradaAsync(
+        IServiceProvider serviceProvider,
+        string identificadorExternoMensaje,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            using IServiceScope alcance = serviceProvider.CreateScope();
+            MensajeriaContextoDB contexto = alcance.ServiceProvider.GetRequiredService<MensajeriaContextoDB>();
+            DatosEntradaRegistradaPrueba? datos = await (
+                from mensaje in contexto.Mensajes.AsNoTracking()
+                join procesamiento in contexto.ProcesamientosInternosMensaje.AsNoTracking()
+                    on mensaje.ID equals procesamiento.IDMensaje
+                join linea in contexto.LineasConversacion.AsNoTracking()
+                    on mensaje.IDLineaConversacion equals linea.ID
+                where mensaje.IdentificadorExternoMensaje == identificadorExternoMensaje
+                select new DatosEntradaRegistradaPrueba
+                {
+                    IDMensaje = mensaje.ID,
+                    IDProcesamientoInternoMensaje = procesamiento.ID,
+                    IDConversacion = linea.IDConversacion,
+                    IDLineaConversacion = linea.ID
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (datos is not null)
+            {
+                return new DTORegistrarMensajeEntranteRespuesta
+                {
+                    IDMensaje = datos.IDMensaje,
+                    IDProcesamientoInternoMensaje = datos.IDProcesamientoInternoMensaje,
+                    IDConversacion = datos.IDConversacion,
+                    IDLineaConversacion = datos.IDLineaConversacion,
+                    Registrado = true
+                };
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+        }
+
+        throw new OperationCanceledException(cancellationToken);
+    }
+
     private static async Task<ResultadoFlujoCompletoPrueba> EsperarProcesamientoAsync(
         IServiceProvider serviceProvider,
         long idProcesamientoInternoMensaje,
@@ -503,8 +560,7 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
             List<DAOMensaje> mensajesSalida = await contexto.Mensajes
                 .Where(mensaje => mensaje.IDDireccionMensaje == "salida")
                 .ToListAsync(cancellationToken);
-            List<DAOEnvioMensaje> enviosPendientes = await contexto.EnviosMensaje
-                .Where(envio => envio.IDEstadoEnvioMensaje == "pendiente")
+            List<DAOEnvioMensaje> envios = await contexto.EnviosMensaje
                 .ToListAsync(cancellationToken);
             List<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionTecnicaLlamadasIA = await contexto.InformacionTecnicaLlamadasIALineaConversacion
                 .AsNoTracking()
@@ -527,13 +583,16 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
                 throw new InvalidOperationException($"El procesamiento quedó en error: {procesamiento.Error}");
             }
 
-            if (procesamiento.IDEstadoProcesamientoInternoMensaje == "procesado" && mensajesSalida.Count > 0)
+            if (procesamiento.IDEstadoProcesamientoInternoMensaje == "procesado"
+                && mensajesSalida.Count > 0
+                && envios.Count > 0
+                && envios.All(envio => envio.IDEstadoEnvioMensaje == "enviado"))
             {
                 return new ResultadoFlujoCompletoPrueba(
                     procesamiento,
                     mensajesEntrada,
                     mensajesSalida,
-                    enviosPendientes,
+                    envios,
                     informacionTecnicaLlamadasIA,
                     metadataEntradasContextoIA,
                     ejecucionesComandoContexto);
@@ -761,7 +820,7 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         DAOProcesamientoInternoMensaje Procesamiento,
         List<DAOMensaje> MensajesEntrada,
         List<DAOMensaje> MensajesSalida,
-        List<DAOEnvioMensaje> EnviosPendientes,
+        List<DAOEnvioMensaje> Envios,
         List<DAOInformacionTecnicaLlamadaIALineaConversacion> InformacionTecnicaLlamadasIA,
         List<DAOMetadataEntradaContextoIA> MetadataEntradasContextoIA,
         List<DAOEjecucionComandoContexto> EjecucionesComandoContexto);
@@ -770,6 +829,71 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         long IDLineaConversacion,
         long IDMensaje,
         long IDProcesamientoInternoMensaje);
+
+    private sealed class DatosEntradaRegistradaPrueba
+    {
+        public long IDMensaje { get; init; }
+        public long IDProcesamientoInternoMensaje { get; init; }
+        public long IDConversacion { get; init; }
+        public long IDLineaConversacion { get; init; }
+    }
+
+    private sealed class ComunicacionMensajeriaIntegracionPrueba
+        : IComunicacionMensajeriaAPI
+    {
+        private readonly Channel<DTORegistrarMensajeEntranteSolicitud> entradas =
+            Channel.CreateUnbounded<DTORegistrarMensajeEntranteSolicitud>();
+        private readonly object sincronizacion = new();
+        private readonly List<DTOEnvioMensajePendiente> mensajesEnviados = [];
+
+        public IReadOnlyList<DTOEnvioMensajePendiente> MensajesEnviados
+        {
+            get
+            {
+                lock (sincronizacion)
+                {
+                    return mensajesEnviados.ToList();
+                }
+            }
+        }
+
+        public ValueTask PublicarEntradaAsync(
+            DTORegistrarMensajeEntranteSolicitud solicitud,
+            CancellationToken cancellationToken)
+        {
+            return entradas.Writer.WriteAsync(solicitud, cancellationToken);
+        }
+
+        public ValueTask<DTORegistrarMensajeEntranteSolicitud> EsperarMensajeEntranteAsync(
+            CancellationToken cancellationToken)
+        {
+            return entradas.Reader.ReadAsync(cancellationToken);
+        }
+
+        async Task<DTORegistrarMensajeEntranteSolicitud> IComunicacionMensajeriaAPI.EsperarMensajeEntranteAsync(
+            CancellationToken cancellationToken)
+        {
+            return await EsperarMensajeEntranteAsync(cancellationToken);
+        }
+
+        public Task<DTOResultadoEnvioMensaje> EnviarMensajeAsync(
+            DTOEnvioMensajePendiente mensaje,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            lock (sincronizacion)
+            {
+                mensajesEnviados.Add(mensaje);
+            }
+
+            return Task.FromResult(new DTOResultadoEnvioMensaje
+            {
+                IDEnvioMensaje = mensaje.IDEnvioMensaje,
+                Estado = "enviado"
+            });
+        }
+    }
 
     private sealed class ModeloCachePorContextoIntegracionPrueba : IModelCacheKeyFactory
     {

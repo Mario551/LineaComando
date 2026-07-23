@@ -2,20 +2,23 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using PER.Mensajeria.Builder.Persistencia;
-using PER.Mensajeria.Builder.Worker;
+using PER.Mensajeria.API.Comunicacion;
+using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
+using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaSalidaPendientes;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Salida;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
-using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
-using PER.Mensajeria.Aplicacion.EnviarMensaje;
-using PER.Mensajeria.Aplicacion.OrquestarMensajeEntrada;
+using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
+using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
+using PER.Mensajeria.Aplicacion.RegistrarResultadoEnvioMensaje;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
+using PER.Mensajeria.Builder.Persistencia;
+using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
-using PER.Mensajeria.Servicio.Cola;
-using PER.Mensajeria.Servicio.Envio;
 using PER.Mensajeria.Servicio.Mensaje;
 using PER.Mensajeria.Servicio.Orquestador;
 
@@ -87,27 +90,55 @@ public class MensajeriaBuilder : IMensajeriaBuilder
 
     public IMensajeriaBuilder AgregarWorkerOrquestador()
     {
-        servicios.AddHostedService<OrquestadorContextoWorker>();
+        AgregarHostedServiceSiNoExiste<OrquestadorContextoWorker>();
+        return this;
+    }
+
+    public IMensajeriaBuilder AgregarWorkerMensajeria<TComunicacion>()
+        where TComunicacion : class, IComunicacionMensajeriaAPI
+    {
+        if (ExisteServicio<IComunicacionMensajeriaAPI>())
+        {
+            if (!ExisteServicio<TComunicacion>())
+            {
+                throw new InvalidOperationException(
+                    "Ya existe otra comunicacion de mensajeria registrada.");
+            }
+
+            AgregarHostedServiceSiNoExiste<MensajeriaWorker>();
+            return this;
+        }
+
+        if (!ExisteServicio<TComunicacion>())
+        {
+            servicios.AddSingleton<TComunicacion>();
+        }
+
+        servicios.AddSingleton<IComunicacionMensajeriaAPI>(
+            proveedor => proveedor.GetRequiredService<TComunicacion>());
+        AgregarHostedServiceSiNoExiste<MensajeriaWorker>();
         return this;
     }
 
     private void RegistrarServiciosBase()
     {
-        AgregarSiNoExisteSingleton<IColaEventosMensajeriaServicio, ColaEventosMensajeriaServicio>();
+        AgregarSiNoExisteSingleton<IColaEventosMensajeriaEntradaServicio, ColaEventosMensajeriaEntradaServicio>();
+        AgregarSiNoExisteSingleton<IColaEventosMensajeriaSalidaServicio, ColaEventosMensajeriaSalidaServicio>();
         AgregarSiNoExisteScoped<IUnitOfWork, UnitOfWork>();
         AgregarSiNoExisteSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
         AgregarSiNoExisteScoped<ICargarEventosMensajeriaPendientesAplicacion, CargarEventosMensajeriaPendientesAplicacion>();
+        AgregarSiNoExisteScoped<ICargarEventosMensajeriaSalidaPendientesAplicacion, CargarEventosMensajeriaSalidaPendientesAplicacion>();
         AgregarSiNoExisteScoped<IRegistrarMensajeEntranteAplicacion, RegistrarMensajeEntranteAplicacion>();
         AgregarSiNoExisteScoped<IRegistrarMensajeSalidaAplicacion, RegistrarMensajeSalidaAplicacion>();
-        AgregarSiNoExisteScoped<IEnviarMensajeAplicacion, EnviarMensajeAplicacion>();
-        AgregarSiNoExisteScoped<IOrquestarMensajeEntradaAplicacion, OrquestarMensajeEntradaAplicacion>();
+        AgregarSiNoExisteScoped<IObtenerMensajeSalidaPendienteAplicacion, ObtenerMensajeSalidaPendienteAplicacion>();
+        AgregarSiNoExisteScoped<IRegistrarResultadoEnvioMensajeAplicacion, RegistrarResultadoEnvioMensajeAplicacion>();
+        AgregarSiNoExisteScoped<IOrquestarMensajeContextoAplicacion, OrquestarMensajeContextoAplicacion>();
         AgregarSiNoExisteScoped<IRegistrarContextoIAAplicacion, RegistrarContextoIAAplicacion>();
         AgregarSiNoExisteScoped<IConsultaMensajesLineaConversacionAnteriorAplicacion, ConsultaMensajesLineaConversacionAnteriorAplicacion>();
         AgregarSiNoExisteScoped<IEjecucionComandoContextoAplicacion, EjecucionComandoContextoAplicacion>();
         AgregarSiNoExisteScoped<ICompactacionContextoConversacionAplicacion, CompactacionContextoConversacionAplicacion>();
         AgregarSiNoExisteScoped<IRenovarLineaContextoAplicacion, RenovarLineaContextoAplicacion>();
-        AgregarSiNoExisteScoped<IMensajeServicio, MensajeServicio>();
-        AgregarSiNoExisteScoped<IEnvioMensajeServicio, EnvioMensajeServicio>();
+        AgregarSiNoExisteSingleton<IMensajeServicio, MensajeServicio>();
         AgregarSiNoExisteSingleton<IOrquestadorContextoServicio, OrquestadorContextoServicio>();
         AgregarSiNoExisteScoped<IContextoConversacionServicio, ContextoConversacionServicio>();
 
@@ -148,6 +179,20 @@ public class MensajeriaBuilder : IMensajeriaBuilder
         if (!ExisteServicio<TServicio>())
         {
             servicios.AddSingleton(instancia);
+        }
+    }
+
+    private void AgregarHostedServiceSiNoExiste<TServicio>()
+        where TServicio : class, IHostedService
+    {
+        Type tipoServicio = typeof(TServicio);
+        bool registrado = servicios.Any(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == tipoServicio);
+
+        if (!registrado)
+        {
+            servicios.AddHostedService<TServicio>();
         }
     }
 

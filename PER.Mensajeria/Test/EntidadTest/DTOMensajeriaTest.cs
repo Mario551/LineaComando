@@ -36,4 +36,13 @@ public class DTOMensajeriaTest
         Assert.Equal("minio://mensajes/documento.pdf", archivo.UbicacionArchivo);
         Assert.Equal("minio", archivo.ProveedorAlmacenamiento);
     }
+
+    [Fact]
+    public void DTOEnvioMensajePendiente_DebeInicializarMensajeSaliente()
+    {
+        DTOEnvioMensajePendiente envio = new();
+
+        Assert.NotNull(envio.Mensaje);
+        Assert.NotNull(envio.Mensaje.Archivos);
+    }
 }

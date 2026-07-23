@@ -1,3 +1,4 @@
+using PER.Mensajeria.API.Comunicacion;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Servicio.Orquestador;
 
@@ -14,4 +15,6 @@ public interface IMensajeriaBuilder
     IMensajeriaBuilder ConfigurarContextoConversacion(ConfiguracionContextoConversacion configuracion);
     IMensajeriaBuilder ConfigurarOrquestadorContexto(ConfiguracionOrquestadorContexto configuracion);
     IMensajeriaBuilder AgregarWorkerOrquestador();
+    IMensajeriaBuilder AgregarWorkerMensajeria<TComunicacion>()
+        where TComunicacion : class, IComunicacionMensajeriaAPI;
 }

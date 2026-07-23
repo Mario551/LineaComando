@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
-using PER.Mensajeria.Servicio.Cola;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
 using PER.Mensajeria.Servicio.Orquestador;
 
 namespace PER.Mensajeria.Builder.Worker;
@@ -11,18 +11,18 @@ public class OrquestadorContextoWorker : BackgroundService
 {
     private static readonly TimeSpan EsperaReintentoCarga = TimeSpan.FromSeconds(5);
 
-    private readonly IColaEventosMensajeriaServicio colaEventosMensajeriaServicio;
+    private readonly IColaEventosMensajeriaEntradaServicio colaEventosMensajeriaEntradaServicio;
     private readonly IServiceScopeFactory serviceScopeFactory;
     private readonly IOrquestadorContextoServicio orquestadorContextoServicio;
     private readonly ILogger<OrquestadorContextoWorker> logger;
 
     public OrquestadorContextoWorker(
-        IColaEventosMensajeriaServicio colaEventosMensajeriaServicio,
+        IColaEventosMensajeriaEntradaServicio colaEventosMensajeriaEntradaServicio,
         IServiceScopeFactory serviceScopeFactory,
         IOrquestadorContextoServicio orquestadorContextoServicio,
         ILogger<OrquestadorContextoWorker> logger)
     {
-        this.colaEventosMensajeriaServicio = colaEventosMensajeriaServicio;
+        this.colaEventosMensajeriaEntradaServicio = colaEventosMensajeriaEntradaServicio;
         this.serviceScopeFactory = serviceScopeFactory;
         this.orquestadorContextoServicio = orquestadorContextoServicio;
         this.logger = logger;
@@ -71,7 +71,7 @@ public class OrquestadorContextoWorker : BackgroundService
 
         foreach (EventoMensajeriaPendiente eventoPendiente in eventosPendientes)
         {
-            colaEventosMensajeriaServicio.PublicarRehidratado(ConvertirEvento(eventoPendiente));
+            colaEventosMensajeriaEntradaServicio.PublicarRehidratado(ConvertirEvento(eventoPendiente));
         }
 
         logger.LogInformation("Finaliza carga inicial de eventos pendientes de mensajeria. Eventos={CantidadEventos}", eventosPendientes.Count);
@@ -79,7 +79,7 @@ public class OrquestadorContextoWorker : BackgroundService
 
     public async Task ProcesarUnEventoAsync(CancellationToken cancellationToken)
     {
-        EventoMensajeria eventoMensajeria = await colaEventosMensajeriaServicio.ConsumirAsync(cancellationToken);
+        EventoMensajeriaEntrada eventoMensajeria = await colaEventosMensajeriaEntradaServicio.ConsumirAsync(cancellationToken);
         logger.LogInformation(
             "Evento de mensajeria consumido. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
             eventoMensajeria.IDProcesamientoInternoMensaje,
@@ -122,9 +122,9 @@ public class OrquestadorContextoWorker : BackgroundService
         }
     }
 
-    private static EventoMensajeria ConvertirEvento(EventoMensajeriaPendiente evento)
+    private static EventoMensajeriaEntrada ConvertirEvento(EventoMensajeriaPendiente evento)
     {
-        return new EventoMensajeria
+        return new EventoMensajeriaEntrada
         {
             IDMensaje = evento.IDMensaje,
             IDProcesamientoInternoMensaje = evento.IDProcesamientoInternoMensaje,

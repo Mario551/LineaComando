@@ -1,6 +1,12 @@
-using PER.Mensajeria.Entidad.DTO;
+using Microsoft.Extensions.DependencyInjection;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
+using PER.Mensajeria.Aplicacion.ColaMensajeria.Salida;
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
+using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
+using PER.Mensajeria.Aplicacion.RegistrarResultadoEnvioMensaje;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
+using PER.Mensajeria.Entidad.DTO;
 using PER.Mensajeria.Servicio.Mensaje;
 using ServicioTest.Fakes;
 
@@ -12,12 +18,182 @@ public class MensajeServicioTest
     public async Task RecibirAsync_MensajeEntrante_DebeRegistrarYPublicarEvento()
     {
         FakeRegistrarMensajeEntranteAplicacion registrar = new();
-        FakeColaEventosMensajeriaServicio cola = new();
-        IMensajeServicio servicio = new MensajeServicio(
+        FakeRenovarLineaContextoAplicacion renovar = new();
+        ColaEventosMensajeriaEntradaServicio colaEntrada = new();
+        ColaEventosMensajeriaSalidaServicio colaSalida = new();
+        FakeObtenerMensajeSalidaPendienteAplicacion obtenerSalida = new();
+        FakeRegistrarResultadoEnvioMensajeAplicacion registrarResultado = new();
+        using ServiceProvider proveedor = CrearProveedor(
+            registrar,
+            renovar,
+            obtenerSalida,
+            registrarResultado);
+        IMensajeServicio servicio = CrearServicio(proveedor, colaEntrada, colaSalida);
+        DTORegistrarMensajeEntranteSolicitud solicitud = CrearSolicitudEntrada();
+
+        DTORegistrarMensajeEntranteRespuesta respuesta = await servicio.RecibirAsync(
+            solicitud,
+            CancellationToken.None);
+        EventoMensajeriaEntrada evento = await colaEntrada.ConsumirAsync(CancellationToken.None);
+
+        Assert.True(registrar.Ejecutado);
+        Assert.Same(solicitud, registrar.Solicitud);
+        Assert.True(respuesta.Registrado);
+        Assert.Equal(respuesta.IDMensaje, evento.IDMensaje);
+        Assert.Equal(respuesta.IDConversacion, evento.IDConversacion);
+        Assert.Equal(respuesta.IDLineaConversacion, evento.IDLineaConversacion);
+        Assert.Equal(respuesta.IDProcesamientoInternoMensaje, evento.IDProcesamientoInternoMensaje);
+    }
+
+    [Fact]
+    public async Task RecibirAsync_MensajeDuplicado_NoDebePublicarEvento()
+    {
+        FakeRegistrarMensajeEntranteAplicacion registrar = new()
+        {
+            Respuesta = new DTORegistrarMensajeEntranteRespuesta
+            {
+                IDMensaje = 1,
+                IDConversacion = 2,
+                IDLineaConversacion = 3,
+                IDProcesamientoInternoMensaje = 4,
+                Registrado = false
+            }
+        };
+        ColaEventosMensajeriaEntradaServicio colaEntrada = new();
+        using ServiceProvider proveedor = CrearProveedor(
             registrar,
             new FakeRenovarLineaContextoAplicacion(),
-            cola);
-        DTORegistrarMensajeEntranteSolicitud solicitud = new()
+            new FakeObtenerMensajeSalidaPendienteAplicacion(),
+            new FakeRegistrarResultadoEnvioMensajeAplicacion());
+        IMensajeServicio servicio = CrearServicio(
+            proveedor,
+            colaEntrada,
+            new ColaEventosMensajeriaSalidaServicio());
+
+        DTORegistrarMensajeEntranteRespuesta respuesta = await servicio.RecibirAsync(
+            CrearSolicitudEntrada(),
+            CancellationToken.None);
+
+        Assert.False(respuesta.Registrado);
+        using CancellationTokenSource cancellationTokenSource =
+            new(TimeSpan.FromMilliseconds(200));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            colaEntrada.ConsumirAsync(cancellationTokenSource.Token));
+    }
+
+    [Fact]
+    public async Task RenovarLineaContextoAsync_DebePublicarEventoConLineaNueva()
+    {
+        FakeRegistrarMensajeEntranteAplicacion registrar = new();
+        FakeRenovarLineaContextoAplicacion renovar = new();
+        ColaEventosMensajeriaEntradaServicio colaEntrada = new();
+        ColaEventosMensajeriaSalidaServicio colaSalida = new();
+        using ServiceProvider proveedor = CrearProveedor(
+            registrar,
+            renovar,
+            new FakeObtenerMensajeSalidaPendienteAplicacion(),
+            new FakeRegistrarResultadoEnvioMensajeAplicacion());
+        IMensajeServicio servicio = CrearServicio(proveedor, colaEntrada, colaSalida);
+        SolicitudRenovarLineaContexto solicitud = CrearSolicitudRenovacion();
+
+        ResultadoRenovarLineaContexto resultado = await servicio.RenovarLineaContextoAsync(
+            solicitud,
+            CancellationToken.None);
+        EventoMensajeriaEntrada evento = await colaEntrada.ConsumirAsync(CancellationToken.None);
+
+        Assert.Same(solicitud, renovar.Solicitud);
+        Assert.Equal(resultado.IDMensaje, evento.IDMensaje);
+        Assert.Equal(resultado.IDProcesamientoInternoMensaje, evento.IDProcesamientoInternoMensaje);
+        Assert.Equal(resultado.IDConversacion, evento.IDConversacion);
+        Assert.Equal(resultado.IDLineaConversacion, evento.IDLineaConversacion);
+    }
+
+    [Fact]
+    public async Task EsperarMensajeSalidaAsync_EventoPendiente_DebeRetornarContrato()
+    {
+        ColaEventosMensajeriaEntradaServicio colaEntrada = new();
+        ColaEventosMensajeriaSalidaServicio colaSalida = new();
+        DTOEnvioMensajePendiente esperado = new()
+        {
+            IDEnvioMensaje = 25,
+            Canal = "whatsapp",
+            Cuenta = "cuenta-prueba"
+        };
+        FakeObtenerMensajeSalidaPendienteAplicacion obtenerSalida = new()
+        {
+            Resultado = esperado
+        };
+        using ServiceProvider proveedor = CrearProveedor(
+            new FakeRegistrarMensajeEntranteAplicacion(),
+            new FakeRenovarLineaContextoAplicacion(),
+            obtenerSalida,
+            new FakeRegistrarResultadoEnvioMensajeAplicacion());
+        IMensajeServicio servicio = CrearServicio(proveedor, colaEntrada, colaSalida);
+        colaSalida.Publicar(new EventoMensajeriaSalida
+        {
+            IDEnvioMensaje = esperado.IDEnvioMensaje,
+            FechaCreacion = DateTime.Now
+        });
+
+        DTOEnvioMensajePendiente resultado = await servicio.EsperarMensajeSalidaAsync(
+            CancellationToken.None);
+
+        Assert.Same(esperado, resultado);
+        Assert.Equal(esperado.IDEnvioMensaje, obtenerSalida.IDEnvioMensaje);
+    }
+
+    [Fact]
+    public async Task RegistrarResultadoEnvioAsync_DebeDelegarEnCasoDeUsoScoped()
+    {
+        FakeRegistrarResultadoEnvioMensajeAplicacion registrarResultado = new();
+        using ServiceProvider proveedor = CrearProveedor(
+            new FakeRegistrarMensajeEntranteAplicacion(),
+            new FakeRenovarLineaContextoAplicacion(),
+            new FakeObtenerMensajeSalidaPendienteAplicacion(),
+            registrarResultado);
+        IMensajeServicio servicio = CrearServicio(
+            proveedor,
+            new ColaEventosMensajeriaEntradaServicio(),
+            new ColaEventosMensajeriaSalidaServicio());
+        DTOResultadoEnvioMensaje resultado = new()
+        {
+            IDEnvioMensaje = 31,
+            Estado = "enviado"
+        };
+
+        await servicio.RegistrarResultadoEnvioAsync(resultado, CancellationToken.None);
+
+        Assert.Same(resultado, registrarResultado.Resultado);
+    }
+
+    private static IMensajeServicio CrearServicio(
+        ServiceProvider proveedor,
+        IColaEventosMensajeriaEntradaServicio colaEntrada,
+        IColaEventosMensajeriaSalidaServicio colaSalida)
+    {
+        return new MensajeServicio(
+            proveedor.GetRequiredService<IServiceScopeFactory>(),
+            colaEntrada,
+            colaSalida);
+    }
+
+    private static ServiceProvider CrearProveedor(
+        IRegistrarMensajeEntranteAplicacion registrar,
+        IRenovarLineaContextoAplicacion renovar,
+        IObtenerMensajeSalidaPendienteAplicacion obtenerSalida,
+        IRegistrarResultadoEnvioMensajeAplicacion registrarResultado)
+    {
+        ServiceCollection servicios = new();
+        servicios.AddScoped(_ => registrar);
+        servicios.AddScoped(_ => renovar);
+        servicios.AddScoped(_ => obtenerSalida);
+        servicios.AddScoped(_ => registrarResultado);
+        return servicios.BuildServiceProvider();
+    }
+
+    private static DTORegistrarMensajeEntranteSolicitud CrearSolicitudEntrada()
+    {
+        return new DTORegistrarMensajeEntranteSolicitud
         {
             Mensaje = new DTOMensajeEntrante
             {
@@ -30,27 +206,11 @@ public class MensajeServicioTest
                 FechaMensaje = DateTime.Now
             }
         };
-
-        DTORegistrarMensajeEntranteRespuesta respuesta = await servicio.RecibirAsync(solicitud, CancellationToken.None);
-
-        Assert.True(registrar.Ejecutado);
-        Assert.Same(solicitud, registrar.Solicitud);
-        Assert.True(respuesta.Registrado);
-        Assert.NotNull(cola.EventoPublicado);
-        Assert.Equal(respuesta.IDMensaje, cola.EventoPublicado.IDMensaje);
-        Assert.Equal(respuesta.IDConversacion, cola.EventoPublicado.IDConversacion);
-        Assert.Equal(respuesta.IDLineaConversacion, cola.EventoPublicado.IDLineaConversacion);
-        Assert.Equal(respuesta.IDProcesamientoInternoMensaje, cola.EventoPublicado.IDProcesamientoInternoMensaje);
     }
 
-    [Fact]
-    public async Task RenovarLineaContextoAsync_DebePublicarEventoConLineaNueva()
+    private static SolicitudRenovarLineaContexto CrearSolicitudRenovacion()
     {
-        FakeRegistrarMensajeEntranteAplicacion registrar = new();
-        FakeRenovarLineaContextoAplicacion renovar = new();
-        FakeColaEventosMensajeriaServicio cola = new();
-        IMensajeServicio servicio = new MensajeServicio(registrar, renovar, cola);
-        SolicitudRenovarLineaContexto solicitud = new()
+        return new SolicitudRenovarLineaContexto
         {
             IDProcesamientoInternoMensaje = 4,
             IDMensaje = 1,
@@ -65,16 +225,34 @@ public class MensajeServicioTest
                     Adaptador = "fake"
                 })
         };
+    }
 
-        ResultadoRenovarLineaContexto resultado = await servicio.RenovarLineaContextoAsync(
-            solicitud,
-            CancellationToken.None);
+    private sealed class FakeObtenerMensajeSalidaPendienteAplicacion
+        : IObtenerMensajeSalidaPendienteAplicacion
+    {
+        public long? IDEnvioMensaje { get; private set; }
+        public DTOEnvioMensajePendiente? Resultado { get; set; }
 
-        Assert.Same(solicitud, renovar.Solicitud);
-        Assert.NotNull(cola.EventoPublicado);
-        Assert.Equal(resultado.IDMensaje, cola.EventoPublicado.IDMensaje);
-        Assert.Equal(resultado.IDProcesamientoInternoMensaje, cola.EventoPublicado.IDProcesamientoInternoMensaje);
-        Assert.Equal(resultado.IDConversacion, cola.EventoPublicado.IDConversacion);
-        Assert.Equal(resultado.IDLineaConversacion, cola.EventoPublicado.IDLineaConversacion);
+        public Task<DTOEnvioMensajePendiente?> EjecutarAsync(
+            long idEnvioMensaje,
+            CancellationToken cancellationToken)
+        {
+            IDEnvioMensaje = idEnvioMensaje;
+            return Task.FromResult(Resultado);
+        }
+    }
+
+    private sealed class FakeRegistrarResultadoEnvioMensajeAplicacion
+        : IRegistrarResultadoEnvioMensajeAplicacion
+    {
+        public DTOResultadoEnvioMensaje? Resultado { get; private set; }
+
+        public Task EjecutarAsync(
+            DTOResultadoEnvioMensaje resultado,
+            CancellationToken cancellationToken)
+        {
+            Resultado = resultado;
+            return Task.CompletedTask;
+        }
     }
 }
