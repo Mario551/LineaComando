@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
@@ -8,15 +9,21 @@ namespace PER.Mensajeria.Servicio.Orquestador;
 
 internal sealed class ProcesadorConversacionServicio
 {
+    private const string EstadoPendiente = "pendiente";
+    private const string EstadoEnProceso = "en_proceso";
+
     private readonly long idConversacion;
     private readonly IServiceScopeFactory serviceScopeFactory;
     private readonly SemaphoreSlim limiteConversaciones;
+    private readonly ConfiguracionAgrupacionMensajesEntrada configuracionAgrupacion;
     private readonly Action<long, ProcesadorConversacionServicio> retirarProcesador;
     private readonly CancellationToken cancellationToken;
     private readonly ILogger<OrquestadorContextoServicio> logger;
     private readonly object sincronizacion = new();
     private readonly Queue<EventoMensajeriaEntrada> eventos = new();
     private readonly HashSet<long> idsProcesamientos = [];
+    private TaskCompletionSource<bool> cambioEventos = CrearFuenteCambio();
+    private long marcaUltimoEvento;
     private Task? tareaProcesamiento;
     private bool cerrado;
 
@@ -24,6 +31,7 @@ internal sealed class ProcesadorConversacionServicio
         long idConversacion,
         IServiceScopeFactory serviceScopeFactory,
         SemaphoreSlim limiteConversaciones,
+        ConfiguracionAgrupacionMensajesEntrada configuracionAgrupacion,
         Action<long, ProcesadorConversacionServicio> retirarProcesador,
         CancellationToken cancellationToken,
         ILogger<OrquestadorContextoServicio> logger)
@@ -31,6 +39,7 @@ internal sealed class ProcesadorConversacionServicio
         this.idConversacion = idConversacion;
         this.serviceScopeFactory = serviceScopeFactory;
         this.limiteConversaciones = limiteConversaciones;
+        this.configuracionAgrupacion = configuracionAgrupacion;
         this.retirarProcesador = retirarProcesador;
         this.cancellationToken = cancellationToken;
         this.logger = logger;
@@ -49,6 +58,13 @@ internal sealed class ProcesadorConversacionServicio
 
     public bool IntentarEncolar(EventoMensajeriaEntrada eventoMensajeria)
     {
+        if (eventoMensajeria.IDEstadoProcesamientoInternoMensaje
+            is not EstadoPendiente and not EstadoEnProceso)
+        {
+            throw new InvalidOperationException(
+                $"El evento {eventoMensajeria.IDProcesamientoInternoMensaje} tiene el estado no soportado '{eventoMensajeria.IDEstadoProcesamientoInternoMensaje}'.");
+        }
+
         lock (sincronizacion)
         {
             if (cerrado)
@@ -66,26 +82,31 @@ internal sealed class ProcesadorConversacionServicio
             }
 
             eventos.Enqueue(eventoMensajeria);
+            marcaUltimoEvento = Stopwatch.GetTimestamp();
+            TaskCompletionSource<bool> cambioAnterior = cambioEventos;
+            cambioEventos = CrearFuenteCambio();
             tareaProcesamiento ??= ProcesarColaAsync();
+            cambioAnterior.TrySetResult(true);
             return true;
         }
     }
 
     private async Task ProcesarColaAsync()
     {
-        bool cupoAdquirido = false;
-
         try
         {
             await Task.Yield();
-            await limiteConversaciones.WaitAsync(cancellationToken);
-            cupoAdquirido = true;
 
-            while (IntentarObtenerSiguiente(out EventoMensajeriaEntrada eventoMensajeria))
+            while (true)
             {
+                LoteEventosMensajeriaEntrada lote = await EsperarLoteAsync(cancellationToken);
+                bool cupoAdquirido = false;
+
                 try
                 {
-                    await ProcesarEventoConRenovacionAsync(eventoMensajeria, cancellationToken);
+                    await limiteConversaciones.WaitAsync(cancellationToken);
+                    cupoAdquirido = true;
+                    await ProcesarLoteConRenovacionAsync(lote, cancellationToken);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -95,16 +116,29 @@ internal sealed class ProcesadorConversacionServicio
                 {
                     logger.LogError(
                         excepcion,
-                        "Error aislado procesando evento de contexto. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}",
-                        eventoMensajeria.IDProcesamientoInternoMensaje,
-                        eventoMensajeria.IDConversacion);
+                        "Error aislado procesando lote de contexto. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}, IDConversacion={IDConversacion}",
+                        string.Join(",", lote.Eventos.Select(evento => evento.IDProcesamientoInternoMensaje)),
+                        lote.IDConversacion);
                 }
                 finally
                 {
+                    if (cupoAdquirido)
+                    {
+                        limiteConversaciones.Release();
+                    }
+
                     lock (sincronizacion)
                     {
-                        idsProcesamientos.Remove(eventoMensajeria.IDProcesamientoInternoMensaje);
+                        foreach (EventoMensajeriaEntrada evento in lote.Eventos)
+                        {
+                            idsProcesamientos.Remove(evento.IDProcesamientoInternoMensaje);
+                        }
                     }
+                }
+
+                if (CerrarSiNoHayEventos())
+                {
+                    break;
                 }
             }
         }
@@ -124,45 +158,140 @@ internal sealed class ProcesadorConversacionServicio
         finally
         {
             Cerrar();
-
-            if (cupoAdquirido)
-            {
-                limiteConversaciones.Release();
-            }
-
             retirarProcesador(idConversacion, this);
         }
     }
 
-    private bool IntentarObtenerSiguiente(out EventoMensajeriaEntrada eventoMensajeria)
+    private async Task<LoteEventosMensajeriaEntrada> EsperarLoteAsync(
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            Task tareaCambio;
+            TimeSpan tiempoEspera;
+            lock (sincronizacion)
+            {
+                if (eventos.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"El procesador de la conversacion {idConversacion} no tiene eventos para agrupar.");
+                }
+
+                int cantidadPrimerGrupo = ContarEventosPrimerGrupo();
+                EventoMensajeriaEntrada primerEvento = eventos.Peek();
+                bool eventoRehidratadoEnProceso =
+                    primerEvento.IDEstadoProcesamientoInternoMensaje == EstadoEnProceso;
+                bool alcanzoLimite = cantidadPrimerGrupo >= configuracionAgrupacion.CantidadMaximaMensajesPorLote;
+                bool cambioGrupo = cantidadPrimerGrupo < eventos.Count;
+
+                if (eventoRehidratadoEnProceso || alcanzoLimite || cambioGrupo)
+                {
+                    return ExtraerLote(cantidadPrimerGrupo);
+                }
+
+                TimeSpan tiempoTranscurrido = Stopwatch.GetElapsedTime(marcaUltimoEvento);
+                if (tiempoTranscurrido >= configuracionAgrupacion.TiempoInactividad)
+                {
+                    return ExtraerLote(cantidadPrimerGrupo);
+                }
+
+                tiempoEspera = configuracionAgrupacion.TiempoInactividad - tiempoTranscurrido;
+                tareaCambio = cambioEventos.Task;
+            }
+
+            try
+            {
+                await tareaCambio.WaitAsync(tiempoEspera, cancellationToken);
+                continue;
+            }
+            catch (TimeoutException)
+            {
+            }
+
+            lock (sincronizacion)
+            {
+                if (!ReferenceEquals(tareaCambio, cambioEventos.Task))
+                {
+                    continue;
+                }
+
+                return ExtraerLote(ContarEventosPrimerGrupo());
+            }
+        }
+    }
+
+    private int ContarEventosPrimerGrupo()
+    {
+        EventoMensajeriaEntrada primerEvento = eventos.Peek();
+        long idLineaConversacion = primerEvento.IDLineaConversacion;
+        string estadoProcesamiento = primerEvento.IDEstadoProcesamientoInternoMensaje;
+        bool limitarCantidad = estadoProcesamiento == EstadoPendiente;
+        int cantidad = 0;
+
+        foreach (EventoMensajeriaEntrada evento in eventos)
+        {
+            if (evento.IDLineaConversacion != idLineaConversacion
+                || evento.IDEstadoProcesamientoInternoMensaje != estadoProcesamiento
+                || limitarCantidad
+                    && cantidad == configuracionAgrupacion.CantidadMaximaMensajesPorLote)
+            {
+                break;
+            }
+
+            cantidad++;
+        }
+
+        return cantidad;
+    }
+
+    private LoteEventosMensajeriaEntrada ExtraerLote(int cantidad)
+    {
+        List<EventoMensajeriaEntrada> eventosLote = new(cantidad);
+
+        for (int indice = 0; indice < cantidad; indice++)
+        {
+            eventosLote.Add(eventos.Dequeue());
+        }
+
+        EventoMensajeriaEntrada primerEvento = eventosLote[0];
+        return new LoteEventosMensajeriaEntrada
+        {
+            IDConversacion = primerEvento.IDConversacion,
+            IDLineaConversacion = primerEvento.IDLineaConversacion,
+            Eventos = eventosLote
+        };
+    }
+
+    private bool CerrarSiNoHayEventos()
     {
         lock (sincronizacion)
         {
-            if (eventos.Count == 0)
+            if (eventos.Count > 0)
             {
-                cerrado = true;
-                eventoMensajeria = null!;
                 return false;
             }
 
-            eventoMensajeria = eventos.Dequeue();
+            cerrado = true;
             return true;
         }
     }
 
-    private async Task ProcesarEventoConRenovacionAsync(
-        EventoMensajeriaEntrada eventoMensajeria,
+    private async Task ProcesarLoteConRenovacionAsync(
+        LoteEventosMensajeriaEntrada lote,
         CancellationToken cancellationToken)
     {
-        EventoMensajeriaEntrada eventoActual = eventoMensajeria;
+        LoteEventosMensajeriaEntrada loteActual = lote;
 
         while (true)
         {
+            IReadOnlyList<long> idsProcesamientos = loteActual.Eventos
+                .Select(evento => evento.IDProcesamientoInternoMensaje)
+                .ToList();
             logger.LogInformation(
-                "Inicia orquestacion de contexto. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
-                eventoActual.IDProcesamientoInternoMensaje,
-                eventoActual.IDConversacion,
-                eventoActual.IDLineaConversacion);
+                "Inicia orquestacion de lote de contexto. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+                string.Join(",", idsProcesamientos),
+                loteActual.IDConversacion,
+                loteActual.IDLineaConversacion);
 
             await using AsyncServiceScope alcance = serviceScopeFactory.CreateAsyncScope();
             IOrquestarMensajeContextoAplicacion orquestarMensajeContextoAplicacion = alcance.ServiceProvider
@@ -171,7 +300,7 @@ internal sealed class ProcesadorConversacionServicio
                 .GetRequiredService<IRenovarLineaContextoAplicacion>();
 
             ResultadoOrquestarMensajeContexto resultado = await orquestarMensajeContextoAplicacion.EjecutarAsync(
-                eventoActual.IDProcesamientoInternoMensaje,
+                idsProcesamientos,
                 cancellationToken);
 
             if (resultado.Tipo != ResultadoOrquestarMensajeContextoTipo.RenovarLinea)
@@ -179,27 +308,33 @@ internal sealed class ProcesadorConversacionServicio
                 if (resultado.Tipo == ResultadoOrquestarMensajeContextoTipo.Error)
                 {
                     logger.LogWarning(
-                        "Finaliza orquestacion de contexto con error controlado. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}, Error={Error}",
-                        eventoActual.IDProcesamientoInternoMensaje,
-                        eventoActual.IDConversacion,
+                        "Finaliza orquestacion de lote de contexto con error controlado. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}, IDConversacion={IDConversacion}, Error={Error}",
+                        string.Join(",", idsProcesamientos),
+                        loteActual.IDConversacion,
                         resultado.Error);
                 }
                 else
                 {
                     logger.LogInformation(
-                        "Finaliza orquestacion de contexto. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}",
-                        eventoActual.IDProcesamientoInternoMensaje,
-                        eventoActual.IDConversacion);
+                        "Finaliza orquestacion de lote de contexto. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}, IDConversacion={IDConversacion}",
+                        string.Join(",", idsProcesamientos),
+                        loteActual.IDConversacion);
                 }
 
                 return;
             }
 
+            IReadOnlyList<long> idsProcesamientosRenovacion =
+                resultado.IDsProcesamientosInternosMensaje;
+            HashSet<long> idsProcesamientosRenovacionSet =
+                idsProcesamientosRenovacion.ToHashSet();
             ResultadoRenovarLineaContexto resultadoRenovacion = await renovarLineaContextoAplicacion.EjecutarAsync(
                 new SolicitudRenovarLineaContexto
                 {
-                    IDProcesamientoInternoMensaje = eventoActual.IDProcesamientoInternoMensaje,
+                    IDProcesamientoInternoMensaje = resultado.IDsProcesamientosInternosMensaje[0],
+                    IDsProcesamientosInternosMensaje = idsProcesamientosRenovacion,
                     IDMensaje = resultado.IDMensaje,
+                    IDsMensajes = resultado.IDsMensajes,
                     IDConversacion = resultado.IDConversacion,
                     IDLineaConversacionOrigen = resultado.IDLineaConversacion,
                     Compactacion = resultado.Compactacion
@@ -207,21 +342,36 @@ internal sealed class ProcesadorConversacionServicio
                 },
                 cancellationToken);
 
-            eventoActual = new EventoMensajeriaEntrada
+            loteActual = new LoteEventosMensajeriaEntrada
             {
-                IDMensaje = resultadoRenovacion.IDMensaje,
-                IDProcesamientoInternoMensaje = resultadoRenovacion.IDProcesamientoInternoMensaje,
                 IDConversacion = resultadoRenovacion.IDConversacion,
                 IDLineaConversacion = resultadoRenovacion.IDLineaConversacion,
-                FechaCreacion = eventoActual.FechaCreacion
+                Eventos = loteActual.Eventos
+                    .Where(evento =>
+                        idsProcesamientosRenovacionSet.Contains(evento.IDProcesamientoInternoMensaje))
+                    .Select(evento => new EventoMensajeriaEntrada
+                    {
+                        IDMensaje = evento.IDMensaje,
+                        IDProcesamientoInternoMensaje = evento.IDProcesamientoInternoMensaje,
+                        IDEstadoProcesamientoInternoMensaje = EstadoPendiente,
+                        IDConversacion = resultadoRenovacion.IDConversacion,
+                        IDLineaConversacion = resultadoRenovacion.IDLineaConversacion,
+                        FechaCreacion = evento.FechaCreacion
+                    })
+                    .ToList()
             };
 
             logger.LogInformation(
-                "Linea de contexto renovada; el mismo mensaje se reintentara antes del siguiente. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
-                eventoActual.IDProcesamientoInternoMensaje,
-                eventoActual.IDConversacion,
-                eventoActual.IDLineaConversacion);
+                "Linea de contexto renovada; el mismo lote se reintentara antes del siguiente. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+                string.Join(",", idsProcesamientos),
+                loteActual.IDConversacion,
+                loteActual.IDLineaConversacion);
         }
+    }
+
+    private static TaskCompletionSource<bool> CrearFuenteCambio()
+    {
+        return new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private void Cerrar()

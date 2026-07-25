@@ -37,8 +37,8 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
 
         DAOLineaConversacion? lineaOrigen = null;
-        DAOMensaje? mensaje = null;
-        DAOProcesamientoInternoMensaje? procesamiento = null;
+        List<DAOMensaje> mensajes = [];
+        List<DAOProcesamientoInternoMensaje> procesamientos = [];
         List<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionesTecnicasCompactacion = [];
         DAOCompactacionContextoConversacion? compactacionContexto = null;
         DAOLineaConversacion? lineaNueva = null;
@@ -51,15 +51,21 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         {
             lineaOrigen = await unitOfWork.LineaConversacionRepositorio.Get()
                 .SingleAsync(linea => linea.ID == solicitud.IDLineaConversacionOrigen, cancellationToken);
-            mensaje = await unitOfWork.MensajeRepositorio.Get()
-                .SingleAsync(mensajeActual => mensajeActual.ID == solicitud.IDMensaje, cancellationToken);
-            procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
-                .SingleAsync(procesamientoActual => procesamientoActual.ID == solicitud.IDProcesamientoInternoMensaje, cancellationToken);
+            IReadOnlyList<long> idsMensajes = ObtenerIDsMensajes(solicitud);
+            IReadOnlyList<long> idsProcesamientos = ObtenerIDsProcesamientos(solicitud);
+            mensajes = await unitOfWork.MensajeRepositorio.Get()
+                .Where(mensaje => idsMensajes.Contains(mensaje.ID))
+                .ToListAsync(cancellationToken);
+            procesamientos = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+                .Where(procesamiento => idsProcesamientos.Contains(procesamiento.ID))
+                .ToListAsync(cancellationToken);
 
-            ValidarEntidades(solicitud, lineaOrigen, mensaje, procesamiento);
+            ValidarEntidades(solicitud, lineaOrigen, mensajes, procesamientos);
 
             entradasProcesamiento = await unitOfWork.MetadataEntradaContextoIARepositorio.Get()
-                .Where(entrada => entrada.IDProcesamientoInternoMensaje == solicitud.IDProcesamientoInternoMensaje)
+                .Where(entrada =>
+                    entrada.IDProcesamientoInternoMensaje.HasValue
+                    && idsProcesamientos.Contains(entrada.IDProcesamientoInternoMensaje.Value))
                 .OrderBy(entrada => entrada.Orden)
                 .ThenBy(entrada => entrada.ID)
                 .ToListAsync(cancellationToken);
@@ -75,7 +81,7 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
                 .ToListAsync(cancellationToken);
 
             ejecucionesComando = await unitOfWork.EjecucionComandoContextoRepositorio.Get()
-                .Where(ejecucion => ejecucion.IDProcesamientoInternoMensaje == solicitud.IDProcesamientoInternoMensaje)
+                .Where(ejecucion => idsProcesamientos.Contains(ejecucion.IDProcesamientoInternoMensaje))
                 .ToListAsync(cancellationToken);
 
             informacionesTecnicasCompactacion = solicitud.Compactacion.InformacionesTecnicasLlamadasIA
@@ -115,15 +121,18 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             {
                 IDConversacion = solicitud.IDConversacion,
                 IDCompactacionContextoInicial = compactacionContexto.ID,
-                FechaInicio = mensaje.FechaMensaje,
+                FechaInicio = mensajes.Min(mensaje => mensaje.FechaMensaje),
                 FechaUltimaActividad = DateTime.Now,
                 Activa = true
             };
             await unitOfWork.LineaConversacionRepositorio.AgregarAsync(lineaNueva, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            mensaje.IDLineaConversacion = lineaNueva.ID;
-            unitOfWork.MensajeRepositorio.Actualizar(mensaje);
+            foreach (DAOMensaje mensaje in mensajes)
+            {
+                mensaje.IDLineaConversacion = lineaNueva.ID;
+                unitOfWork.MensajeRepositorio.Actualizar(mensaje);
+            }
 
             int orden = 1;
             foreach (DAOMetadataEntradaContextoIA entrada in entradasProcesamiento)
@@ -156,15 +165,25 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
                 unitOfWork.EjecucionComandoContextoRepositorio.Actualizar(ejecucion);
             }
 
-            procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoPendiente;
-            procesamiento.Error = null;
-            procesamiento.FechaProcesado = null;
-            unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+            foreach (DAOProcesamientoInternoMensaje procesamiento in procesamientos)
+            {
+                procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoPendiente;
+                procesamiento.Error = null;
+                procesamiento.FechaProcesado = null;
+                unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+            }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
             await unitOfWork.CommitTransactionAsync(cancellationToken);
 
-            return CrearResultado(compactacionContexto, lineaNueva, mensaje, procesamiento);
+            DAOMensaje mensajeCoordinador = mensajes.Single(mensaje => mensaje.ID == solicitud.IDMensaje);
+            DAOProcesamientoInternoMensaje procesamientoCoordinador = procesamientos.Single(
+                procesamiento => procesamiento.ID == solicitud.IDProcesamientoInternoMensaje);
+            return CrearResultado(
+                compactacionContexto,
+                lineaNueva,
+                mensajeCoordinador,
+                procesamientoCoordinador);
         }
         catch
         {
@@ -183,8 +202,8 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             LiberarRastreo(
                 unitOfWork,
                 lineaOrigen,
-                mensaje,
-                procesamiento,
+                mensajes,
+                procesamientos,
                 informacionesTecnicasCompactacion,
                 compactacionContexto,
                 lineaNueva,
@@ -236,6 +255,14 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         {
             throw new InvalidOperationException("La compactacion debe contener el contexto inicial de la nueva linea.");
         }
+
+        IReadOnlyList<long> idsMensajes = ObtenerIDsMensajes(solicitud);
+        IReadOnlyList<long> idsProcesamientos = ObtenerIDsProcesamientos(solicitud);
+        if (idsMensajes.Count != idsProcesamientos.Count)
+        {
+            throw new InvalidOperationException(
+                "La renovacion debe recibir la misma cantidad de mensajes y procesamientos.");
+        }
     }
 
     private static bool EsConsultaCargada(string? contenido)
@@ -261,8 +288,8 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
     private static void ValidarEntidades(
         SolicitudRenovarLineaContexto solicitud,
         DAOLineaConversacion linea,
-        DAOMensaje mensaje,
-        DAOProcesamientoInternoMensaje procesamiento)
+        IReadOnlyList<DAOMensaje> mensajes,
+        IReadOnlyList<DAOProcesamientoInternoMensaje> procesamientos)
     {
         if (linea.IDConversacion != solicitud.IDConversacion)
         {
@@ -274,14 +301,37 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             throw new InvalidOperationException("La linea de origen ya no esta activa.");
         }
 
-        if (mensaje.IDLineaConversacion != linea.ID)
+        IReadOnlyList<long> idsMensajes = ObtenerIDsMensajes(solicitud);
+        IReadOnlyList<long> idsProcesamientos = ObtenerIDsProcesamientos(solicitud);
+        if (mensajes.Count != idsMensajes.Count)
         {
-            throw new InvalidOperationException("El mensaje no pertenece a la linea de origen.");
+            throw new InvalidOperationException("No se encontraron todos los mensajes del lote a renovar.");
         }
 
-        if (procesamiento.IDMensaje != mensaje.ID)
+        if (procesamientos.Count != idsProcesamientos.Count)
         {
-            throw new InvalidOperationException("El procesamiento no pertenece al mensaje indicado.");
+            throw new InvalidOperationException("No se encontraron todos los procesamientos del lote a renovar.");
+        }
+
+        if (mensajes.Any(mensaje => mensaje.IDLineaConversacion != linea.ID))
+        {
+            throw new InvalidOperationException("Todos los mensajes deben pertenecer a la linea de origen.");
+        }
+
+        HashSet<long> idsMensajesEncontrados = mensajes.Select(mensaje => mensaje.ID).ToHashSet();
+        HashSet<long> idsMensajesProcesamientos = procesamientos
+            .Select(procesamiento => procesamiento.IDMensaje)
+            .ToHashSet();
+        if (!idsMensajesProcesamientos.SetEquals(idsMensajesEncontrados))
+        {
+            throw new InvalidOperationException(
+                "Cada mensaje del lote debe tener exactamente un procesamiento asociado.");
+        }
+
+        if (!idsMensajesEncontrados.Contains(solicitud.IDMensaje)
+            || procesamientos.All(procesamiento => procesamiento.ID != solicitud.IDProcesamientoInternoMensaje))
+        {
+            throw new InvalidOperationException("El mensaje y el procesamiento coordinadores no pertenecen al lote.");
         }
     }
 
@@ -334,8 +384,8 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
     private static void LiberarRastreo(
         IUnitOfWork unitOfWork,
         DAOLineaConversacion? lineaOrigen,
-        DAOMensaje? mensaje,
-        DAOProcesamientoInternoMensaje? procesamiento,
+        IReadOnlyList<DAOMensaje> mensajes,
+        IReadOnlyList<DAOProcesamientoInternoMensaje> procesamientos,
         IReadOnlyList<DAOInformacionTecnicaLlamadaIALineaConversacion> informacionesTecnicasCompactacion,
         DAOCompactacionContextoConversacion? compactacionContexto,
         DAOLineaConversacion? lineaNueva,
@@ -348,12 +398,12 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
             unitOfWork.LineaConversacionRepositorio.LiberarRastreo(lineaOrigen);
         }
 
-        if (mensaje is not null)
+        foreach (DAOMensaje mensaje in mensajes)
         {
             unitOfWork.MensajeRepositorio.LiberarRastreo(mensaje);
         }
 
-        if (procesamiento is not null)
+        foreach (DAOProcesamientoInternoMensaje procesamiento in procesamientos)
         {
             unitOfWork.ProcesamientoInternoMensajeRepositorio.LiberarRastreo(procesamiento);
         }
@@ -387,5 +437,27 @@ public class RenovarLineaContextoAplicacion : IRenovarLineaContextoAplicacion
         {
             unitOfWork.EjecucionComandoContextoRepositorio.LiberarRastreo(ejecucion);
         }
+    }
+
+    private static IReadOnlyList<long> ObtenerIDsMensajes(
+        SolicitudRenovarLineaContexto solicitud)
+    {
+        if (solicitud.IDsMensajes.Count > 0)
+        {
+            return solicitud.IDsMensajes.Distinct().ToList();
+        }
+
+        return [solicitud.IDMensaje];
+    }
+
+    private static IReadOnlyList<long> ObtenerIDsProcesamientos(
+        SolicitudRenovarLineaContexto solicitud)
+    {
+        if (solicitud.IDsProcesamientosInternosMensaje.Count > 0)
+        {
+            return solicitud.IDsProcesamientosInternosMensaje.Distinct().ToList();
+        }
+
+        return [solicitud.IDProcesamientoInternoMensaje];
     }
 }

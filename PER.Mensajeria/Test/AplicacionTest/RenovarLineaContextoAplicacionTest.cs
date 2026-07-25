@@ -119,6 +119,66 @@ public class RenovarLineaContextoAplicacionTest
 
     [Theory]
     [MemberData(nameof(Motores))]
+    public async Task EjecutarAsync_LoteMensajes_DebeMoverTodosLosMensajesYProcesamientos(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje primerMensaje, DAOProcesamientoInternoMensaje primerProcesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        DatosRenovacion datos = await PrepararDatosRenovacionAsync(
+            baseDatos,
+            primerMensaje,
+            primerProcesamiento);
+        (DAOMensaje segundoMensaje, DAOProcesamientoInternoMensaje segundoProcesamiento) =
+            await CrearSegundoMensajeLoteAsync(
+                baseDatos,
+                datos.IDLineaOrigen,
+                primerMensaje.FechaMensaje.AddSeconds(1));
+        UnitOfWorkFactoryPrueba unitOfWorkFactory = new(baseDatos);
+        IRenovarLineaContextoAplicacion aplicacion =
+            new RenovarLineaContextoAplicacion(unitOfWorkFactory);
+        SolicitudRenovarLineaContexto solicitud = CrearSolicitud(datos, "snapshot lote");
+        solicitud.IDsMensajes = [primerMensaje.ID, segundoMensaje.ID];
+        solicitud.IDsProcesamientosInternosMensaje =
+            [primerProcesamiento.ID, segundoProcesamiento.ID];
+
+        ResultadoRenovarLineaContexto resultado = await aplicacion.EjecutarAsync(
+            solicitud,
+            CancellationToken.None);
+
+        await using MensajeriaContextoDB verificacion = baseDatos.CrearContexto();
+        List<DAOMensaje> mensajes = await verificacion.Mensajes
+            .Where(mensaje =>
+                mensaje.ID == primerMensaje.ID
+                || mensaje.ID == segundoMensaje.ID)
+            .OrderBy(mensaje => mensaje.ID)
+            .ToListAsync();
+        List<DAOProcesamientoInternoMensaje> procesamientos =
+            await verificacion.ProcesamientosInternosMensaje
+                .Where(procesamiento =>
+                    procesamiento.ID == primerProcesamiento.ID
+                    || procesamiento.ID == segundoProcesamiento.ID)
+                .OrderBy(procesamiento => procesamiento.ID)
+                .ToListAsync();
+        DAOMetadataEntradaContextoIA entradaSegundoMensaje =
+            await verificacion.MetadataEntradasContextoIA.SingleAsync(
+                entrada => entrada.IDMensaje == segundoMensaje.ID);
+
+        Assert.All(
+            mensajes,
+            mensaje => Assert.Equal(resultado.IDLineaConversacion, mensaje.IDLineaConversacion));
+        Assert.All(
+            procesamientos,
+            procesamiento => Assert.Equal(
+                "pendiente",
+                procesamiento.IDEstadoProcesamientoInternoMensaje));
+        Assert.Equal(resultado.IDLineaConversacion, entradaSegundoMensaje.IDLineaConversacion);
+        Assert.Equal(0, unitOfWorkFactory.AlcancesActivos);
+        Assert.Equal(unitOfWorkFactory.AlcancesCreados, unitOfWorkFactory.AlcancesDispuestos);
+    }
+
+    [Theory]
+    [MemberData(nameof(Motores))]
     public async Task EjecutarAsync_SegundaCompactacion_DebeCrearVersionAcumulativa(
         MotorBaseDatosPrueba motor)
     {
@@ -341,6 +401,52 @@ public class RenovarLineaContextoAplicacionTest
             renovacionAnterior.IDConversacion,
             renovacionAnterior.IDLineaConversacion,
             0);
+    }
+
+    private static async Task<(DAOMensaje Mensaje, DAOProcesamientoInternoMensaje Procesamiento)> CrearSegundoMensajeLoteAsync(
+        BaseDatosPrueba baseDatos,
+        long idLineaConversacion,
+        DateTime fecha)
+    {
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        DAOMensaje mensaje = new()
+        {
+            IDLineaConversacion = idLineaConversacion,
+            IDTipoMensaje = "texto",
+            IDDireccionMensaje = "entrada",
+            Contenido = "segundo mensaje del lote",
+            IdentificadorExternoMensaje = $"lote_renovacion_{Guid.NewGuid():N}",
+            FechaMensaje = fecha,
+            FechaCreacion = fecha,
+            FechaActualizacion = fecha
+        };
+        contexto.Mensajes.Add(mensaje);
+        await contexto.SaveChangesAsync();
+
+        DAOProcesamientoInternoMensaje procesamiento = new()
+        {
+            IDMensaje = mensaje.ID,
+            IDTipoProcesamientoInternoMensaje = "orquestar_entrada",
+            IDEstadoProcesamientoInternoMensaje = "en_proceso",
+            FechaCreacion = fecha
+        };
+        contexto.ProcesamientosInternosMensaje.Add(procesamiento);
+        await contexto.SaveChangesAsync();
+
+        contexto.MetadataEntradasContextoIA.Add(
+            CrearEntrada(
+                idLineaConversacion,
+                mensaje.ID,
+                procesamiento.ID,
+                null,
+                8,
+                "user",
+                "mensaje_entrada",
+                mensaje.Contenido,
+                fecha));
+        await contexto.SaveChangesAsync();
+
+        return (mensaje, procesamiento);
     }
 
     private static DAOInformacionTecnicaLlamadaIALineaConversacion CrearInformacionTecnicaLlamadaIA(

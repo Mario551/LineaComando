@@ -14,6 +14,8 @@ public interface IMensajeriaBuilder
     IMensajeriaBuilder ConfigurarContexto(Action<IContextoMensajeriaBuilder> configurarContexto);
     IMensajeriaBuilder ConfigurarContextoConversacion(ConfiguracionContextoConversacion configuracion);
     IMensajeriaBuilder ConfigurarOrquestadorContexto(ConfiguracionOrquestadorContexto configuracion);
+    IMensajeriaBuilder ConfigurarAgrupacionMensajesEntrada(
+        ConfiguracionAgrupacionMensajesEntrada configuracion);
     IMensajeriaBuilder AgregarWorkerOrquestador();
     IMensajeriaBuilder AgregarWorkerMensajeria<TComunicacion>()
         where TComunicacion : class, IComunicacionMensajeriaAPI;

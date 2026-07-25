@@ -11,6 +11,7 @@ public sealed class OrquestadorContextoServicio : IOrquestadorContextoServicio
     private readonly IServiceScopeFactory serviceScopeFactory;
     private readonly ILogger<OrquestadorContextoServicio> logger;
     private readonly SemaphoreSlim limiteConversaciones;
+    private readonly ConfiguracionAgrupacionMensajesEntrada configuracionAgrupacion;
     private readonly CancellationTokenSource cancelacion = new();
     private readonly object cicloVida = new();
     private Task? tareaDisposicion;
@@ -19,11 +20,14 @@ public sealed class OrquestadorContextoServicio : IOrquestadorContextoServicio
     public OrquestadorContextoServicio(
         IServiceScopeFactory serviceScopeFactory,
         ConfiguracionOrquestadorContexto configuracion,
+        ConfiguracionAgrupacionMensajesEntrada configuracionAgrupacion,
         ILogger<OrquestadorContextoServicio> logger)
     {
         ArgumentNullException.ThrowIfNull(serviceScopeFactory);
         ArgumentNullException.ThrowIfNull(configuracion);
+        ArgumentNullException.ThrowIfNull(configuracionAgrupacion);
         ArgumentNullException.ThrowIfNull(logger);
+        configuracionAgrupacion.Validar();
 
         if (configuracion.MaximoConversacionesConcurrentes <= 0)
         {
@@ -34,6 +38,7 @@ public sealed class OrquestadorContextoServicio : IOrquestadorContextoServicio
         }
 
         this.serviceScopeFactory = serviceScopeFactory;
+        this.configuracionAgrupacion = configuracionAgrupacion;
         this.logger = logger;
         limiteConversaciones = new SemaphoreSlim(
             configuracion.MaximoConversacionesConcurrentes,
@@ -96,6 +101,7 @@ public sealed class OrquestadorContextoServicio : IOrquestadorContextoServicio
             idConversacion,
             serviceScopeFactory,
             limiteConversaciones,
+            configuracionAgrupacion,
             RetirarProcesador,
             cancelacion.Token,
             logger);

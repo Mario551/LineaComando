@@ -128,6 +128,7 @@ public class OrquestadorContextoWorker : BackgroundService
         {
             IDMensaje = evento.IDMensaje,
             IDProcesamientoInternoMensaje = evento.IDProcesamientoInternoMensaje,
+            IDEstadoProcesamientoInternoMensaje = evento.IDEstadoProcesamientoInternoMensaje,
             IDConversacion = evento.IDConversacion,
             IDLineaConversacion = evento.IDLineaConversacion,
             FechaCreacion = evento.FechaCreacion

@@ -11,6 +11,8 @@ public sealed class ResultadoOrquestarMensajeContexto
     public ResultadoOrquestarMensajeContextoTipo Tipo { get; private set; }
     public ResultadoCompactacionIntencionContexto? Compactacion { get; private set; }
     public long IDMensaje { get; private set; }
+    public IReadOnlyList<long> IDsMensajes { get; private set; } = [];
+    public IReadOnlyList<long> IDsProcesamientosInternosMensaje { get; private set; } = [];
     public long IDConversacion { get; private set; }
     public long IDLineaConversacion { get; private set; }
     public string? Error { get; private set; }
@@ -34,6 +36,8 @@ public sealed class ResultadoOrquestarMensajeContexto
     public static ResultadoOrquestarMensajeContexto RenovarLinea(
         ResultadoCompactacionIntencionContexto compactacion,
         long idMensaje,
+        IReadOnlyList<long> idsMensajes,
+        IReadOnlyList<long> idsProcesamientosInternosMensaje,
         long idConversacion,
         long idLineaConversacion)
     {
@@ -44,6 +48,8 @@ public sealed class ResultadoOrquestarMensajeContexto
             Tipo = ResultadoOrquestarMensajeContextoTipo.RenovarLinea,
             Compactacion = compactacion,
             IDMensaje = idMensaje,
+            IDsMensajes = idsMensajes,
+            IDsProcesamientosInternosMensaje = idsProcesamientosInternosMensaje,
             IDConversacion = idConversacion,
             IDLineaConversacion = idLineaConversacion
         };

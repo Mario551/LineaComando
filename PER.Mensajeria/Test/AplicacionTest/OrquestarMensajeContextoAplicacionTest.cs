@@ -266,6 +266,59 @@ public class OrquestarMensajeContextoAplicacionTest
 
     [Theory]
     [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_LoteMensajes_DebeEnviarMensajesOrdenadosYMarcarTodosProcesados(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOMensaje primerMensaje, DAOProcesamientoInternoMensaje primerProcesamiento) =
+            await baseDatos.CrearMensajeEntradaPendienteAsync();
+        (DAOMensaje segundoMensaje, DAOProcesamientoInternoMensaje segundoProcesamiento) =
+            await CrearMensajeLoteAsync(
+                baseDatos,
+                primerMensaje.IDLineaConversacion,
+                primerMensaje.FechaMensaje.AddSeconds(1),
+                primerProcesamiento.FechaCreacion.AddSeconds(1));
+        FakeContextoConversacionServicio contextoConversacion =
+            FakeContextoConversacionServicio.SinSalidas();
+        RegistroLoggerPrueba registroLogger = new();
+        IOrquestarMensajeContextoAplicacion aplicacion = CrearAplicacion(
+            baseDatos,
+            contextoConversacion,
+            registroLogger);
+
+        ResultadoOrquestarMensajeContexto resultado = await aplicacion.EjecutarAsync(
+            [segundoProcesamiento.ID, primerProcesamiento.ID],
+            CancellationToken.None);
+
+        SolicitudContextoConversacion solicitud = Assert.IsType<SolicitudContextoConversacion>(
+            contextoConversacion.SolicitudRecibida);
+        Assert.Equal(primerProcesamiento.ID, solicitud.IDProcesamientoInternoMensaje);
+        Assert.Equal(
+            [primerProcesamiento.ID, segundoProcesamiento.ID],
+            solicitud.IDsProcesamientosInternosMensaje);
+        Assert.Equal(
+            [primerMensaje.ID, segundoMensaje.ID],
+            solicitud.MensajesEntrantes.Select(mensaje => mensaje.IDMensaje));
+        Assert.Equal(
+            ["hola", "segundo mensaje"],
+            solicitud.MensajesEntrantes.Select(mensaje => mensaje.Contenido));
+
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        string[] estados = await contexto.ProcesamientosInternosMensaje
+            .Where(procesamiento =>
+                procesamiento.ID == primerProcesamiento.ID
+                || procesamiento.ID == segundoProcesamiento.ID)
+            .OrderBy(procesamiento => procesamiento.ID)
+            .Select(procesamiento => procesamiento.IDEstadoProcesamientoInternoMensaje)
+            .ToArrayAsync();
+
+        Assert.Equal(ResultadoOrquestarMensajeContextoTipo.SinSalidas, resultado.Tipo);
+        Assert.Equal(["procesado", "procesado"], estados);
+        registroLogger.AssertSinErrores();
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
     public async Task EjecutarAsync_LimiteVentana_DebeRetornarRenovarLineaSinCerrarProcesamiento(
         MotorBaseDatosPrueba motor)
     {
@@ -523,6 +576,42 @@ public class OrquestarMensajeContextoAplicacionTest
             Contenido = "respuesta contexto",
             FechaMensaje = DateTime.Now
         };
+    }
+
+    private static async Task<(DAOMensaje Mensaje, DAOProcesamientoInternoMensaje Procesamiento)> CrearMensajeLoteAsync(
+        BaseDatosPrueba baseDatos,
+        long idLineaConversacion,
+        DateTime fechaMensaje,
+        DateTime fechaProcesamiento)
+    {
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        DAOMensaje mensaje = new()
+        {
+            IDLineaConversacion = idLineaConversacion,
+            IDTipoMensaje = "texto",
+            IDDireccionMensaje = "entrada",
+            TelefonoOrigen = "3001234567",
+            TelefonoDestino = "6011234567",
+            Contenido = "segundo mensaje",
+            IdentificadorExternoMensaje = $"lote_{Guid.NewGuid():N}",
+            FechaMensaje = fechaMensaje,
+            FechaCreacion = fechaMensaje,
+            FechaActualizacion = fechaMensaje
+        };
+        contexto.Mensajes.Add(mensaje);
+        await contexto.SaveChangesAsync();
+
+        DAOProcesamientoInternoMensaje procesamiento = new()
+        {
+            IDMensaje = mensaje.ID,
+            IDTipoProcesamientoInternoMensaje = "orquestar_entrada",
+            IDEstadoProcesamientoInternoMensaje = "pendiente",
+            FechaCreacion = fechaProcesamiento
+        };
+        contexto.ProcesamientosInternosMensaje.Add(procesamiento);
+        await contexto.SaveChangesAsync();
+
+        return (mensaje, procesamiento);
     }
 
     private sealed class RegistrarMensajeSalidaFallaPrueba

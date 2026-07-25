@@ -28,6 +28,7 @@ public class CargarEventosMensajeriaPendientesAplicacion : ICargarEventosMensaje
             {
                 IDMensaje = mensaje.ID,
                 IDProcesamientoInternoMensaje = procesamiento.ID,
+                IDEstadoProcesamientoInternoMensaje = procesamiento.IDEstadoProcesamientoInternoMensaje,
                 IDConversacion = linea.IDConversacion,
                 IDLineaConversacion = linea.ID,
                 FechaCreacion = procesamiento.FechaCreacion

@@ -175,6 +175,127 @@ public class OrquestadorContextoServicioTest
     }
 
     [Fact]
+    public async Task EncolarAsync_MensajesDuranteInactividad_DebeReiniciarEsperaYProcesarUnLote()
+    {
+        TimeSpan tiempoInactividad = TimeSpan.FromMilliseconds(150);
+        await using EscenarioOrquestadorPrueba escenario = new(
+            tiempoInactividad: tiempoInactividad,
+            cantidadMaximaMensajesPorLote: 10);
+        TaskCompletionSource<IReadOnlyList<long>> loteProcesado = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Control.EjecutarLoteOrquestacionAsync = (idsProcesamientos, _) =>
+        {
+            loteProcesado.TrySetResult(idsProcesamientos);
+            return Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
+        };
+
+        await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(80));
+        await escenario.Servicio.EncolarAsync(CrearEvento(2, 10), CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(80));
+
+        Assert.False(loteProcesado.Task.IsCompleted);
+
+        IReadOnlyList<long> idsProcesamientos = await loteProcesado.Task.WaitAsync(TiempoEspera);
+
+        Assert.Equal([1L, 2L], idsProcesamientos);
+        escenario.RegistroLogger.AssertSinErrores();
+    }
+
+    [Fact]
+    public async Task EncolarAsync_AlcanzarMaximoMensajes_DebeProcesarLoteSinEsperarInactividad()
+    {
+        await using EscenarioOrquestadorPrueba escenario = new(
+            tiempoInactividad: TimeSpan.FromSeconds(10),
+            cantidadMaximaMensajesPorLote: 2);
+        TaskCompletionSource<IReadOnlyList<long>> loteProcesado = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Control.EjecutarLoteOrquestacionAsync = (idsProcesamientos, _) =>
+        {
+            loteProcesado.TrySetResult(idsProcesamientos);
+            return Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
+        };
+
+        await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        Assert.False(loteProcesado.Task.IsCompleted);
+
+        await escenario.Servicio.EncolarAsync(CrearEvento(2, 10), CancellationToken.None);
+        IReadOnlyList<long> idsProcesamientos = await loteProcesado.Task.WaitAsync(TiempoEspera);
+
+        Assert.Equal([1L, 2L], idsProcesamientos);
+        escenario.RegistroLogger.AssertSinErrores();
+    }
+
+    [Fact]
+    public async Task EncolarAsync_InactividadCumplidaDuranteLoteAnterior_DebeProcesarSiguienteSinNuevoDelay()
+    {
+        TimeSpan tiempoInactividad = TimeSpan.FromSeconds(2);
+        await using EscenarioOrquestadorPrueba escenario = new(
+            tiempoInactividad: tiempoInactividad,
+            cantidadMaximaMensajesPorLote: 2);
+        TaskCompletionSource<bool> primerLoteIniciado = CrearFuente();
+        TaskCompletionSource<bool> liberarPrimerLote = CrearFuente();
+        TaskCompletionSource<IReadOnlyList<long>> segundoLoteProcesado = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        int lotesProcesados = 0;
+        escenario.Control.EjecutarLoteOrquestacionAsync = async (idsProcesamientos, cancellationToken) =>
+        {
+            if (Interlocked.Increment(ref lotesProcesados) == 1)
+            {
+                primerLoteIniciado.TrySetResult(true);
+                await liberarPrimerLote.Task.WaitAsync(cancellationToken);
+            }
+            else
+            {
+                segundoLoteProcesado.TrySetResult(idsProcesamientos);
+            }
+
+            return ResultadoOrquestarMensajeContexto.Procesado();
+        };
+
+        await escenario.Servicio.EncolarAsync(CrearEvento(1, 10), CancellationToken.None);
+        await escenario.Servicio.EncolarAsync(CrearEvento(2, 10), CancellationToken.None);
+        await primerLoteIniciado.Task.WaitAsync(TiempoEspera);
+        await escenario.Servicio.EncolarAsync(CrearEvento(3, 10), CancellationToken.None);
+        await Task.Delay(tiempoInactividad + TimeSpan.FromMilliseconds(100));
+
+        liberarPrimerLote.TrySetResult(true);
+        IReadOnlyList<long> idsProcesamientos = await segundoLoteProcesado.Task.WaitAsync(
+            TimeSpan.FromMilliseconds(500));
+
+        Assert.Equal([3L], idsProcesamientos);
+        escenario.RegistroLogger.AssertSinErrores();
+    }
+
+    [Fact]
+    public async Task EncolarAsync_EventosRehidratadosEnProceso_DebeReconstruirLoteSinEsperar()
+    {
+        await using EscenarioOrquestadorPrueba escenario = new(
+            tiempoInactividad: TimeSpan.FromSeconds(10),
+            cantidadMaximaMensajesPorLote: 1);
+        TaskCompletionSource<IReadOnlyList<long>> loteProcesado = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Control.EjecutarLoteOrquestacionAsync = (idsProcesamientos, _) =>
+        {
+            loteProcesado.TrySetResult(idsProcesamientos);
+            return Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
+        };
+
+        await escenario.Servicio.EncolarAsync(
+            CrearEvento(1, 10, "en_proceso"),
+            CancellationToken.None);
+        await escenario.Servicio.EncolarAsync(
+            CrearEvento(2, 10, "en_proceso"),
+            CancellationToken.None);
+
+        IReadOnlyList<long> idsProcesamientos = await loteProcesado.Task.WaitAsync(TiempoEspera);
+
+        Assert.Equal([1L, 2L], idsProcesamientos);
+        escenario.RegistroLogger.AssertSinErrores();
+    }
+
+    [Fact]
     public async Task EncolarAsync_EventoDuplicadoActivoOPendiente_DebeProcesarloUnaSolaVez()
     {
         await using EscenarioOrquestadorPrueba escenario = new();
@@ -267,6 +388,8 @@ public class OrquestadorContextoServicioTest
                 return ResultadoOrquestarMensajeContexto.RenovarLinea(
                     compactacion,
                     idMensaje: 10,
+                    idsMensajes: [10],
+                    idsProcesamientosInternosMensaje: [1],
                     idConversacion: 10,
                     idLineaConversacion: 100);
             }
@@ -382,12 +505,16 @@ public class OrquestadorContextoServicioTest
             escenario.Servicio.EncolarAsync(CrearEvento(2, 10), CancellationToken.None));
     }
 
-    private static EventoMensajeriaEntrada CrearEvento(long idProcesamiento, long idConversacion)
+    private static EventoMensajeriaEntrada CrearEvento(
+        long idProcesamiento,
+        long idConversacion,
+        string estado = "pendiente")
     {
         return new EventoMensajeriaEntrada
         {
             IDMensaje = idProcesamiento * 10,
             IDProcesamientoInternoMensaje = idProcesamiento,
+            IDEstadoProcesamientoInternoMensaje = estado,
             IDConversacion = idConversacion,
             IDLineaConversacion = idConversacion * 10,
             FechaCreacion = DateTime.UtcNow
@@ -450,7 +577,10 @@ public class OrquestadorContextoServicioTest
     {
         private readonly ServiceProvider proveedorServicios;
 
-        public EscenarioOrquestadorPrueba(int maximoConversacionesConcurrentes = 16)
+        public EscenarioOrquestadorPrueba(
+            int maximoConversacionesConcurrentes = 16,
+            TimeSpan? tiempoInactividad = null,
+            int cantidadMaximaMensajesPorLote = 1)
         {
             Control = new ControlOrquestacionPrueba();
             RegistroLogger = new RegistroLoggerPrueba();
@@ -469,6 +599,11 @@ public class OrquestadorContextoServicioTest
                 new ConfiguracionOrquestadorContexto
                 {
                     MaximoConversacionesConcurrentes = maximoConversacionesConcurrentes
+                },
+                new ConfiguracionAgrupacionMensajesEntrada
+                {
+                    TiempoInactividad = tiempoInactividad ?? TimeSpan.FromSeconds(2),
+                    CantidadMaximaMensajesPorLote = cantidadMaximaMensajesPorLote
                 },
                 new LoggerOrquestadorPrueba(RegistroLogger));
         }
@@ -491,6 +626,8 @@ public class OrquestadorContextoServicioTest
 
         public Func<long, CancellationToken, Task<ResultadoOrquestarMensajeContexto>> EjecutarOrquestacionAsync { get; set; }
             = (_, _) => Task.FromResult(ResultadoOrquestarMensajeContexto.Procesado());
+
+        public Func<IReadOnlyList<long>, CancellationToken, Task<ResultadoOrquestarMensajeContexto>>? EjecutarLoteOrquestacionAsync { get; set; }
 
         public Func<SolicitudRenovarLineaContexto, CancellationToken, Task<ResultadoRenovarLineaContexto>> EjecutarRenovacionAsync { get; set; }
             = (solicitud, _) => Task.FromResult(new ResultadoRenovarLineaContexto
@@ -531,6 +668,22 @@ public class OrquestadorContextoServicioTest
             CancellationToken cancellationToken)
         {
             return control.EjecutarOrquestacionAsync(idProcesamientoInternoMensaje, cancellationToken);
+        }
+
+        public Task<ResultadoOrquestarMensajeContexto> EjecutarAsync(
+            IReadOnlyList<long> idsProcesamientosInternosMensaje,
+            CancellationToken cancellationToken)
+        {
+            if (control.EjecutarLoteOrquestacionAsync is not null)
+            {
+                return control.EjecutarLoteOrquestacionAsync(
+                    idsProcesamientosInternosMensaje,
+                    cancellationToken);
+            }
+
+            return control.EjecutarOrquestacionAsync(
+                Assert.Single(idsProcesamientosInternosMensaje),
+                cancellationToken);
         }
 
         public ValueTask DisposeAsync()

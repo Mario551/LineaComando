@@ -33,6 +33,9 @@ public class OrquestadorContextoWorkerTest
         await EsperarCancelacionAsync(tareaWorker);
 
         Assert.Equal(cargarEventos.Evento.IDProcesamientoInternoMensaje, eventoEncolado.IDProcesamientoInternoMensaje);
+        Assert.Equal(
+            cargarEventos.Evento.IDEstadoProcesamientoInternoMensaje,
+            eventoEncolado.IDEstadoProcesamientoInternoMensaje);
         Assert.Equal(new[] { "carga", "encola" }, pasos);
         registroLogger.AssertSinErrores();
     }
@@ -126,6 +129,7 @@ public class OrquestadorContextoWorkerTest
         {
             IDMensaje = 10,
             IDProcesamientoInternoMensaje = 20,
+            IDEstadoProcesamientoInternoMensaje = "en_proceso",
             IDConversacion = 30,
             IDLineaConversacion = 40,
             FechaCreacion = DateTime.Now

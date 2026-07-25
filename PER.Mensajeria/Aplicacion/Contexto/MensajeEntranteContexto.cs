@@ -1,13 +1,9 @@
 namespace PER.Mensajeria.Aplicacion.Contexto;
 
-public class SolicitudContextoConversacion
+public sealed class MensajeEntranteContexto
 {
     public long IDProcesamientoInternoMensaje { get; set; }
-    public IReadOnlyList<long> IDsProcesamientosInternosMensaje { get; set; } = [];
     public long IDMensaje { get; set; }
-    public long IDConversacion { get; set; }
-    public long IDLineaConversacion { get; set; }
-    public long IDCuentaCanal { get; set; }
     public string TipoMensaje { get; set; } = string.Empty;
     public string? TelefonoOrigen { get; set; }
     public string? TelefonoDestino { get; set; }
@@ -15,5 +11,4 @@ public class SolicitudContextoConversacion
     public string? IdentificadorExternoMensaje { get; set; }
     public DateTime FechaMensaje { get; set; }
     public List<ArchivoMensajeContexto> Archivos { get; set; } = [];
-    public IReadOnlyList<MensajeEntranteContexto> MensajesEntrantes { get; set; } = [];
 }

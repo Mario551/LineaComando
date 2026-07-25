@@ -39,15 +39,26 @@ public class OrquestarMensajeContextoAplicacion : IOrquestarMensajeContextoAplic
         long idProcesamientoInternoMensaje,
         CancellationToken cancellationToken)
     {
-        DatosProcesamientoMensaje? datosProcesamiento = await PrepararProcesamientoAsync(
-            idProcesamientoInternoMensaje,
+        return await EjecutarAsync(
+            new[] { idProcesamientoInternoMensaje },
+            cancellationToken);
+    }
+
+    public async Task<ResultadoOrquestarMensajeContexto> EjecutarAsync(
+        IReadOnlyList<long> idsProcesamientosInternosMensaje,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<long> idsProcesamientos = ValidarIDsProcesamientos(
+            idsProcesamientosInternosMensaje);
+        DatosProcesamientoMensaje? datosProcesamiento = await PrepararProcesamientosAsync(
+            idsProcesamientos,
             cancellationToken);
 
         if (datosProcesamiento is null)
         {
             logger.LogDebug(
-                "Evento ignorado porque el procesamiento ya esta en estado terminal. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}",
-                idProcesamientoInternoMensaje);
+                "Lote ignorado porque todos sus procesamientos ya estan en estado terminal. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}",
+                string.Join(",", idsProcesamientos));
             return ResultadoOrquestarMensajeContexto.Procesado();
         }
 
@@ -70,6 +81,8 @@ public class OrquestarMensajeContextoAplicacion : IOrquestarMensajeContextoAplic
                 return ResultadoOrquestarMensajeContexto.RenovarLinea(
                     compactacion,
                     datosProcesamiento.IDMensaje,
+                    datosProcesamiento.IDsMensajes,
+                    datosProcesamiento.IDsProcesamientosInternosMensaje,
                     datosProcesamiento.IDConversacion,
                     datosProcesamiento.IDLineaConversacion);
             }
@@ -92,7 +105,9 @@ public class OrquestarMensajeContextoAplicacion : IOrquestarMensajeContextoAplic
                 });
             }
 
-            await MarcarProcesadoAsync(idProcesamientoInternoMensaje, cancellationToken);
+            await MarcarProcesadosAsync(
+                datosProcesamiento.IDsProcesamientosInternosMensaje,
+                cancellationToken);
 
             return resultadoContexto.TipoResultado == ResultadoContextoConversacionTipo.SinSalidas
                 ? ResultadoOrquestarMensajeContexto.SinSalidas()
@@ -101,21 +116,24 @@ public class OrquestarMensajeContextoAplicacion : IOrquestarMensajeContextoAplic
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             logger.LogInformation(
-                "Procesamiento cancelado por apagado. Se conserva en proceso para rehidratacion. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}",
-                idProcesamientoInternoMensaje);
+                "Lote cancelado por apagado. Sus procesamientos se conservan en proceso para rehidratacion. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}",
+                string.Join(",", datosProcesamiento.IDsProcesamientosInternosMensaje));
             throw;
         }
         catch (Exception excepcion)
         {
             logger.LogError(
                 excepcion,
-                "Error orquestando mensaje de entrada. IDProcesamientoInternoMensaje={IDProcesamientoInternoMensaje}, IDMensaje={IDMensaje}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
-                idProcesamientoInternoMensaje,
-                datosProcesamiento.IDMensaje,
+                "Error orquestando lote de mensajes de entrada. IDsProcesamientosInternosMensaje={IDsProcesamientosInternosMensaje}, IDsMensajes={IDsMensajes}, IDConversacion={IDConversacion}, IDLineaConversacion={IDLineaConversacion}",
+                string.Join(",", datosProcesamiento.IDsProcesamientosInternosMensaje),
+                string.Join(",", datosProcesamiento.IDsMensajes),
                 datosProcesamiento.IDConversacion,
                 datosProcesamiento.IDLineaConversacion);
 
-            await MarcarErrorAsync(idProcesamientoInternoMensaje, excepcion.Message, cancellationToken);
+            await MarcarErroresAsync(
+                datosProcesamiento.IDsProcesamientosInternosMensaje,
+                excepcion.Message,
+                cancellationToken);
             return ResultadoOrquestarMensajeContexto.ConError(excepcion.Message);
         }
     }
@@ -148,123 +166,265 @@ public class OrquestarMensajeContextoAplicacion : IOrquestarMensajeContextoAplic
         };
     }
 
-    private async Task<DatosProcesamientoMensaje?> PrepararProcesamientoAsync(
-        long idProcesamientoInternoMensaje,
+    private async Task<DatosProcesamientoMensaje?> PrepararProcesamientosAsync(
+        IReadOnlyList<long> idsProcesamientosInternosMensaje,
         CancellationToken cancellationToken)
     {
         await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
         IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
 
-        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
-            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
+        List<DAOProcesamientoInternoMensaje> procesamientos = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+            .Where(procesamiento => idsProcesamientosInternosMensaje.Contains(procesamiento.ID))
+            .ToListAsync(cancellationToken);
+        if (procesamientos.Count != idsProcesamientosInternosMensaje.Count)
+        {
+            HashSet<long> idsEncontrados = procesamientos
+                .Select(procesamiento => procesamiento.ID)
+                .ToHashSet();
+            string idsFaltantes = string.Join(
+                ",",
+                idsProcesamientosInternosMensaje.Where(id => !idsEncontrados.Contains(id)));
+            throw new InvalidOperationException(
+                $"No se encontraron los procesamientos internos del lote: {idsFaltantes}.");
+        }
 
-        if (procesamiento.IDEstadoProcesamientoInternoMensaje is EstadoProcesado or EstadoError)
+        List<DAOProcesamientoInternoMensaje> procesamientosActivos = procesamientos
+            .Where(procesamiento =>
+                procesamiento.IDEstadoProcesamientoInternoMensaje is not EstadoProcesado and not EstadoError)
+            .ToList();
+        if (procesamientosActivos.Count == 0)
         {
             return null;
         }
 
-        if (procesamiento.IDEstadoProcesamientoInternoMensaje is not EstadoPendiente and not EstadoEnProceso)
+        DAOProcesamientoInternoMensaje? procesamientoEstadoInvalido = procesamientosActivos
+            .FirstOrDefault(procesamiento =>
+                procesamiento.IDEstadoProcesamientoInternoMensaje is not EstadoPendiente and not EstadoEnProceso);
+        if (procesamientoEstadoInvalido is not null)
         {
             throw new InvalidOperationException(
-                $"El procesamiento {idProcesamientoInternoMensaje} tiene el estado no soportado '{procesamiento.IDEstadoProcesamientoInternoMensaje}'.");
+                $"El procesamiento {procesamientoEstadoInvalido.ID} tiene el estado no soportado '{procesamientoEstadoInvalido.IDEstadoProcesamientoInternoMensaje}'.");
         }
 
-        DAOMensaje mensajeEntrada = await unitOfWork.MensajeRepositorio.Get()
-            .SingleAsync(mensajeActual => mensajeActual.ID == procesamiento.IDMensaje, cancellationToken);
-        DAOLineaConversacion linea = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
-            .SingleAsync(lineaActual => lineaActual.ID == mensajeEntrada.IDLineaConversacion, cancellationToken);
+        List<long> idsMensajes = procesamientosActivos
+            .Select(procesamiento => procesamiento.IDMensaje)
+            .Distinct()
+            .ToList();
+        List<DAOMensaje> mensajesEntrada = await unitOfWork.MensajeRepositorio.Get()
+            .Where(mensaje => idsMensajes.Contains(mensaje.ID))
+            .ToListAsync(cancellationToken);
+        if (mensajesEntrada.Count != idsMensajes.Count)
+        {
+            throw new InvalidOperationException(
+                "No se encontraron todos los mensajes asociados a los procesamientos del lote.");
+        }
 
-        if (!linea.Activa)
+        List<long> idsLineas = mensajesEntrada
+            .Select(mensaje => mensaje.IDLineaConversacion)
+            .Distinct()
+            .ToList();
+        List<DAOLineaConversacion> lineasReferenciadas = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
+            .Where(linea => idsLineas.Contains(linea.ID))
+            .ToListAsync(cancellationToken);
+        if (lineasReferenciadas.Count != idsLineas.Count)
+        {
+            throw new InvalidOperationException(
+                "No se encontraron todas las lineas asociadas a los mensajes del lote.");
+        }
+
+        List<long> idsConversaciones = lineasReferenciadas
+            .Select(linea => linea.IDConversacion)
+            .Distinct()
+            .ToList();
+        if (idsConversaciones.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "Todos los mensajes de un lote deben pertenecer a la misma conversacion.");
+        }
+
+        long idConversacion = idsConversaciones[0];
+        DAOLineaConversacion linea;
+        if (lineasReferenciadas.Count == 1 && lineasReferenciadas[0].Activa)
+        {
+            linea = lineasReferenciadas[0];
+        }
+        else
         {
             linea = await unitOfWork.LineaConversacionRepositorio.GetNoTracking()
-                .Where(lineaActual => lineaActual.IDConversacion == linea.IDConversacion && lineaActual.Activa)
+                .Where(lineaActual => lineaActual.IDConversacion == idConversacion && lineaActual.Activa)
                 .OrderByDescending(lineaActual => lineaActual.FechaInicio)
                 .ThenByDescending(lineaActual => lineaActual.ID)
                 .FirstAsync(cancellationToken);
-            mensajeEntrada.IDLineaConversacion = linea.ID;
+
+            foreach (DAOMensaje mensajeEntrada in mensajesEntrada)
+            {
+                mensajeEntrada.IDLineaConversacion = linea.ID;
+            }
         }
 
         DAOConversacion conversacion = await unitOfWork.ConversacionRepositorio.GetNoTracking()
             .SingleAsync(conversacionActual => conversacionActual.ID == linea.IDConversacion, cancellationToken);
 
-        List<ArchivoMensajeContexto> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
-            .Where(archivoActual => archivoActual.IDMensaje == mensajeEntrada.ID)
-            .Select(archivoActual => new ArchivoMensajeContexto
+        List<ArchivoMensajeLote> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
+            .Where(archivo => idsMensajes.Contains(archivo.IDMensaje))
+            .Select(archivo => new ArchivoMensajeLote
             {
-                NombreArchivo = archivoActual.NombreArchivo,
-                TipoContenido = archivoActual.IDTipoContenidoArchivo,
-                TamanoBytes = archivoActual.TamanoBytes,
-                UbicacionArchivo = archivoActual.UbicacionArchivo,
-                ProveedorAlmacenamiento = archivoActual.ProveedorAlmacenamiento,
-                IdentificadorExternoArchivo = archivoActual.IdentificadorExternoArchivo
+                IDMensaje = archivo.IDMensaje,
+                Archivo = new ArchivoMensajeContexto
+                {
+                    NombreArchivo = archivo.NombreArchivo,
+                    TipoContenido = archivo.IDTipoContenidoArchivo,
+                    TamanoBytes = archivo.TamanoBytes,
+                    UbicacionArchivo = archivo.UbicacionArchivo,
+                    ProveedorAlmacenamiento = archivo.ProveedorAlmacenamiento,
+                    IdentificadorExternoArchivo = archivo.IdentificadorExternoArchivo
+                }
             })
             .ToListAsync(cancellationToken);
 
-        procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoEnProceso;
-        procesamiento.Error = null;
+        foreach (DAOProcesamientoInternoMensaje procesamiento in procesamientosActivos)
+        {
+            procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoEnProceso;
+            procesamiento.Error = null;
+        }
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        Dictionary<long, DAOProcesamientoInternoMensaje> procesamientosPorMensaje = procesamientosActivos
+            .ToDictionary(procesamiento => procesamiento.IDMensaje);
+        List<MensajeEntranteContexto> mensajesContexto = mensajesEntrada
+            .OrderBy(mensaje => mensaje.FechaMensaje)
+            .ThenBy(mensaje => mensaje.ID)
+            .Select(mensaje => new MensajeEntranteContexto
+            {
+                IDProcesamientoInternoMensaje = procesamientosPorMensaje[mensaje.ID].ID,
+                IDMensaje = mensaje.ID,
+                TipoMensaje = mensaje.IDTipoMensaje,
+                TelefonoOrigen = mensaje.TelefonoOrigen,
+                TelefonoDestino = mensaje.TelefonoDestino,
+                Contenido = mensaje.Contenido,
+                IdentificadorExternoMensaje = mensaje.IdentificadorExternoMensaje,
+                FechaMensaje = mensaje.FechaMensaje,
+                Archivos = archivos
+                    .Where(archivo => archivo.IDMensaje == mensaje.ID)
+                    .Select(archivo => archivo.Archivo)
+                    .ToList()
+            })
+            .ToList();
+        DAOProcesamientoInternoMensaje procesamientoCoordinador = procesamientosActivos
+            .OrderBy(procesamiento => procesamiento.FechaCreacion)
+            .ThenBy(procesamiento => procesamiento.ID)
+            .First();
+        MensajeEntranteContexto mensajeCoordinador = mensajesContexto
+            .Single(mensaje => mensaje.IDMensaje == procesamientoCoordinador.IDMensaje);
 
         return new DatosProcesamientoMensaje
         {
-            IDMensaje = mensajeEntrada.ID,
+            IDMensaje = mensajeCoordinador.IDMensaje,
+            IDsMensajes = mensajesContexto.Select(mensaje => mensaje.IDMensaje).ToList(),
+            IDsProcesamientosInternosMensaje = procesamientosActivos
+                .OrderBy(procesamiento => procesamiento.FechaCreacion)
+                .ThenBy(procesamiento => procesamiento.ID)
+                .Select(procesamiento => procesamiento.ID)
+                .ToList(),
             IDConversacion = conversacion.ID,
             IDLineaConversacion = linea.ID,
             SolicitudContexto = new SolicitudContextoConversacion
             {
-                IDProcesamientoInternoMensaje = procesamiento.ID,
-                IDMensaje = mensajeEntrada.ID,
+                IDProcesamientoInternoMensaje = procesamientoCoordinador.ID,
+                IDsProcesamientosInternosMensaje = procesamientosActivos
+                    .OrderBy(procesamiento => procesamiento.FechaCreacion)
+                    .ThenBy(procesamiento => procesamiento.ID)
+                    .Select(procesamiento => procesamiento.ID)
+                    .ToList(),
+                IDMensaje = mensajeCoordinador.IDMensaje,
                 IDConversacion = conversacion.ID,
                 IDLineaConversacion = linea.ID,
                 IDCuentaCanal = conversacion.IDCuentaCanal,
-                TipoMensaje = mensajeEntrada.IDTipoMensaje,
-                TelefonoOrigen = mensajeEntrada.TelefonoOrigen,
-                TelefonoDestino = mensajeEntrada.TelefonoDestino,
-                Contenido = mensajeEntrada.Contenido,
-                IdentificadorExternoMensaje = mensajeEntrada.IdentificadorExternoMensaje,
-                FechaMensaje = mensajeEntrada.FechaMensaje,
-                Archivos = archivos
+                TipoMensaje = mensajeCoordinador.TipoMensaje,
+                TelefonoOrigen = mensajeCoordinador.TelefonoOrigen,
+                TelefonoDestino = mensajeCoordinador.TelefonoDestino,
+                Contenido = mensajeCoordinador.Contenido,
+                IdentificadorExternoMensaje = mensajeCoordinador.IdentificadorExternoMensaje,
+                FechaMensaje = mensajeCoordinador.FechaMensaje,
+                Archivos = mensajeCoordinador.Archivos,
+                MensajesEntrantes = mensajesContexto
             }
         };
     }
 
-    private async Task MarcarProcesadoAsync(
-        long idProcesamientoInternoMensaje,
+    private async Task MarcarProcesadosAsync(
+        IReadOnlyList<long> idsProcesamientosInternosMensaje,
         CancellationToken cancellationToken)
     {
         await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
         IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
-        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
-            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
+        List<DAOProcesamientoInternoMensaje> procesamientos = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+            .Where(procesamiento => idsProcesamientosInternosMensaje.Contains(procesamiento.ID))
+            .ToListAsync(cancellationToken);
 
-        procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoProcesado;
-        procesamiento.FechaProcesado = DateTime.Now;
-        procesamiento.Error = null;
-        unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+        DateTime fechaProcesado = DateTime.Now;
+        foreach (DAOProcesamientoInternoMensaje procesamiento in procesamientos)
+        {
+            procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoProcesado;
+            procesamiento.FechaProcesado = fechaProcesado;
+            procesamiento.Error = null;
+            unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+        }
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task MarcarErrorAsync(
-        long idProcesamientoInternoMensaje,
+    private async Task MarcarErroresAsync(
+        IReadOnlyList<long> idsProcesamientosInternosMensaje,
         string error,
         CancellationToken cancellationToken)
     {
         await using IUnitOfWorkScope alcanceUnitOfWork = unitOfWorkFactory.Crear();
         IUnitOfWork unitOfWork = alcanceUnitOfWork.UnitOfWork;
-        DAOProcesamientoInternoMensaje procesamiento = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
-            .SingleAsync(procesamientoActual => procesamientoActual.ID == idProcesamientoInternoMensaje, cancellationToken);
+        List<DAOProcesamientoInternoMensaje> procesamientos = await unitOfWork.ProcesamientoInternoMensajeRepositorio.Get()
+            .Where(procesamiento => idsProcesamientosInternosMensaje.Contains(procesamiento.ID))
+            .ToListAsync(cancellationToken);
 
-        procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoError;
-        procesamiento.Intentos++;
-        procesamiento.Error = error;
-        unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+        foreach (DAOProcesamientoInternoMensaje procesamiento in procesamientos)
+        {
+            procesamiento.IDEstadoProcesamientoInternoMensaje = EstadoError;
+            procesamiento.Intentos++;
+            procesamiento.Error = error;
+            unitOfWork.ProcesamientoInternoMensajeRepositorio.Actualizar(procesamiento);
+        }
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static IReadOnlyList<long> ValidarIDsProcesamientos(
+        IReadOnlyList<long> idsProcesamientosInternosMensaje)
+    {
+        ArgumentNullException.ThrowIfNull(idsProcesamientosInternosMensaje);
+
+        List<long> ids = idsProcesamientosInternosMensaje
+            .Distinct()
+            .ToList();
+        if (ids.Count == 0 || ids.Any(id => id <= 0))
+        {
+            throw new ArgumentException(
+                "El lote debe contener identificadores de procesamiento validos.",
+                nameof(idsProcesamientosInternosMensaje));
+        }
+
+        return ids;
     }
 
     private class DatosProcesamientoMensaje
     {
         public long IDMensaje { get; init; }
+        public required IReadOnlyList<long> IDsMensajes { get; init; }
+        public required IReadOnlyList<long> IDsProcesamientosInternosMensaje { get; init; }
         public long IDConversacion { get; init; }
         public long IDLineaConversacion { get; init; }
         public required SolicitudContextoConversacion SolicitudContexto { get; init; }
+    }
+
+    private sealed class ArchivoMensajeLote
+    {
+        public long IDMensaje { get; init; }
+        public required ArchivoMensajeContexto Archivo { get; init; }
     }
 }

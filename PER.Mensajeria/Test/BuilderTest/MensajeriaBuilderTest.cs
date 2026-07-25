@@ -236,6 +236,46 @@ public class MensajeriaBuilderTest
     }
 
     [Fact]
+    public void AgregarMensajeria_DebeRegistrarConfiguracionAgrupacionPredeterminada()
+    {
+        ServiceCollection servicios = new();
+
+        servicios.AgregarMensajeria(_ => { });
+
+        ServiceDescriptor descriptor = ObtenerDescriptor(
+            servicios,
+            typeof(ConfiguracionAgrupacionMensajesEntrada));
+        ConfiguracionAgrupacionMensajesEntrada configuracion =
+            Assert.IsType<ConfiguracionAgrupacionMensajesEntrada>(
+                descriptor.ImplementationInstance);
+
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+        Assert.Equal(TimeSpan.FromSeconds(2), configuracion.TiempoInactividad);
+        Assert.Equal(10, configuracion.CantidadMaximaMensajesPorLote);
+    }
+
+    [Fact]
+    public void ConfigurarAgrupacionMensajesEntrada_DebeReemplazarConfiguracionPredeterminada()
+    {
+        ServiceCollection servicios = new();
+        ConfiguracionAgrupacionMensajesEntrada configuracionEsperada = new()
+        {
+            TiempoInactividad = TimeSpan.FromMilliseconds(750),
+            CantidadMaximaMensajesPorLote = 4
+        };
+
+        servicios.AgregarMensajeria(builder =>
+            builder.ConfigurarAgrupacionMensajesEntrada(configuracionEsperada));
+
+        ServiceDescriptor descriptor = ObtenerDescriptor(
+            servicios,
+            typeof(ConfiguracionAgrupacionMensajesEntrada));
+
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+        Assert.Same(configuracionEsperada, descriptor.ImplementationInstance);
+    }
+
+    [Fact]
     public void ConfigurarOrquestadorContexto_DebeReemplazarConfiguracionPredeterminada()
     {
         ServiceCollection servicios = new();

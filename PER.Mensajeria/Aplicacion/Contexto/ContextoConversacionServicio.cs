@@ -62,7 +62,10 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
             solicitud.IDLineaConversacion,
             cancellationToken)).ToList();
 
-        await AsegurarMetadataEntradaMensajeInicialAsync(solicitud, metadataEntradasContextoIA, cancellationToken);
+        await AsegurarMetadataEntradasMensajesInicialesAsync(
+            solicitud,
+            metadataEntradasContextoIA,
+            cancellationToken);
 
         ResultadoEjecucionComandoContexto? ejecucionRecuperada = await ejecucionComandoContextoAplicacion.ReanudarActivaAsync(
             solicitud,
@@ -156,31 +159,36 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         return CrearError("Se alcanzo el maximo de iteraciones del contexto.");
     }
 
-    private async Task AsegurarMetadataEntradaMensajeInicialAsync(
+    private async Task AsegurarMetadataEntradasMensajesInicialesAsync(
         SolicitudContextoConversacion solicitud,
         List<MetadataEntradaContextoIA> metadataEntradasContextoIA,
         CancellationToken cancellationToken)
     {
-        bool yaExiste = metadataEntradasContextoIA.Any(entrada =>
-            entrada.IDTipoEntradaContextoIA == TipoEntradaMensajeEntrada
-            && entrada.IDMensaje == solicitud.IDMensaje);
-        if (yaExiste)
-            return;
-
-        MetadataEntradaContextoIA entrada = await registrarContextoIAAplicacion.RegistrarMetadataEntradaAsync(
-            new SolicitudRegistrarMetadataEntradaContextoIA
+        foreach (MensajeEntranteContexto mensaje in ObtenerMensajesEntrantes(solicitud))
+        {
+            bool yaExiste = metadataEntradasContextoIA.Any(entrada =>
+                entrada.IDTipoEntradaContextoIA == TipoEntradaMensajeEntrada
+                && entrada.IDMensaje == mensaje.IDMensaje);
+            if (yaExiste)
             {
-                IDLineaConversacion = solicitud.IDLineaConversacion,
-                IDMensaje = solicitud.IDMensaje,
-                IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,
-                IDRolContextoIA = RolUsuario,
-                IDTipoEntradaContextoIA = TipoEntradaMensajeEntrada,
-                Contenido = solicitud.Contenido,
-                FechaEntrada = solicitud.FechaMensaje
-            },
-            cancellationToken);
+                continue;
+            }
 
-        metadataEntradasContextoIA.Add(entrada);
+            MetadataEntradaContextoIA entrada = await registrarContextoIAAplicacion.RegistrarMetadataEntradaAsync(
+                new SolicitudRegistrarMetadataEntradaContextoIA
+                {
+                    IDLineaConversacion = solicitud.IDLineaConversacion,
+                    IDMensaje = mensaje.IDMensaje,
+                    IDProcesamientoInternoMensaje = mensaje.IDProcesamientoInternoMensaje,
+                    IDRolContextoIA = RolUsuario,
+                    IDTipoEntradaContextoIA = TipoEntradaMensajeEntrada,
+                    Contenido = mensaje.Contenido,
+                    FechaEntrada = mensaje.FechaMensaje
+                },
+                cancellationToken);
+
+            metadataEntradasContextoIA.Add(entrada);
+        }
     }
 
     private async Task<ResultadoPasoContexto> EjecutarFiltrosAsync(
@@ -387,8 +395,11 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
         int iteracion,
         CancellationToken cancellationToken)
     {
+        HashSet<long> idsProcesamientosActuales = ObtenerIDsProcesamientosActuales(solicitud);
         List<MetadataEntradaContextoIA> entradasCompactables = metadataEntradasContextoIA
-            .Where(entrada => entrada.IDProcesamientoInternoMensaje != solicitud.IDProcesamientoInternoMensaje)
+            .Where(entrada =>
+                !entrada.IDProcesamientoInternoMensaje.HasValue
+                || !idsProcesamientosActuales.Contains(entrada.IDProcesamientoInternoMensaje.Value))
             .ToList();
 
         if (compactacionContextoInicial is null && entradasCompactables.Count == 0)
@@ -670,5 +681,44 @@ public class ContextoConversacionServicio : IContextoConversacionServicio
             TipoResultado = ResultadoContextoConversacionTipo.Error,
             Error = error
         };
+    }
+
+    private static IReadOnlyList<MensajeEntranteContexto> ObtenerMensajesEntrantes(
+        SolicitudContextoConversacion solicitud)
+    {
+        if (solicitud.MensajesEntrantes.Count > 0)
+        {
+            return solicitud.MensajesEntrantes
+                .OrderBy(mensaje => mensaje.FechaMensaje)
+                .ThenBy(mensaje => mensaje.IDMensaje)
+                .ToList();
+        }
+
+        return
+        [
+            new MensajeEntranteContexto
+            {
+                IDProcesamientoInternoMensaje = solicitud.IDProcesamientoInternoMensaje,
+                IDMensaje = solicitud.IDMensaje,
+                TipoMensaje = solicitud.TipoMensaje,
+                TelefonoOrigen = solicitud.TelefonoOrigen,
+                TelefonoDestino = solicitud.TelefonoDestino,
+                Contenido = solicitud.Contenido,
+                IdentificadorExternoMensaje = solicitud.IdentificadorExternoMensaje,
+                FechaMensaje = solicitud.FechaMensaje,
+                Archivos = solicitud.Archivos
+            }
+        ];
+    }
+
+    private static HashSet<long> ObtenerIDsProcesamientosActuales(
+        SolicitudContextoConversacion solicitud)
+    {
+        if (solicitud.IDsProcesamientosInternosMensaje.Count > 0)
+        {
+            return solicitud.IDsProcesamientosInternosMensaje.ToHashSet();
+        }
+
+        return [solicitud.IDProcesamientoInternoMensaje];
     }
 }

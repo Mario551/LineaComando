@@ -22,6 +22,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         EventoMensajeriaPendiente evento = Assert.Single(eventos);
         Assert.Equal(mensaje.ID, evento.IDMensaje);
         Assert.Equal(procesamiento.ID, evento.IDProcesamientoInternoMensaje);
+        Assert.Equal("pendiente", evento.IDEstadoProcesamientoInternoMensaje);
         Assert.Equal(mensaje.IDLineaConversacion, evento.IDLineaConversacion);
         Assert.True(evento.IDConversacion > 0);
     }
@@ -39,6 +40,7 @@ public class CargarEventosMensajeriaPendientesAplicacionTest
         EventoMensajeriaPendiente evento = Assert.Single(eventos);
         Assert.Equal(mensaje.ID, evento.IDMensaje);
         Assert.Equal(procesamiento.ID, evento.IDProcesamientoInternoMensaje);
+        Assert.Equal("en_proceso", evento.IDEstadoProcesamientoInternoMensaje);
     }
 
     [Theory]

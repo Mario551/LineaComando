@@ -66,6 +66,62 @@ public class ContextoConversacionServicioTest
     }
 
     [Fact]
+    public async Task ResolverAsync_LoteMensajes_DebeRegistrarYEnviarCadaMensajeEnOrden()
+    {
+        DateTime fechaBase = DateTime.Now;
+        SolicitudContextoConversacion solicitud = CrearSolicitud();
+        solicitud.IDsProcesamientosInternosMensaje = [1, 2];
+        solicitud.MensajesEntrantes =
+        [
+            new MensajeEntranteContexto
+            {
+                IDProcesamientoInternoMensaje = 2,
+                IDMensaje = 20,
+                TipoMensaje = "texto",
+                Contenido = "segundo",
+                FechaMensaje = fechaBase.AddSeconds(1)
+            },
+            new MensajeEntranteContexto
+            {
+                IDProcesamientoInternoMensaje = 1,
+                IDMensaje = 10,
+                TipoMensaje = "texto",
+                Contenido = "primero",
+                FechaMensaje = fechaBase
+            }
+        ];
+        IntencionContextoFake intencion = new(NoResponder());
+        RegistrarContextoIAAplicacionFake registrar = new();
+        ContextoConversacionServicio servicio = CrearServicio(
+            [],
+            intencion,
+            registrarContextoIA: registrar);
+
+        ResultadoContextoConversacion resultado = await servicio.ResolverAsync(
+            solicitud,
+            CancellationToken.None);
+
+        Assert.Equal(ResultadoContextoConversacionTipo.SinSalidas, resultado.TipoResultado);
+        AssertEntradas(
+            registrar,
+            ("user", "mensaje_entrada"),
+            ("user", "mensaje_entrada"),
+            ("assistant", "no_responder"));
+        MetadataEntradaContextoIA[] entradasUsuario = registrar.Entradas
+            .Where(entrada => entrada.IDRolContextoIA == "user")
+            .OrderBy(entrada => entrada.Orden)
+            .ToArray();
+        Assert.Equal([10L, 20L], entradasUsuario.Select(entrada => entrada.IDMensaje!.Value));
+        Assert.Equal(["primero", "segundo"], entradasUsuario.Select(entrada => entrada.Contenido));
+        SolicitudIntencionContexto solicitudIA = Assert.Single(intencion.Llamadas);
+        Assert.Equal(
+            [10L, 20L],
+            solicitudIA.MetadataEntradasContextoIA
+                .Where(entrada => entrada.IDRolContextoIA == "user")
+                .Select(entrada => entrada.IDMensaje!.Value));
+    }
+
+    [Fact]
     public async Task ResolverAsync_ResultadoResponder_DebeRetornarConSalidas()
     {
         MensajeSalienteContexto mensaje = CrearMensajeSaliente();

@@ -88,6 +88,15 @@ public class MensajeriaBuilder : IMensajeriaBuilder
         return this;
     }
 
+    public IMensajeriaBuilder ConfigurarAgrupacionMensajesEntrada(
+        ConfiguracionAgrupacionMensajesEntrada configuracion)
+    {
+        ArgumentNullException.ThrowIfNull(configuracion);
+        configuracion.Validar();
+        ReemplazarSingleton(configuracion);
+        return this;
+    }
+
     public IMensajeriaBuilder AgregarWorkerOrquestador()
     {
         AgregarHostedServiceSiNoExiste<OrquestadorContextoWorker>();
@@ -151,6 +160,7 @@ public class MensajeriaBuilder : IMensajeriaBuilder
 
         AgregarSiNoExisteSingleton(new ConfiguracionContextoConversacion());
         AgregarSiNoExisteSingleton(new ConfiguracionOrquestadorContexto());
+        AgregarSiNoExisteSingleton(new ConfiguracionAgrupacionMensajesEntrada());
     }
 
     private void AgregarSiNoExisteScoped<TServicio, TImplementacion>()

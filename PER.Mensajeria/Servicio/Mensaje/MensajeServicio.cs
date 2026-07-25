@@ -11,6 +11,8 @@ using PER.Mensajeria.Entidad.DTO;
 
 public class MensajeServicio : IMensajeServicio
 {
+    private const string EstadoPendiente = "pendiente";
+
     private readonly IServiceScopeFactory serviceScopeFactory;
     private readonly IColaEventosMensajeriaEntradaServicio colaEventosMensajeriaEntradaServicio;
     private readonly IColaEventosMensajeriaSalidaServicio colaEventosMensajeriaSalidaServicio;
@@ -40,6 +42,7 @@ public class MensajeServicio : IMensajeServicio
             {
                 IDMensaje = respuesta.IDMensaje,
                 IDProcesamientoInternoMensaje = respuesta.IDProcesamientoInternoMensaje,
+                IDEstadoProcesamientoInternoMensaje = EstadoPendiente,
                 IDConversacion = respuesta.IDConversacion,
                 IDLineaConversacion = respuesta.IDLineaConversacion,
                 FechaCreacion = DateTime.Now
@@ -60,14 +63,26 @@ public class MensajeServicio : IMensajeServicio
             solicitud,
             cancellationToken);
 
-        colaEventosMensajeriaEntradaServicio.Publicar(new EventoMensajeriaEntrada
+        IReadOnlyList<long> idsMensajes = solicitud.IDsMensajes.Count > 0
+            ? solicitud.IDsMensajes
+            : [resultado.IDMensaje];
+        IReadOnlyList<long> idsProcesamientos = solicitud.IDsProcesamientosInternosMensaje.Count > 0
+            ? solicitud.IDsProcesamientosInternosMensaje
+            : [resultado.IDProcesamientoInternoMensaje];
+        DateTime fechaCreacion = DateTime.Now;
+
+        for (int indice = 0; indice < idsMensajes.Count; indice++)
         {
-            IDMensaje = resultado.IDMensaje,
-            IDProcesamientoInternoMensaje = resultado.IDProcesamientoInternoMensaje,
-            IDConversacion = resultado.IDConversacion,
-            IDLineaConversacion = resultado.IDLineaConversacion,
-            FechaCreacion = DateTime.Now
-        });
+            colaEventosMensajeriaEntradaServicio.Publicar(new EventoMensajeriaEntrada
+            {
+                IDMensaje = idsMensajes[indice],
+                IDProcesamientoInternoMensaje = idsProcesamientos[indice],
+                IDEstadoProcesamientoInternoMensaje = EstadoPendiente,
+                IDConversacion = resultado.IDConversacion,
+                IDLineaConversacion = resultado.IDLineaConversacion,
+                FechaCreacion = fechaCreacion
+            });
+        }
 
         return resultado;
     }

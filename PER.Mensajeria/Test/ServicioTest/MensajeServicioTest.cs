@@ -43,6 +43,7 @@ public class MensajeServicioTest
         Assert.Equal(respuesta.IDConversacion, evento.IDConversacion);
         Assert.Equal(respuesta.IDLineaConversacion, evento.IDLineaConversacion);
         Assert.Equal(respuesta.IDProcesamientoInternoMensaje, evento.IDProcesamientoInternoMensaje);
+        Assert.Equal("pendiente", evento.IDEstadoProcesamientoInternoMensaje);
     }
 
     [Fact]
@@ -106,6 +107,48 @@ public class MensajeServicioTest
         Assert.Equal(resultado.IDProcesamientoInternoMensaje, evento.IDProcesamientoInternoMensaje);
         Assert.Equal(resultado.IDConversacion, evento.IDConversacion);
         Assert.Equal(resultado.IDLineaConversacion, evento.IDLineaConversacion);
+        Assert.Equal("pendiente", evento.IDEstadoProcesamientoInternoMensaje);
+    }
+
+    [Fact]
+    public async Task RenovarLineaContextoAsync_Lote_DebePublicarTodosLosEventosConLineaNueva()
+    {
+        FakeRenovarLineaContextoAplicacion renovar = new();
+        ColaEventosMensajeriaEntradaServicio colaEntrada = new();
+        using ServiceProvider proveedor = CrearProveedor(
+            new FakeRegistrarMensajeEntranteAplicacion(),
+            renovar,
+            new FakeObtenerMensajeSalidaPendienteAplicacion(),
+            new FakeRegistrarResultadoEnvioMensajeAplicacion());
+        IMensajeServicio servicio = CrearServicio(
+            proveedor,
+            colaEntrada,
+            new ColaEventosMensajeriaSalidaServicio());
+        SolicitudRenovarLineaContexto solicitud = CrearSolicitudRenovacion();
+        solicitud.IDsMensajes = [1, 11];
+        solicitud.IDsProcesamientosInternosMensaje = [4, 14];
+
+        ResultadoRenovarLineaContexto resultado = await servicio.RenovarLineaContextoAsync(
+            solicitud,
+            CancellationToken.None);
+        EventoMensajeriaEntrada primerEvento = await colaEntrada.ConsumirAsync(
+            CancellationToken.None);
+        EventoMensajeriaEntrada segundoEvento = await colaEntrada.ConsumirAsync(
+            CancellationToken.None);
+
+        Assert.Same(solicitud, renovar.Solicitud);
+        Assert.Equal(1, primerEvento.IDMensaje);
+        Assert.Equal(4, primerEvento.IDProcesamientoInternoMensaje);
+        Assert.Equal(11, segundoEvento.IDMensaje);
+        Assert.Equal(14, segundoEvento.IDProcesamientoInternoMensaje);
+        Assert.All(
+            new[] { primerEvento, segundoEvento },
+            evento =>
+            {
+                Assert.Equal(resultado.IDConversacion, evento.IDConversacion);
+                Assert.Equal(resultado.IDLineaConversacion, evento.IDLineaConversacion);
+                Assert.Equal("pendiente", evento.IDEstadoProcesamientoInternoMensaje);
+            });
     }
 
     [Fact]
