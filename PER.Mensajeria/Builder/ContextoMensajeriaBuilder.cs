@@ -1,5 +1,8 @@
+using System.Net.Http.Headers;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using PER.Mensajeria.Aplicacion.Contexto;
+using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenCode;
 using PER.Mensajeria.Builder.Contexto.LineaComando;
 
 namespace PER.Mensajeria.Builder;
@@ -44,6 +47,51 @@ public class ContextoMensajeriaBuilder : IContextoMensajeriaBuilder
         return this;
     }
 
+    public IContextoMensajeriaBuilder UsarIntencionOpenCode(
+        string promptAgente,
+        string nombreAgente,
+        Action<ConfiguracionIntencionOpenCode> configurar)
+    {
+        ArgumentNullException.ThrowIfNull(configurar);
+
+        ConfiguracionIntencionOpenCode configuracion =
+            new(promptAgente, nombreAgente);
+        configurar(configuracion);
+        ValidarConfiguracionOpenCode(configuracion);
+
+        RemoverServicios<ConfiguracionIntencionOpenCode>();
+        RemoverServicios<IOpenCodeAgenteAdaptador>();
+        RemoverServicios<IIntencionContextoConversacionServicio>();
+        RemoverServicios<IOpenCodeCliente>();
+
+        servicios.AddSingleton(configuracion);
+        servicios.AddTransient<
+            IOpenCodeAgenteAdaptador,
+            OpenCodeAgenteAdaptador>();
+        servicios.AddTransient<
+            IIntencionContextoConversacionServicio,
+            OpenCodeIntencionContextoServicio>();
+        servicios
+            .AddHttpClient<IOpenCodeCliente, OpenCodeCliente>(cliente =>
+            {
+                cliente.BaseAddress = NormalizarServidor(
+                    configuracion.Servidor!);
+                cliente.Timeout = configuracion.Timeout;
+
+                string credenciales = Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes(
+                        $"{configuracion.AutenticacionBasica!.Usuario}:"
+                        + configuracion.AutenticacionBasica.Contrasena));
+                cliente.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue(
+                        "Basic",
+                        credenciales);
+            })
+            .RedactLoggedHeaders(["Authorization"]);
+
+        return this;
+    }
+
     public IContextoMensajeriaBuilder UsarCatalogoComandos<TCatalogo>()
         where TCatalogo : class, IProveedorCatalogoComandoContextoServicio
     {
@@ -83,5 +131,40 @@ public class ContextoMensajeriaBuilder : IContextoMensajeriaBuilder
                 servicios.RemoveAt(indice);
             }
         }
+    }
+
+    private static void ValidarConfiguracionOpenCode(
+        ConfiguracionIntencionOpenCode configuracion)
+    {
+        if (configuracion.Servidor is null
+            || !configuracion.Servidor.IsAbsoluteUri
+            || configuracion.Servidor.Scheme
+                is not ("http" or "https"))
+        {
+            throw new InvalidOperationException(
+                "OpenCode requiere un servidor HTTP o HTTPS absoluto.");
+        }
+
+        if (configuracion.AutenticacionBasica is null)
+        {
+            throw new InvalidOperationException(
+                "OpenCode requiere configuracion de autenticacion basica.");
+        }
+
+        if (configuracion.Timeout <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                "El timeout de OpenCode debe ser mayor que cero.");
+        }
+    }
+
+    private static Uri NormalizarServidor(Uri servidor)
+    {
+        string valor = servidor.AbsoluteUri.EndsWith(
+            "/",
+            StringComparison.Ordinal)
+            ? servidor.AbsoluteUri
+            : servidor.AbsoluteUri + "/";
+        return new Uri(valor);
     }
 }

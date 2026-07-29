@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,6 +17,7 @@ using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
 using PER.Mensajeria.Aplicacion.ColaMensajeria.Salida;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
+using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenCode;
 using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenRouter;
 using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
@@ -58,6 +61,171 @@ public class MensajeriaBuilderTest
         Assert.IsType<MiniMaxOpenRouterAdaptador>(serviceProvider.GetRequiredService<IOpenRouterModeloAdaptador>());
         Assert.IsType<OpenRouterCliente>(serviceProvider.GetRequiredService<IOpenRouterCliente>());
         Assert.IsType<OpenRouterIntencionContextoServicio>(serviceProvider.GetRequiredService<IIntencionContextoConversacionServicio>());
+    }
+
+    [Fact]
+    public void UsarIntencionOpenCode_DebeRegistrarClienteTipadoAdaptadorEIntencion()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+        ContextoMensajeriaBuilder builder = new(servicios);
+
+        builder.UsarIntencionOpenCode(
+            PromptAgentePrueba,
+            "mensajeria-contexto",
+            configuracion =>
+            {
+                configuracion.Servidor =
+                    new Uri("http://opencode:4096");
+                configuracion.AutenticacionBasica =
+                    new ConfiguracionAutenticacionBasicaOpenCode(
+                        "opencode",
+                        "clave-secreta");
+                configuracion.Timeout = TimeSpan.FromMinutes(4);
+            });
+
+        using ServiceProvider serviceProvider =
+            servicios.BuildServiceProvider();
+        ConfiguracionIntencionOpenCode configuracion = serviceProvider
+            .GetRequiredService<ConfiguracionIntencionOpenCode>();
+        OpenCodeCliente cliente = Assert.IsType<OpenCodeCliente>(
+            serviceProvider.GetRequiredService<IOpenCodeCliente>());
+        HttpClient httpClient = ObtenerHttpClient(cliente);
+
+        Assert.Equal(PromptAgentePrueba, configuracion.PromptAgente);
+        Assert.Equal("mensajeria-contexto", configuracion.NombreAgente);
+        Assert.Equal(TimeSpan.FromMinutes(4), configuracion.Timeout);
+        Assert.Equal(
+            new Uri("http://opencode:4096/"),
+            httpClient.BaseAddress);
+        Assert.Equal(TimeSpan.FromMinutes(4), httpClient.Timeout);
+        Assert.Equal(
+            "Basic",
+            httpClient.DefaultRequestHeaders.Authorization?.Scheme);
+        string credenciales = Encoding.UTF8.GetString(
+            Convert.FromBase64String(
+                httpClient.DefaultRequestHeaders.Authorization!.Parameter!));
+        Assert.Equal("opencode:clave-secreta", credenciales);
+        Assert.IsType<OpenCodeAgenteAdaptador>(
+            serviceProvider.GetRequiredService<IOpenCodeAgenteAdaptador>());
+        Assert.IsType<OpenCodeIntencionContextoServicio>(
+            serviceProvider.GetRequiredService<
+                IIntencionContextoConversacionServicio>());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UsarIntencionOpenCode_PromptInvalido_DebeFallar(
+        string? promptAgente)
+    {
+        ServiceCollection servicios = new();
+        ContextoMensajeriaBuilder builder = new(servicios);
+
+        Assert.ThrowsAny<ArgumentException>(() =>
+            builder.UsarIntencionOpenCode(
+                promptAgente!,
+                "mensajeria-contexto",
+                _ => { }));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UsarIntencionOpenCode_AgenteInvalido_DebeFallar(
+        string? agente)
+    {
+        ServiceCollection servicios = new();
+        ContextoMensajeriaBuilder builder = new(servicios);
+
+        Assert.ThrowsAny<ArgumentException>(() =>
+            builder.UsarIntencionOpenCode(
+                PromptAgentePrueba,
+                agente!,
+                _ => { }));
+    }
+
+    [Fact]
+    public void UsarIntencionOpenCode_SinServidor_DebeFallar()
+    {
+        ServiceCollection servicios = new();
+        ContextoMensajeriaBuilder builder = new(servicios);
+
+        InvalidOperationException excepcion =
+            Assert.Throws<InvalidOperationException>(() =>
+                builder.UsarIntencionOpenCode(
+                    PromptAgentePrueba,
+                    "mensajeria-contexto",
+                    configuracion =>
+                        configuracion.AutenticacionBasica =
+                            new ConfiguracionAutenticacionBasicaOpenCode(
+                                "opencode",
+                                "clave")));
+
+        Assert.Contains(
+            "servidor",
+            excepcion.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UsarIntencionOpenCode_SinAutenticacion_DebeFallar()
+    {
+        ServiceCollection servicios = new();
+        ContextoMensajeriaBuilder builder = new(servicios);
+
+        InvalidOperationException excepcion =
+            Assert.Throws<InvalidOperationException>(() =>
+                builder.UsarIntencionOpenCode(
+                    PromptAgentePrueba,
+                    "mensajeria-contexto",
+                    configuracion =>
+                        configuracion.Servidor =
+                            new Uri("http://opencode:4096")));
+
+        Assert.Contains(
+            "autenticacion",
+            excepcion.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UsarIntencionOpenCode_DespuesDeOpenRouter_DebeReemplazarIntencion()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+        ContextoMensajeriaBuilder builder = new(servicios);
+        builder.UsarIntencionOpenRouter(
+            "api-key-prueba",
+            openRouter => openRouter.UsarMiniMax(
+                PromptAgentePrueba));
+
+        ConfigurarOpenCode(builder);
+
+        using ServiceProvider serviceProvider =
+            servicios.BuildServiceProvider();
+        Assert.IsType<OpenCodeIntencionContextoServicio>(
+            serviceProvider.GetRequiredService<
+                IIntencionContextoConversacionServicio>());
+    }
+
+    [Fact]
+    public void UsarIntencionPersonalizada_DespuesDeOpenCode_DebeReemplazarIntencion()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+        ContextoMensajeriaBuilder builder = new(servicios);
+        ConfigurarOpenCode(builder);
+
+        builder.UsarIntencion<IntencionPersonalizadaPrueba>();
+
+        using ServiceProvider serviceProvider =
+            servicios.BuildServiceProvider();
+        Assert.IsType<IntencionPersonalizadaPrueba>(
+            serviceProvider.GetRequiredService<
+                IIntencionContextoConversacionServicio>());
     }
 
     [Theory]
@@ -426,6 +594,34 @@ public class MensajeriaBuilderTest
         return Assert.Single(
             servicios,
             descriptor => descriptor.ServiceType == tipoServicio);
+    }
+
+    private static void ConfigurarOpenCode(
+        ContextoMensajeriaBuilder builder)
+    {
+        builder.UsarIntencionOpenCode(
+            PromptAgentePrueba,
+            "mensajeria-contexto",
+            configuracion =>
+            {
+                configuracion.Servidor =
+                    new Uri("http://opencode:4096");
+                configuracion.AutenticacionBasica =
+                    new ConfiguracionAutenticacionBasicaOpenCode(
+                        "opencode",
+                        "clave-secreta");
+            });
+    }
+
+    private static HttpClient ObtenerHttpClient(
+        OpenCodeCliente cliente)
+    {
+        FieldInfo campo = typeof(OpenCodeCliente).GetField(
+            "httpClient",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException(
+                "No se encontro el HttpClient tipado de OpenCode.");
+        return (HttpClient)campo.GetValue(cliente)!;
     }
 
     private sealed class IntencionPersonalizadaPrueba : IIntencionContextoConversacionServicio
