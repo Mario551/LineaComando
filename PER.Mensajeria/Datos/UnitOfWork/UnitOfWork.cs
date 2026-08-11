@@ -5,6 +5,7 @@ using PER.Mensajeria.Datos.Repositorio.Conversacion;
 using PER.Mensajeria.Datos.Repositorio.ConversacionParticipante;
 using PER.Mensajeria.Datos.Repositorio.CuentaCanal;
 using PER.Mensajeria.Datos.Repositorio.EnvioMensaje;
+using PER.Mensajeria.Datos.Repositorio.Infobip;
 using PER.Mensajeria.Datos.Repositorio.LineaConversacion;
 using PER.Mensajeria.Datos.Repositorio.Mensaje;
 using PER.Mensajeria.Datos.Repositorio.ParticipanteConversacion;
@@ -32,6 +33,9 @@ public class UnitOfWork : IUnitOfWork
     private IInformacionTecnicaLlamadaIALineaConversacionRepositorio? informacionTecnicaLlamadaIALineaConversacionRepositorio;
     private ICompactacionContextoConversacionRepositorio? compactacionContextoConversacionRepositorio;
     private IEjecucionComandoContextoRepositorio? ejecucionComandoContextoRepositorio;
+    private IWebhookReceiptInfobipRepositorio? webhookReceiptInfobipRepositorio;
+    private IProcesamientoMensajeEntranteInfobipRepositorio? procesamientoMensajeEntranteInfobipRepositorio;
+    private IIntentoEnvioMensajeInfobipRepositorio? intentoEnvioMensajeInfobipRepositorio;
 
     public UnitOfWork(MensajeriaContextoDB contexto)
     {
@@ -147,6 +151,32 @@ public class UnitOfWork : IUnitOfWork
         get
         {
             return ejecucionComandoContextoRepositorio ??= new EjecucionComandoContextoRepositorio(contexto);
+        }
+    }
+
+    public IWebhookReceiptInfobipRepositorio WebhookReceiptInfobipRepositorio
+    {
+        get
+        {
+            return webhookReceiptInfobipRepositorio ??= new WebhookReceiptInfobipRepositorio(contexto);
+        }
+    }
+
+    public IProcesamientoMensajeEntranteInfobipRepositorio ProcesamientoMensajeEntranteInfobipRepositorio
+    {
+        get
+        {
+            return procesamientoMensajeEntranteInfobipRepositorio ??=
+                new ProcesamientoMensajeEntranteInfobipRepositorio(contexto);
+        }
+    }
+
+    public IIntentoEnvioMensajeInfobipRepositorio IntentoEnvioMensajeInfobipRepositorio
+    {
+        get
+        {
+            return intentoEnvioMensajeInfobipRepositorio ??=
+                new IntentoEnvioMensajeInfobipRepositorio(contexto);
         }
     }
 

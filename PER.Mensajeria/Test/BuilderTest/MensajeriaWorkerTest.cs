@@ -168,6 +168,7 @@ public class MensajeriaWorkerTest
 
         return new MensajeriaWorker(
             comunicacion,
+            [comunicacion],
             mensajeServicio,
             colaSalida,
             proveedor.GetRequiredService<IServiceScopeFactory>(),

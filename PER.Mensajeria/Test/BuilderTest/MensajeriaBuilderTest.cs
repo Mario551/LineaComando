@@ -10,6 +10,7 @@ using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Registro;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Mensajeria.API.Comunicacion;
+using PER.Mensajeria.API.Infobip;
 using PER.Mensajeria.Builder;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaSalidaPendientes;
@@ -19,6 +20,7 @@ using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
 using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenCode;
 using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenRouter;
+using PER.Mensajeria.Aplicacion.Infobip.Envio;
 using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
@@ -30,6 +32,7 @@ using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
 using PER.Mensajeria.Entidad.DTO;
+using PER.Mensajeria.Servicio.Infobip;
 using PER.Mensajeria.Servicio.Mensaje;
 using PER.Mensajeria.Servicio.Orquestador;
 
@@ -308,6 +311,99 @@ public class MensajeriaBuilderTest
         Assert.Equal(
             ServiceLifetime.Singleton,
             ObtenerDescriptor(servicios, typeof(IMensajeServicio)).Lifetime);
+    }
+
+    [Fact]
+    public void AgregarWorkerMensajeriaEntradaInfobip_DebeRegistrarSoloRecepcion()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+
+        servicios.AgregarMensajeria(builder =>
+            builder.AgregarWorkerMensajeriaEntradaInfobip());
+
+        using ServiceProvider proveedor = servicios.BuildServiceProvider();
+        ComunicacionInfobipServicio comunicacion = proveedor
+            .GetRequiredService<ComunicacionInfobipServicio>();
+
+        Assert.Same(
+            comunicacion,
+            proveedor.GetRequiredService<IRecepcionMensajeriaAPI>());
+        Assert.Same(
+            comunicacion,
+            proveedor.GetRequiredService<IConfirmacionMensajeEntranteAPI>());
+        Assert.Same(
+            comunicacion,
+            proveedor.GetRequiredService<IRecepcionWebhookInfobipAPI>());
+        Assert.Empty(proveedor.GetServices<IEnvioMensajeriaAPI>());
+        Assert.Empty(proveedor.GetServices<IInfobipWhatsAppCliente>());
+        Assert.Single(
+            proveedor.GetServices<IHostedService>(),
+            servicio => servicio is MensajeriaWorker);
+    }
+
+    [Fact]
+    public void AgregarWorkerMensajeriaInfobip_DebeRegistrarRecepcionEnvioYClienteTipado()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+
+        servicios.AgregarMensajeria(builder =>
+            builder.AgregarWorkerMensajeriaInfobip(
+                new Uri("https://api.infobip.com"),
+                "api-key-prueba",
+                configuracion => configuracion.Timeout = TimeSpan.FromSeconds(18)));
+
+        using ServiceProvider proveedor = servicios.BuildServiceProvider(
+            new ServiceProviderOptions
+            {
+                ValidateScopes = true
+            });
+        ComunicacionInfobipServicio comunicacion = proveedor
+            .GetRequiredService<ComunicacionInfobipServicio>();
+        ConfiguracionClienteInfobip configuracion = proveedor
+            .GetRequiredService<ConfiguracionClienteInfobip>();
+        IInfobipWhatsAppCliente cliente = proveedor
+            .GetRequiredService<IInfobipWhatsAppCliente>();
+
+        Assert.Same(
+            comunicacion,
+            proveedor.GetRequiredService<IRecepcionMensajeriaAPI>());
+        Assert.Same(
+            comunicacion,
+            proveedor.GetRequiredService<IEnvioMensajeriaAPI>());
+        Assert.IsType<InfobipWhatsAppCliente>(cliente);
+        Assert.IsType<AdaptadorMensajeSalidaInfobip>(
+            proveedor.GetRequiredService<IAdaptadorMensajeSalidaInfobip>());
+        Assert.Equal(TimeSpan.FromSeconds(18), configuracion.Timeout);
+        Assert.Equal(
+            ServiceLifetime.Scoped,
+            ObtenerDescriptor(
+                servicios,
+                typeof(IRegistrarIntentoEnvioInfobipAplicacion)).Lifetime);
+        Assert.Single(
+            proveedor.GetServices<IHostedService>(),
+            servicio => servicio is MensajeriaWorker);
+    }
+
+    [Fact]
+    public void AgregarWorkerMensajeriaInfobip_ConSalidaPersonalizada_DebeFallar()
+    {
+        ServiceCollection servicios = new();
+        servicios.AddLogging();
+        servicios.AgregarMensajeria(builder =>
+            builder.AgregarWorkerMensajeria<ComunicacionMensajeriaPrueba>());
+        MensajeriaBuilder builder = new(servicios);
+
+        InvalidOperationException excepcion = Assert.Throws<InvalidOperationException>(() =>
+            builder.AgregarWorkerMensajeriaInfobip(
+                new Uri("https://api.infobip.com"),
+                "api-key-prueba"));
+
+        Assert.Contains(
+            "salida",
+            excepcion.Message,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

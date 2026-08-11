@@ -1,13 +1,7 @@
 namespace PER.Mensajeria.API.Comunicacion;
 
-using PER.Mensajeria.Entidad.DTO;
-
-public interface IComunicacionMensajeriaAPI
+public interface IComunicacionMensajeriaAPI :
+    IRecepcionMensajeriaAPI,
+    IEnvioMensajeriaAPI
 {
-    Task<DTORegistrarMensajeEntranteSolicitud> EsperarMensajeEntranteAsync(
-        CancellationToken cancellationToken);
-
-    Task<DTOResultadoEnvioMensaje> EnviarMensajeAsync(
-        DTOEnvioMensajePendiente mensaje,
-        CancellationToken cancellationToken);
 }

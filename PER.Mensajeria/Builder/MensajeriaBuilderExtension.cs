@@ -15,20 +15,16 @@ public static class MensajeriaBuilderExtension
         if (lineaComandoBuilder.TipoBaseDatos == LineaComandoBuilder.POSTGRESQL)
         {
             builder.UsarPostgreSQL(lineaComandoBuilder.ConnectionString, lineaComandoBuilder.EsquemaBaseDatos);
-            lineaComandoBuilder.AgregarInicializadorExterno((_, builderLineaComando, cancellationToken) =>
-                new InicializadorEsquemaMensajeriaPostgres(
-                    builderLineaComando.ConnectionString,
-                    builderLineaComando.EsquemaBaseDatos)
-                .InicializarAsync(cancellationToken));
+            lineaComandoBuilder.AgregarInicializadorExterno((proveedor, _, cancellationToken) =>
+                proveedor.GetRequiredService<IInicializadorEsquemaMensajeria>()
+                    .InicializarAsync(cancellationToken));
         }
         else if (lineaComandoBuilder.TipoBaseDatos == LineaComandoBuilder.SQLSERVER)
         {
             builder.UsarSqlServer(lineaComandoBuilder.ConnectionString, lineaComandoBuilder.EsquemaBaseDatos);
-            lineaComandoBuilder.AgregarInicializadorExterno((_, builderLineaComando, cancellationToken) =>
-                new InicializadorEsquemaMensajeriaSqlServer(
-                    builderLineaComando.ConnectionString,
-                    builderLineaComando.EsquemaBaseDatos)
-                .InicializarAsync(cancellationToken));
+            lineaComandoBuilder.AgregarInicializadorExterno((proveedor, _, cancellationToken) =>
+                proveedor.GetRequiredService<IInicializadorEsquemaMensajeria>()
+                    .InicializarAsync(cancellationToken));
         }
         else
         {

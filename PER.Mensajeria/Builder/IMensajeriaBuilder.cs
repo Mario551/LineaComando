@@ -1,4 +1,5 @@
 using PER.Mensajeria.API.Comunicacion;
+using PER.Mensajeria.API.Infobip;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Servicio.Orquestador;
 
@@ -19,4 +20,9 @@ public interface IMensajeriaBuilder
     IMensajeriaBuilder AgregarWorkerOrquestador();
     IMensajeriaBuilder AgregarWorkerMensajeria<TComunicacion>()
         where TComunicacion : class, IComunicacionMensajeriaAPI;
+    IMensajeriaBuilder AgregarWorkerMensajeriaEntradaInfobip();
+    IMensajeriaBuilder AgregarWorkerMensajeriaInfobip(
+        Uri servidor,
+        string apiKey,
+        Action<ConfiguracionClienteInfobip>? configurar = null);
 }

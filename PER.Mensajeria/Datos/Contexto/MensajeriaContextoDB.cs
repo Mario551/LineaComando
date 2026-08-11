@@ -1,5 +1,7 @@
 using PER.Mensajeria.Datos.Configuracion;
+using PER.Mensajeria.Datos.Infobip.Configuracion;
 using PER.Mensajeria.Entidad.DAO;
+using PER.Mensajeria.Entidad.Infobip.DAO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -43,6 +45,42 @@ public class MensajeriaContextoDB : DbContext
     public DbSet<DAOEjecucionComandoContexto> EjecucionesComandoContexto { get; set; }
     public DbSet<DAOEnvioMensaje> EnviosMensaje { get; set; }
     public DbSet<DAOEstadoEnvioMensaje> EstadosEnvioMensaje { get; set; }
+    public DbSet<WebhookReceiptInfobip> WebhookReceiptsInfobip { get; set; }
+    public DbSet<MessageTypeInfobip> MessageTypesInfobip { get; set; }
+    public DbSet<InboundMessageInfobip> InboundMessagesInfobip { get; set; }
+    public DbSet<MessageContextInfobip> MessageContextsInfobip { get; set; }
+    public DbSet<MessageReferralInfobip> MessageReferralsInfobip { get; set; }
+    public DbSet<TextMessageInfobip> TextMessagesInfobip { get; set; }
+    public DbSet<LocationMessageInfobip> LocationMessagesInfobip { get; set; }
+    public DbSet<ImageMessageInfobip> ImageMessagesInfobip { get; set; }
+    public DbSet<DocumentMessageInfobip> DocumentMessagesInfobip { get; set; }
+    public DbSet<AudioMessageInfobip> AudioMessagesInfobip { get; set; }
+    public DbSet<VideoMessageInfobip> VideoMessagesInfobip { get; set; }
+    public DbSet<VoiceMessageInfobip> VoiceMessagesInfobip { get; set; }
+    public DbSet<ContactMessageInfobip> ContactMessagesInfobip { get; set; }
+    public DbSet<InfectedContentMessageInfobip> InfectedContentMessagesInfobip { get; set; }
+    public DbSet<ButtonMessageInfobip> ButtonMessagesInfobip { get; set; }
+    public DbSet<StickerMessageInfobip> StickerMessagesInfobip { get; set; }
+    public DbSet<InteractiveButtonReplyMessageInfobip> InteractiveButtonReplyMessagesInfobip { get; set; }
+    public DbSet<InteractiveListReplyMessageInfobip> InteractiveListReplyMessagesInfobip { get; set; }
+    public DbSet<FlowReplyMessageInfobip> FlowReplyMessagesInfobip { get; set; }
+    public DbSet<PaymentConfirmationMessageInfobip> PaymentConfirmationMessagesInfobip { get; set; }
+    public DbSet<CallPermissionReplyMessageInfobip> CallPermissionReplyMessagesInfobip { get; set; }
+    public DbSet<InThreadAuthenticationReplyMessageInfobip> InThreadAuthenticationReplyMessagesInfobip { get; set; }
+    public DbSet<OrderMessageInfobip> OrderMessagesInfobip { get; set; }
+    public DbSet<ReactionMessageInfobip> ReactionMessagesInfobip { get; set; }
+    public DbSet<UnsupportedMessageInfobip> UnsupportedMessagesInfobip { get; set; }
+    public DbSet<SharedContactInfobip> SharedContactsInfobip { get; set; }
+    public DbSet<ContactAddressInfobip> ContactAddressesInfobip { get; set; }
+    public DbSet<ContactEmailInfobip> ContactEmailsInfobip { get; set; }
+    public DbSet<ContactPhoneInfobip> ContactPhonesInfobip { get; set; }
+    public DbSet<ContactUrlInfobip> ContactUrlsInfobip { get; set; }
+    public DbSet<OrderProductItemInfobip> OrderProductItemsInfobip { get; set; }
+    public DbSet<FlowResponseNodeInfobip> FlowResponseNodesInfobip { get; set; }
+    public DbSet<DAOEstadoProcesamientoMensajeEntranteInfobip> EstadosProcesamientoMensajeEntranteInfobip { get; set; }
+    public DbSet<DAOProcesamientoMensajeEntranteInfobip> ProcesamientosMensajeEntranteInfobip { get; set; }
+    public DbSet<DAOEstadoIntentoEnvioMensajeInfobip> EstadosIntentoEnvioMensajeInfobip { get; set; }
+    public DbSet<DAOIntentoEnvioMensajeInfobip> IntentosEnvioMensajeInfobip { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,6 +114,9 @@ public class MensajeriaContextoDB : DbContext
         modelBuilder.ApplyConfiguration(new EjecucionComandoContextoConfiguracion(esSqlServer));
         modelBuilder.ApplyConfiguration(new EnvioMensajeConfiguracion());
         modelBuilder.ApplyConfiguration(new EstadoEnvioMensajeConfiguracion());
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(WebhookReceiptInfobipConfiguracion).Assembly,
+            tipo => tipo.Namespace == typeof(WebhookReceiptInfobipConfiguracion).Namespace);
 
         ConfigurarFechasPorProveedor(modelBuilder);
     }

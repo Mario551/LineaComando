@@ -4,6 +4,7 @@ using PER.Mensajeria.Datos.Repositorio.Conversacion;
 using PER.Mensajeria.Datos.Repositorio.ConversacionParticipante;
 using PER.Mensajeria.Datos.Repositorio.CuentaCanal;
 using PER.Mensajeria.Datos.Repositorio.EnvioMensaje;
+using PER.Mensajeria.Datos.Repositorio.Infobip;
 using PER.Mensajeria.Datos.Repositorio.LineaConversacion;
 using PER.Mensajeria.Datos.Repositorio.Mensaje;
 using PER.Mensajeria.Datos.Repositorio.ParticipanteConversacion;
@@ -28,6 +29,9 @@ public interface IUnitOfWork
     IInformacionTecnicaLlamadaIALineaConversacionRepositorio InformacionTecnicaLlamadaIALineaConversacionRepositorio => throw new NotImplementedException();
     ICompactacionContextoConversacionRepositorio CompactacionContextoConversacionRepositorio => throw new NotImplementedException();
     IEjecucionComandoContextoRepositorio EjecucionComandoContextoRepositorio => throw new NotImplementedException();
+    IWebhookReceiptInfobipRepositorio WebhookReceiptInfobipRepositorio => throw new NotImplementedException();
+    IProcesamientoMensajeEntranteInfobipRepositorio ProcesamientoMensajeEntranteInfobipRepositorio => throw new NotImplementedException();
+    IIntentoEnvioMensajeInfobipRepositorio IntentoEnvioMensajeInfobipRepositorio => throw new NotImplementedException();
 
     Task<int> SaveChangesAsync();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);

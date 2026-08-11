@@ -16,20 +16,30 @@ public class MensajeriaWorker : BackgroundService
 
     private static readonly TimeSpan EsperaReintento = TimeSpan.FromSeconds(5);
 
-    private readonly IComunicacionMensajeriaAPI comunicacionMensajeriaAPI;
+    private readonly IRecepcionMensajeriaAPI recepcionMensajeriaAPI;
+    private readonly IEnvioMensajeriaAPI? envioMensajeriaAPI;
     private readonly IMensajeServicio mensajeServicio;
     private readonly IColaEventosMensajeriaSalidaServicio colaEventosMensajeriaSalidaServicio;
     private readonly IServiceScopeFactory serviceScopeFactory;
     private readonly ILogger<MensajeriaWorker> logger;
 
     public MensajeriaWorker(
-        IComunicacionMensajeriaAPI comunicacionMensajeriaAPI,
+        IRecepcionMensajeriaAPI recepcionMensajeriaAPI,
+        IEnumerable<IEnvioMensajeriaAPI> enviosMensajeriaAPI,
         IMensajeServicio mensajeServicio,
         IColaEventosMensajeriaSalidaServicio colaEventosMensajeriaSalidaServicio,
         IServiceScopeFactory serviceScopeFactory,
         ILogger<MensajeriaWorker> logger)
     {
-        this.comunicacionMensajeriaAPI = comunicacionMensajeriaAPI;
+        this.recepcionMensajeriaAPI = recepcionMensajeriaAPI;
+        List<IEnvioMensajeriaAPI> envios = enviosMensajeriaAPI.Distinct().ToList();
+        if (envios.Count > 1)
+        {
+            throw new InvalidOperationException(
+                "Solo puede existir una comunicacion de salida de mensajeria registrada.");
+        }
+
+        envioMensajeriaAPI = envios.SingleOrDefault();
         this.mensajeServicio = mensajeServicio;
         this.colaEventosMensajeriaSalidaServicio = colaEventosMensajeriaSalidaServicio;
         this.serviceScopeFactory = serviceScopeFactory;
@@ -44,7 +54,7 @@ public class MensajeriaWorker : BackgroundService
 
             try
             {
-                solicitud = await comunicacionMensajeriaAPI.EsperarMensajeEntranteAsync(
+                solicitud = await recepcionMensajeriaAPI.EsperarMensajeEntranteAsync(
                     cancellationToken);
                 ArgumentNullException.ThrowIfNull(solicitud);
 
@@ -66,13 +76,15 @@ public class MensajeriaWorker : BackgroundService
 
     public async Task EjecutarSalidaAsync(CancellationToken cancellationToken)
     {
+        IEnvioMensajeriaAPI envio = ObtenerEnvioMensajeria();
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 DTOEnvioMensajePendiente mensaje = await mensajeServicio.EsperarMensajeSalidaAsync(
                     cancellationToken);
-                await ProcesarSalidaAsync(mensaje, cancellationToken);
+                await ProcesarSalidaAsync(envio, mensaje, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -92,13 +104,21 @@ public class MensajeriaWorker : BackgroundService
         DTOEnvioMensajePendiente mensaje,
         CancellationToken cancellationToken)
     {
+        await ProcesarSalidaAsync(ObtenerEnvioMensajeria(), mensaje, cancellationToken);
+    }
+
+    private async Task ProcesarSalidaAsync(
+        IEnvioMensajeriaAPI envio,
+        DTOEnvioMensajePendiente mensaje,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(mensaje);
 
         DTOResultadoEnvioMensaje resultado;
 
         try
         {
-            resultado = await comunicacionMensajeriaAPI.EnviarMensajeAsync(
+            resultado = await envio.EnviarMensajeAsync(
                 mensaje,
                 cancellationToken);
             ArgumentNullException.ThrowIfNull(resultado);
@@ -156,9 +176,14 @@ public class MensajeriaWorker : BackgroundService
     {
         try
         {
-            await Task.WhenAll(
-                EjecutarEntradaAsync(stoppingToken),
-                EjecutarSalidaConCargaInicialAsync(stoppingToken));
+            Task tareaEntrada = EjecutarEntradaAsync(stoppingToken);
+            if (envioMensajeriaAPI is null)
+            {
+                await tareaEntrada;
+                return;
+            }
+
+            await Task.WhenAll(tareaEntrada, EjecutarSalidaConCargaInicialAsync(stoppingToken));
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -179,7 +204,18 @@ public class MensajeriaWorker : BackgroundService
         {
             try
             {
-                await mensajeServicio.RecibirAsync(solicitud, cancellationToken);
+                DTORegistrarMensajeEntranteRespuesta resultado = await mensajeServicio.RecibirAsync(
+                    solicitud,
+                    cancellationToken);
+
+                if (recepcionMensajeriaAPI is IConfirmacionMensajeEntranteAPI confirmacion)
+                {
+                    await confirmacion.ConfirmarMensajeEntranteAsync(
+                        solicitud,
+                        resultado,
+                        cancellationToken);
+                }
+
                 return;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -251,5 +287,12 @@ public class MensajeriaWorker : BackgroundService
                 ? "Error al enviar mensaje."
                 : error
         };
+    }
+
+    private IEnvioMensajeriaAPI ObtenerEnvioMensajeria()
+    {
+        return envioMensajeriaAPI
+            ?? throw new InvalidOperationException(
+                "No existe una comunicacion de salida de mensajeria registrada.");
     }
 }

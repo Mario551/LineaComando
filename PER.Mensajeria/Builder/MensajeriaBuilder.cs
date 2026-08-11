@@ -3,12 +3,20 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using PER.Mensajeria.API.Comunicacion;
+using PER.Mensajeria.API.Infobip;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaPendientes;
 using PER.Mensajeria.Aplicacion.CargarEventosMensajeriaSalidaPendientes;
 using PER.Mensajeria.Aplicacion.ColaMensajeria.Entrada;
 using PER.Mensajeria.Aplicacion.ColaMensajeria.Salida;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.EjecucionComando;
+using PER.Mensajeria.Aplicacion.Infobip.CargarPendientes;
+using PER.Mensajeria.Aplicacion.Infobip.Cola;
+using PER.Mensajeria.Aplicacion.Infobip.ConfirmarMensajeEntrante;
+using PER.Mensajeria.Aplicacion.Infobip.Envio;
+using PER.Mensajeria.Aplicacion.Infobip.Mapeo;
+using PER.Mensajeria.Aplicacion.Infobip.ObtenerMensajeEntrante;
+using PER.Mensajeria.Aplicacion.Infobip.RegistrarWebhook;
 using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
 using PER.Mensajeria.Aplicacion.OrquestarMensajeContexto;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
@@ -18,7 +26,10 @@ using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
 using PER.Mensajeria.Builder.Persistencia;
 using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Datos.Contexto;
+using PER.Mensajeria.Datos.Esquema;
+using PER.Mensajeria.Datos.Infobip.Esquema;
 using PER.Mensajeria.Datos.UnitOfWork;
+using PER.Mensajeria.Servicio.Infobip;
 using PER.Mensajeria.Servicio.Mensaje;
 using PER.Mensajeria.Servicio.Orquestador;
 
@@ -43,6 +54,12 @@ public class MensajeriaBuilder : IMensajeriaBuilder
     {
         string cadenaConexionFinal = ConstruirCadenaConexionPostgreSql(cadenaConexion, esquema);
         ReemplazarSingleton(new ConfiguracionMensajeriaContextoDB { Esquema = esquema });
+        ReemplazarSingleton(new ConfiguracionInicializacionEsquemaMensajeria
+        {
+            Proveedor = ProveedorBaseDatosMensajeria.PostgreSql,
+            CadenaConexion = cadenaConexion,
+            Esquema = esquema
+        });
         servicios.AddDbContext<MensajeriaContextoDB>(opciones => opciones.UseNpgsql(cadenaConexionFinal));
         return this;
     }
@@ -55,6 +72,12 @@ public class MensajeriaBuilder : IMensajeriaBuilder
     public IMensajeriaBuilder UsarSqlServer(string cadenaConexion, string? esquema)
     {
         ReemplazarSingleton(new ConfiguracionMensajeriaContextoDB { Esquema = esquema });
+        ReemplazarSingleton(new ConfiguracionInicializacionEsquemaMensajeria
+        {
+            Proveedor = ProveedorBaseDatosMensajeria.SqlServer,
+            CadenaConexion = cadenaConexion,
+            Esquema = esquema
+        });
         servicios.AddDbContext<MensajeriaContextoDB>(opciones => opciones.UseSqlServer(cadenaConexion));
         return this;
     }
@@ -106,7 +129,7 @@ public class MensajeriaBuilder : IMensajeriaBuilder
     public IMensajeriaBuilder AgregarWorkerMensajeria<TComunicacion>()
         where TComunicacion : class, IComunicacionMensajeriaAPI
     {
-        if (ExisteServicio<IComunicacionMensajeriaAPI>())
+        if (ExisteServicio<IRecepcionMensajeriaAPI>() || ExisteServicio<IEnvioMensajeriaAPI>())
         {
             if (!ExisteServicio<TComunicacion>())
             {
@@ -125,6 +148,101 @@ public class MensajeriaBuilder : IMensajeriaBuilder
 
         servicios.AddSingleton<IComunicacionMensajeriaAPI>(
             proveedor => proveedor.GetRequiredService<TComunicacion>());
+        servicios.AddSingleton<IRecepcionMensajeriaAPI>(
+            proveedor => proveedor.GetRequiredService<TComunicacion>());
+        servicios.AddSingleton<IEnvioMensajeriaAPI>(
+            proveedor => proveedor.GetRequiredService<TComunicacion>());
+        AgregarHostedServiceSiNoExiste<MensajeriaWorker>();
+        return this;
+    }
+
+    public IMensajeriaBuilder AgregarWorkerMensajeriaEntradaInfobip()
+    {
+        if (ExisteServicio<IRecepcionMensajeriaAPI>()
+            && !ExisteServicio<ComunicacionInfobipServicio>())
+        {
+            throw new InvalidOperationException(
+                "Ya existe otra comunicacion de entrada de mensajeria registrada.");
+        }
+
+        AgregarSiNoExisteSingleton<IColaRecepcionesInfobipServicio, ColaRecepcionesInfobipServicio>();
+        AgregarSiNoExisteScoped<IMapeadorWebhookInfobipServicio, MapeadorWebhookInfobipServicio>();
+        AgregarSiNoExisteScoped<IConvertidorMensajeEntranteInfobipServicio, ConvertidorMensajeEntranteInfobipServicio>();
+        AgregarSiNoExisteScoped<IRegistrarWebhookInfobipAplicacion, RegistrarWebhookInfobipAplicacion>();
+        AgregarSiNoExisteScoped<IObtenerMensajeEntranteInfobipAplicacion, ObtenerMensajeEntranteInfobipAplicacion>();
+        AgregarSiNoExisteScoped<IConfirmarMensajeEntranteInfobipAplicacion, ConfirmarMensajeEntranteInfobipAplicacion>();
+        AgregarSiNoExisteScoped<ICargarRecepcionesInfobipPendientesAplicacion, CargarRecepcionesInfobipPendientesAplicacion>();
+        AgregarSiNoExisteSingleton<ComunicacionInfobipServicio, ComunicacionInfobipServicio>();
+
+        if (!ExisteServicio<IRecepcionMensajeriaAPI>())
+        {
+            servicios.AddSingleton<IRecepcionMensajeriaAPI>(
+                proveedor => proveedor.GetRequiredService<ComunicacionInfobipServicio>());
+        }
+
+        if (!ExisteServicio<IConfirmacionMensajeEntranteAPI>())
+        {
+            servicios.AddSingleton<IConfirmacionMensajeEntranteAPI>(
+                proveedor => proveedor.GetRequiredService<ComunicacionInfobipServicio>());
+        }
+
+        if (!ExisteServicio<IRecepcionWebhookInfobipAPI>())
+        {
+            servicios.AddSingleton<IRecepcionWebhookInfobipAPI>(
+                proveedor => proveedor.GetRequiredService<ComunicacionInfobipServicio>());
+        }
+
+        bool inicializadorRegistrado = servicios.Any(descriptor =>
+            descriptor.ServiceType == typeof(IInicializadorModuloEsquemaMensajeria)
+            && descriptor.ImplementationType == typeof(InicializadorModuloEsquemaInfobip));
+        if (!inicializadorRegistrado)
+        {
+            servicios.AddSingleton<IInicializadorModuloEsquemaMensajeria,
+                InicializadorModuloEsquemaInfobip>();
+        }
+
+        AgregarHostedServiceSiNoExiste<MensajeriaWorker>();
+        return this;
+    }
+
+    public IMensajeriaBuilder AgregarWorkerMensajeriaInfobip(
+        Uri servidor,
+        string apiKey,
+        Action<ConfiguracionClienteInfobip>? configurar = null)
+    {
+        ArgumentNullException.ThrowIfNull(servidor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+
+        if (ExisteServicio<IEnvioMensajeriaAPI>()
+            && !ExisteServicio<ConfiguracionClienteInfobip>())
+        {
+            throw new InvalidOperationException(
+                "Ya existe otra comunicación de salida de mensajería registrada.");
+        }
+
+        ConfiguracionClienteInfobip configuracion = new(servidor, apiKey);
+        configurar?.Invoke(configuracion);
+        configuracion.Validar();
+        AgregarWorkerMensajeriaEntradaInfobip();
+        ReemplazarSingleton(configuracion);
+        AgregarSiNoExisteSingleton<IAdaptadorMensajeSalidaInfobip,
+            AdaptadorMensajeSalidaInfobip>();
+        AgregarSiNoExisteScoped<IRegistrarIntentoEnvioInfobipAplicacion,
+            RegistrarIntentoEnvioInfobipAplicacion>();
+
+        if (!ExisteServicio<IInfobipWhatsAppCliente>())
+        {
+            servicios
+                .AddHttpClient<IInfobipWhatsAppCliente, InfobipWhatsAppCliente>()
+                .RedactLoggedHeaders(["Authorization"]);
+        }
+
+        if (!ExisteServicio<IEnvioMensajeriaAPI>())
+        {
+            servicios.AddSingleton<IEnvioMensajeriaAPI>(
+                proveedor => proveedor.GetRequiredService<ComunicacionInfobipServicio>());
+        }
+
         AgregarHostedServiceSiNoExiste<MensajeriaWorker>();
         return this;
     }
@@ -150,8 +268,11 @@ public class MensajeriaBuilder : IMensajeriaBuilder
         AgregarSiNoExisteSingleton<IMensajeServicio, MensajeServicio>();
         AgregarSiNoExisteSingleton<IOrquestadorContextoServicio, OrquestadorContextoServicio>();
         AgregarSiNoExisteScoped<IContextoConversacionServicio, ContextoConversacionServicio>();
+        AgregarSiNoExisteSingleton<IInicializadorEsquemaMensajeria,
+            InicializadorEsquemaMensajeriaCompuesto>();
 
         AgregarSiNoExisteSingleton(new ConfiguracionMensajeriaContextoDB());
+        AgregarSiNoExisteSingleton(new ConfiguracionInicializacionEsquemaMensajeria());
 
         AgregarSiNoExisteSingleton(new ConfiguracionLineaConversacion
         {

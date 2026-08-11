@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Entidad.DAO;
+using PER.Mensajeria.Entidad.Infobip.DAO;
 
 namespace DatosTest;
 
@@ -25,6 +26,12 @@ public class ModeloEntityFrameworkTest
         Assert.Equal(
             "per_informacion_tecnica_llamadas_ia_linea_conversacion",
             ObtenerEntidad(contexto, typeof(DAOInformacionTecnicaLlamadaIALineaConversacion)).GetTableName());
+        Assert.Equal(
+            "per_estados_intento_envio_mensaje_infobip",
+            ObtenerEntidad(contexto, typeof(DAOEstadoIntentoEnvioMensajeInfobip)).GetTableName());
+        Assert.Equal(
+            "per_intentos_envio_mensaje_infobip",
+            ObtenerEntidad(contexto, typeof(DAOIntentoEnvioMensajeInfobip)).GetTableName());
     }
 
     [Fact]
@@ -106,6 +113,31 @@ public class ModeloEntityFrameworkTest
         using MensajeriaContextoDB contexto = CrearContexto();
 
         AssertModeloEjecucionComando(contexto, false);
+    }
+
+    [Fact]
+    public void IntentoEnvioInfobip_DebeConfigurarRelacionesEIndices()
+    {
+        using MensajeriaContextoDB contexto = CrearContexto();
+        IEntityType intento = ObtenerEntidad(
+            contexto,
+            typeof(DAOIntentoEnvioMensajeInfobip));
+
+        AssertRelaciones(
+            intento,
+            typeof(DAOEnvioMensaje),
+            typeof(DAOEstadoIntentoEnvioMensajeInfobip));
+        AssertIndiceUnico(
+            intento,
+            nameof(DAOIntentoEnvioMensajeInfobip.IDEnvioMensaje),
+            nameof(DAOIntentoEnvioMensajeInfobip.NumeroIntento));
+        AssertIndice(
+            intento,
+            nameof(DAOIntentoEnvioMensajeInfobip.MessageIDInfobip));
+        AssertIndice(
+            intento,
+            nameof(DAOIntentoEnvioMensajeInfobip.IDEstado),
+            nameof(DAOIntentoEnvioMensajeInfobip.FechaInicio));
     }
 
     private static MensajeriaContextoDB CrearContexto()

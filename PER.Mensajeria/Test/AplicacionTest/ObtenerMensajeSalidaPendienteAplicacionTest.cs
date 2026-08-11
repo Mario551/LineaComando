@@ -1,4 +1,5 @@
 using AplicacionTest.Infraestructura;
+using Microsoft.EntityFrameworkCore;
 using PER.Mensajeria.Aplicacion.ObtenerMensajeSalidaPendiente;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
@@ -30,6 +31,8 @@ public class ObtenerMensajeSalidaPendienteAplicacionTest
         Assert.Equal(envio.ID, resultado.IDEnvioMensaje);
         Assert.Equal("whatsapp", resultado.Canal);
         Assert.False(string.IsNullOrWhiteSpace(resultado.Cuenta));
+        Assert.Equal("telefono", resultado.TipoDestinatario);
+        Assert.Equal("3001234567", resultado.IdentificadorDestinatario);
         Assert.Equal(conversacion.ID, resultado.Mensaje.IDConversacion);
         Assert.Equal(linea.ID, resultado.Mensaje.IDLineaConversacion);
         Assert.Equal(mensaje.Contenido, resultado.Mensaje.Contenido);
@@ -63,5 +66,77 @@ public class ObtenerMensajeSalidaPendienteAplicacionTest
             CancellationToken.None);
 
         Assert.Null(resultado);
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_SinDestinatarioActivo_DebeFallarAntesDelEnvio(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOConversacion conversacion, DAOLineaConversacion _, DAOMensaje _, DAOEnvioMensaje envio) =
+            await baseDatos.CrearEnvioPendienteAsync();
+
+        await using (MensajeriaContextoDB preparacion = baseDatos.CrearContexto())
+        {
+            DAOConversacionParticipante relacion = await preparacion
+                .ConversacionesParticipantes
+                .SingleAsync(actual => actual.IDConversacion == conversacion.ID);
+            relacion.Activo = false;
+            await preparacion.SaveChangesAsync();
+        }
+
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        IObtenerMensajeSalidaPendienteAplicacion aplicacion =
+            new ObtenerMensajeSalidaPendienteAplicacion(new UnitOfWork(contexto));
+
+        InvalidOperationException excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            aplicacion.EjecutarAsync(envio.ID, CancellationToken.None));
+
+        Assert.Contains(
+            "exactamente un participante",
+            excepcion.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [MemberData(nameof(BaseDatosPrueba.Motores), MemberType = typeof(BaseDatosPrueba))]
+    public async Task EjecutarAsync_DosDestinatariosActivos_DebeFallarAntesDelEnvio(
+        MotorBaseDatosPrueba motor)
+    {
+        await using BaseDatosPrueba baseDatos = await BaseDatosPrueba.CrearAsync(motor);
+        (DAOConversacion conversacion, DAOLineaConversacion _, DAOMensaje _, DAOEnvioMensaje envio) =
+            await baseDatos.CrearEnvioPendienteAsync();
+
+        await using (MensajeriaContextoDB preparacion = baseDatos.CrearContexto())
+        {
+            DAOParticipanteConversacion participante = new()
+            {
+                IDTipoParticipanteConversacion = "telefono",
+                IdentificadorParticipante = "3007654321"
+            };
+            preparacion.ParticipantesConversacion.Add(participante);
+            await preparacion.SaveChangesAsync();
+            preparacion.ConversacionesParticipantes.Add(new DAOConversacionParticipante
+            {
+                IDConversacion = conversacion.ID,
+                IDParticipanteConversacion = participante.ID,
+                FechaUnion = DateTime.Now,
+                Activo = true
+            });
+            await preparacion.SaveChangesAsync();
+        }
+
+        await using MensajeriaContextoDB contexto = baseDatos.CrearContexto();
+        IObtenerMensajeSalidaPendienteAplicacion aplicacion =
+            new ObtenerMensajeSalidaPendienteAplicacion(new UnitOfWork(contexto));
+
+        InvalidOperationException excepcion = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            aplicacion.EjecutarAsync(envio.ID, CancellationToken.None));
+
+        Assert.Contains(
+            "exactamente un participante",
+            excepcion.Message,
+            StringComparison.OrdinalIgnoreCase);
     }
 }

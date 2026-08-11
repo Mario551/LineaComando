@@ -531,7 +531,7 @@ public static class IntegracionCompletaMensajeriaLineaComandoEscenarioPrueba
             return entradas.Reader.ReadAsync(cancellationToken);
         }
 
-        async Task<DTORegistrarMensajeEntranteSolicitud> IComunicacionMensajeriaAPI.EsperarMensajeEntranteAsync(
+        async Task<DTORegistrarMensajeEntranteSolicitud> IRecepcionMensajeriaAPI.EsperarMensajeEntranteAsync(
             CancellationToken cancellationToken)
         {
             return await EsperarMensajeEntranteAsync(cancellationToken);

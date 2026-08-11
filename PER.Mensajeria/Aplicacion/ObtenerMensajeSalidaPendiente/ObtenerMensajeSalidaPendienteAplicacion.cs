@@ -54,6 +54,27 @@ public class ObtenerMensajeSalidaPendienteAplicacion : IObtenerMensajeSalidaPend
             return null;
         }
 
+        List<DatosDestinatario> destinatarios = await (
+            from conversacionParticipante in unitOfWork.ConversacionParticipanteRepositorio.GetNoTracking()
+            join participante in unitOfWork.ParticipanteConversacionRepositorio.GetNoTracking()
+                on conversacionParticipante.IDParticipanteConversacion equals participante.ID
+            where conversacionParticipante.IDConversacion == datos.IDConversacion
+                && conversacionParticipante.Activo
+                && participante.IDTipoParticipanteConversacion == "telefono"
+            orderby conversacionParticipante.ID
+            select new DatosDestinatario
+            {
+                Tipo = participante.IDTipoParticipanteConversacion,
+                Identificador = participante.IdentificadorParticipante
+            })
+            .ToListAsync(cancellationToken);
+
+        if (destinatarios.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"La conversación {datos.IDConversacion} debe tener exactamente un participante activo de tipo teléfono para enviar por WhatsApp.");
+        }
+
         List<DTOArchivoMensaje> archivos = await unitOfWork.ArchivoMensajeRepositorio.GetNoTracking()
             .Where(archivo => archivo.IDMensaje == datos.IDMensaje)
             .OrderBy(archivo => archivo.ID)
@@ -73,6 +94,8 @@ public class ObtenerMensajeSalidaPendienteAplicacion : IObtenerMensajeSalidaPend
             IDEnvioMensaje = datos.IDEnvioMensaje,
             Canal = datos.Canal,
             Cuenta = datos.Cuenta,
+            TipoDestinatario = destinatarios[0].Tipo,
+            IdentificadorDestinatario = destinatarios[0].Identificador,
             Mensaje = new DTOMensajeSaliente
             {
                 IDConversacion = datos.IDConversacion,
@@ -85,6 +108,12 @@ public class ObtenerMensajeSalidaPendienteAplicacion : IObtenerMensajeSalidaPend
                 Archivos = archivos
             }
         };
+    }
+
+    private sealed class DatosDestinatario
+    {
+        public required string Tipo { get; init; }
+        public required string Identificador { get; init; }
     }
 
     private sealed class DatosEnvioPendiente

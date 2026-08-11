@@ -118,6 +118,23 @@ public abstract class BaseDatosPrueba : IAsyncDisposable
         (DAOCuentaCanal cuenta, DAOConversacion conversacion, DAOLineaConversacion linea) = await CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         await using MensajeriaContextoDB contexto = CrearContexto();
         DateTime fecha = DateTime.Now;
+        DAOParticipanteConversacion participante = new()
+        {
+            IDTipoParticipanteConversacion = "telefono",
+            IdentificadorParticipante = "3001234567"
+        };
+        contexto.ParticipantesConversacion.Add(participante);
+        await contexto.SaveChangesAsync();
+
+        DAOConversacionParticipante conversacionParticipante = new()
+        {
+            IDConversacion = conversacion.ID,
+            IDParticipanteConversacion = participante.ID,
+            FechaUnion = fecha,
+            Activo = true
+        };
+        contexto.ConversacionesParticipantes.Add(conversacionParticipante);
+
         DAOMensaje mensaje = new()
         {
             IDLineaConversacion = linea.ID,
@@ -155,6 +172,22 @@ public abstract class BaseDatosPrueba : IAsyncDisposable
         (DAOCuentaCanal cuenta, DAOConversacion conversacion, DAOLineaConversacion linea) = await CrearConversacionAsync($"cuenta_{Guid.NewGuid():N}");
         await using MensajeriaContextoDB contexto = CrearContexto();
         DateTime fecha = DateTime.Now;
+        DAOParticipanteConversacion participante = new()
+        {
+            IDTipoParticipanteConversacion = "telefono",
+            IdentificadorParticipante = "3001234567"
+        };
+        contexto.ParticipantesConversacion.Add(participante);
+        await contexto.SaveChangesAsync();
+
+        contexto.ConversacionesParticipantes.Add(new DAOConversacionParticipante
+        {
+            IDConversacion = conversacion.ID,
+            IDParticipanteConversacion = participante.ID,
+            FechaUnion = fecha,
+            Activo = true
+        });
+
         DAOMensaje mensaje = new()
         {
             IDLineaConversacion = linea.ID,
