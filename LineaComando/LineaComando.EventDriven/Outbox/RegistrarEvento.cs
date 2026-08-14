@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using PER.Comandos.LineaComandos.EventDriven.Bus;
 using PER.Comandos.LineaComandos.EventDriven.Colas;
 
 namespace PER.Comandos.LineaComandos.EventDriven.Outbox
@@ -8,6 +9,7 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
     {
         private IColaEventos _colaEventos;
         private IColaEventosMemoria _colaEventosMemoria;
+        private IPublicadorNotificacionEventos _publicadorNotificacionEventos;
         private ILogger<RegistrarEvento> _logger;
         private string? _tipoEvento;
         private string? _datos;
@@ -17,10 +19,12 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
         public RegistrarEvento(
             IColaEventos colaEventos,
             IColaEventosMemoria colaEventosMemoria,
+            IPublicadorNotificacionEventos publicadorNotificacionEventos,
             ILogger<RegistrarEvento> logger)
         {
             _colaEventos = colaEventos;
             _colaEventosMemoria = colaEventosMemoria;
+            _publicadorNotificacionEventos = publicadorNotificacionEventos;
             _logger = logger;
             _agrumentosLlamados = false;
         }
@@ -62,9 +66,29 @@ namespace PER.Comandos.LineaComandos.EventDriven.Outbox
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(
+                _logger.LogError(
                     ex,
                     "Evento {EventoId} guardado en base de datos pero no se pudo encolar en memoria.",
+                    eventoId);
+
+                return;
+            }
+
+            try
+            {
+                _publicadorNotificacionEventos.Notificar(
+                    new NotificacionEventoLanzado(
+                        evento.Id,
+                        evento.CodigoTipoEvento,
+                        evento.AgregadoId,
+                        evento.DatosEvento,
+                        evento.CreadoEn));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Evento {EventoId} persistido y encolado, pero no se pudo notificar a los observadores.",
                     eventoId);
             }
         }

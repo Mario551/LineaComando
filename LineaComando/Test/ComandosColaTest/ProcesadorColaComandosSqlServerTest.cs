@@ -17,6 +17,7 @@ namespace ComandosColaTest
     {
         private readonly RegistroComandosSqlServer<string, ResultadoComando> _registro;
         private readonly ILogger<ProcesadorColaComandos> _logger;
+        private readonly PublicadorNotificacionEjecucionComandosPrueba _publicadorNotificaciones;
 
         protected override string PrefijoTest => "procesador_cola_sql_";
 
@@ -24,6 +25,7 @@ namespace ComandosColaTest
         {
             _registro = new RegistroComandosSqlServer<string, ResultadoComando>(ConnectionString, Esquema);
             _logger = NullLogger<ProcesadorColaComandos>.Instance;
+            _publicadorNotificaciones = new PublicadorNotificacionEjecucionComandosPrueba();
         }
 
         public override async ValueTask InitializeAsync()
@@ -59,6 +61,7 @@ namespace ComandosColaTest
                 new ProcesadorColaComandos(
                     scopeFactory,
                     CrearColaComandosMemoria(scopeFactory),
+                    _publicadorNotificaciones,
                     0,
                     _logger));
 
@@ -75,6 +78,7 @@ namespace ComandosColaTest
                 new ProcesadorColaComandos(
                     scopeFactory,
                     null!,
+                    _publicadorNotificaciones,
                     1,
                     _logger));
         }
@@ -89,6 +93,7 @@ namespace ComandosColaTest
                 new ProcesadorColaComandos(
                     null!,
                     CrearColaComandosMemoria(scopeFactory),
+                    _publicadorNotificaciones,
                     1,
                     _logger));
         }
@@ -101,6 +106,7 @@ namespace ComandosColaTest
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
+                _publicadorNotificaciones,
                 1,
                 _logger);
 
@@ -138,6 +144,7 @@ namespace ComandosColaTest
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
+                _publicadorNotificaciones,
                 1,
                 _logger);
 
@@ -184,6 +191,7 @@ namespace ComandosColaTest
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
+                _publicadorNotificaciones,
                 1,
                 _logger);
 
@@ -235,6 +243,7 @@ namespace ComandosColaTest
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
+                _publicadorNotificaciones,
                 2,
                 _logger);
 
@@ -304,6 +313,7 @@ namespace ComandosColaTest
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
+                _publicadorNotificaciones,
                 2,
                 _logger);
 

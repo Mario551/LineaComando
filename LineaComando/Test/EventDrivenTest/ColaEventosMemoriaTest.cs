@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using PER.Comandos.LineaComandos.EventDriven.Bus;
 using PER.Comandos.LineaComandos.EventDriven.Colas;
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
 
@@ -65,6 +67,36 @@ namespace EventDrivenTest
 
             Assert.True(await enumerador.MoveNextAsync());
             Assert.Equal(11, enumerador.Current.Id);
+        }
+
+        [Fact]
+        public async Task CargaYReencoladoDirecto_NoDebenNotificarObservadores()
+        {
+            EventoOutbox evento = new EventoOutbox
+            {
+                Id = 10,
+                CodigoTipoEvento = "pedido_creado",
+                DatosEvento = "{\"pedidoId\":123}"
+            };
+            Mock<IColaEventos> colaEventos = new Mock<IColaEventos>();
+            colaEventos
+                .Setup(c => c.ObtenerEventosPendientesAsync(
+                    int.MaxValue,
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { evento });
+            ColaEventosMemoria cola = new ColaEventosMemoria(
+                new ScopeFactoryPrueba(new ServiceProviderPrueba(colaEventos.Object)));
+            BusNotificacionEventosEnMemoria bus = new BusNotificacionEventosEnMemoria(
+                NullLoggerFactory.Instance);
+            using IObservadorNotificacionEvento observador = bus.Suscribir("pedido_creado");
+            using CancellationTokenSource cancelacion = new CancellationTokenSource(
+                TimeSpan.FromMilliseconds(100));
+
+            await cola.CargarPendientesDesdeBaseDatosAsync(TestContext.Current.CancellationToken);
+            await cola.EncolarAsync(evento, TestContext.Current.CancellationToken);
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => observador.EsperarAsync(cancelacion.Token));
         }
 
         private sealed class ScopeFactoryPrueba : IServiceScopeFactory

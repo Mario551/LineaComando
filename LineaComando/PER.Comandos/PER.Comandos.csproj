@@ -14,7 +14,7 @@
     
     <!-- Metadatos del paquete NuGet -->
     <PackageId>PER.Comandos</PackageId>
-    <Version>4.0</Version>
+    <Version>4.1</Version>
     <Title>PER.Comandos</Title>
     <Authors>Mario Fernando</Authors>
     <Description>Librería de comandos con builder, colas y event-driven</Description>

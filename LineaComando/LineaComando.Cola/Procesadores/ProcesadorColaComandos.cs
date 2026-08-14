@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
+using PER.Comandos.LineaComandos.Cola.Notificaciones;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 
@@ -16,6 +17,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IColaComandosMemoria _colaComandosMemoria;
+        private readonly IPublicadorNotificacionEjecucionComandos _publicadorNotificaciones;
         private readonly ILogger<ProcesadorColaComandos> _logger;
         private readonly int _maxParalelismo;
         private readonly ConcurrentBag<Task> _tareasEnEjecucion;
@@ -23,6 +25,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
         public ProcesadorColaComandos(
             IServiceScopeFactory serviceScopeFactory,
             IColaComandosMemoria colaComandosMemoria,
+            IPublicadorNotificacionEjecucionComandos publicadorNotificaciones,
             int maxParalelismo,
             ILogger<ProcesadorColaComandos> logger)
         {
@@ -31,6 +34,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
             _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
             _colaComandosMemoria = colaComandosMemoria ?? throw new ArgumentNullException(nameof(colaComandosMemoria));
+            _publicadorNotificaciones = publicadorNotificaciones ?? throw new ArgumentNullException(nameof(publicadorNotificaciones));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _maxParalelismo = maxParalelismo;
             _tareasEnEjecucion = new ConcurrentBag<Task>();
@@ -125,76 +129,255 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
         private async Task ProcesarComandoAsync(ComandoEnCola comandoEnCola, CancellationToken token)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
+            Guid ejecucionId = Guid.NewGuid();
+            OrigenEjecucionComandoTipo origen = OrigenEjecucionComandoTipo.Directo;
+            string? codigoOrigen = null;
+            long? agregadoId = null;
+            bool ejecucionIniciada = false;
             ResultadoComando resultado;
             PayloadResultadoComando? payloadResultado = null;
             IServiceScope? scope = null;
             IAlmacenColaComandos? almacenColaComandos = null;
 
-            LineaComando? lineaComando = null;
-
             try
             {
-                scope = _serviceScopeFactory.CreateScope();
-                almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
-                IFactoriaComandos<string, ResultadoComando> factoriaComandos = scope.ServiceProvider.GetRequiredService<IFactoriaComandos<string, ResultadoComando>>();
-                IRegistroProcesadoresResultadoComando? registroProcesadores = scope.ServiceProvider.GetService<IRegistroProcesadoresResultadoComando>();
-                IAlmacenamientoPayloadResultadoComando? almacenamientoPayload = scope.ServiceProvider.GetService<IAlmacenamientoPayloadResultadoComando>();
+                try
+                {
+                    scope = _serviceScopeFactory.CreateScope();
+                    almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
+                    IFactoriaComandos<string, ResultadoComando> factoriaComandos = scope.ServiceProvider.GetRequiredService<IFactoriaComandos<string, ResultadoComando>>();
+                    IRegistroProcesadoresResultadoComando? registroProcesadores = scope.ServiceProvider.GetService<IRegistroProcesadoresResultadoComando>();
+                    IAlmacenamientoPayloadResultadoComando? almacenamientoPayload = scope.ServiceProvider.GetService<IAlmacenamientoPayloadResultadoComando>();
 
-                _logger.LogInformation("Procesando comando {ComandoId}: {RutaComando} {Argumentos}",
-                    comandoEnCola.Id, comandoEnCola.RutaComando, comandoEnCola.Argumentos);
+                    _logger.LogInformation("Procesando comando {ComandoId}: {RutaComando} {Argumentos}",
+                        comandoEnCola.Id, comandoEnCola.RutaComando, comandoEnCola.Argumentos);
 
-                IEnumerable<ComandoEnCola> comandosProcesando = await almacenColaComandos.MarcarComandosProcesandoAsync(
-                    new[] { comandoEnCola.Id },
-                    token);
+                    IEnumerable<ComandoEnCola> comandosProcesando = await almacenColaComandos.MarcarComandosProcesandoAsync(
+                        new[] { comandoEnCola.Id },
+                        token);
 
-                comandoEnCola = comandosProcesando.FirstOrDefault() ?? comandoEnCola;
+                    comandoEnCola = comandosProcesando.FirstOrDefault() ?? comandoEnCola;
+                    (origen, codigoOrigen, agregadoId) = ObtenerMetadatosOrigen(comandoEnCola.Argumentos);
+                    ejecucionIniciada = true;
+                    NotificarEjecucionSinInterrumpir(
+                        ejecucionId,
+                        comandoEnCola,
+                        NotificacionEjecucionComandoTipo.Iniciada,
+                        origen,
+                        codigoOrigen,
+                        agregadoId,
+                        null,
+                        null);
 
-                lineaComando = ParsearLineaComando(comandoEnCola);
-                var comando = factoriaComandos.Crear(lineaComando);
+                    LineaComando lineaComando = ParsearLineaComando(comandoEnCola);
+                    var comando = factoriaComandos.Crear(lineaComando);
 
-                resultado = await comando.EjecutarAsync(comandoEnCola.DatosDeComando ?? string.Empty, token);
+                    resultado = await comando.EjecutarAsync(comandoEnCola.DatosDeComando ?? string.Empty, token);
 
-                resultado.Duracion = stopwatch.Elapsed;
-                payloadResultado = await CrearPayloadResultadoAsync(
-                    comandoEnCola.RutaComando,
-                    comandoEnCola.Id,
-                    resultado,
-                    registroProcesadores,
-                    almacenamientoPayload,
-                    token);
+                    stopwatch.Stop();
+                    resultado.Duracion = stopwatch.Elapsed;
+                    payloadResultado = await CrearPayloadResultadoAsync(
+                        comandoEnCola.RutaComando,
+                        comandoEnCola.Id,
+                        resultado,
+                        registroProcesadores,
+                        almacenamientoPayload,
+                        token);
 
-                _logger.LogInformation("Comando {ComandoId} procesado. Exitoso: {Exitoso}, Duración: {Duracion}ms",
-                    comandoEnCola.Id, resultado.Exitoso, resultado.Duracion.TotalMilliseconds);
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                resultado = ResultadoComando.Fallo(
-                    $"Excepción durante la ejecución: {ex.Message}",
-                    stopwatch.Elapsed);
+                    _logger.LogInformation("Comando {ComandoId} procesado. Exitoso: {Exitoso}, Duración: {Duracion}ms",
+                        comandoEnCola.Id, resultado.Exitoso, resultado.Duracion.TotalMilliseconds);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    stopwatch.Stop();
 
-                _logger.LogError(ex, "Error procesando comando {ComandoId}", comandoEnCola.Id);
-            }
+                    if (ejecucionIniciada)
+                    {
+                        NotificarEjecucionSinInterrumpir(
+                            ejecucionId,
+                            comandoEnCola,
+                            NotificacionEjecucionComandoTipo.Interrumpida,
+                            origen,
+                            codigoOrigen,
+                            agregadoId,
+                            stopwatch.Elapsed,
+                            "La ejecución fue interrumpida por cancelación.");
+                    }
 
-            try
-            {
-                if (almacenColaComandos is null)
-                    throw new InvalidOperationException("No se pudo resolver el almacén de cola de comandos.");
+                    _logger.LogWarning("Ejecución del comando {ComandoId} interrumpida por cancelación", comandoEnCola.Id);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    stopwatch.Stop();
+                    resultado = ResultadoComando.Fallo(
+                        $"Excepción durante la ejecución: {ex.Message}",
+                        stopwatch.Elapsed);
 
-                await almacenColaComandos.MarcarComoProcesadoAsync(comandoEnCola.Id, resultado, payloadResultado, token);
-                _colaComandosMemoria.CompletarResultado(comandoEnCola.Id, resultado);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al marcar comando {ComandoId} como procesado", comandoEnCola.Id);
-                _colaComandosMemoria.CompletarResultado(
-                    comandoEnCola.Id,
-                    ResultadoComando.Fallo($"Error al persistir resultado: {ex.Message}", resultado.Duracion));
+                    _logger.LogError(ex, "Error procesando comando {ComandoId}", comandoEnCola.Id);
+                }
+
+                try
+                {
+                    if (almacenColaComandos is null)
+                        throw new InvalidOperationException("No se pudo resolver el almacén de cola de comandos.");
+
+                    await almacenColaComandos.MarcarComoProcesadoAsync(comandoEnCola.Id, resultado, payloadResultado, token);
+                    NotificarEjecucionSinInterrumpir(
+                        ejecucionId,
+                        comandoEnCola,
+                        resultado.Exitoso
+                            ? NotificacionEjecucionComandoTipo.Completada
+                            : NotificacionEjecucionComandoTipo.Fallida,
+                        origen,
+                        codigoOrigen,
+                        agregadoId,
+                        resultado.Duracion,
+                        resultado.Exitoso ? null : resultado.MensajeError);
+                    _colaComandosMemoria.CompletarResultado(comandoEnCola.Id, resultado);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    if (ejecucionIniciada)
+                    {
+                        NotificarEjecucionSinInterrumpir(
+                            ejecucionId,
+                            comandoEnCola,
+                            NotificacionEjecucionComandoTipo.Interrumpida,
+                            origen,
+                            codigoOrigen,
+                            agregadoId,
+                            stopwatch.Elapsed,
+                            "La persistencia del resultado fue interrumpida por cancelación.");
+                    }
+
+                    _logger.LogWarning("Persistencia del comando {ComandoId} interrumpida por cancelación", comandoEnCola.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error al marcar comando {ComandoId} como procesado", comandoEnCola.Id);
+
+                    if (ejecucionIniciada)
+                    {
+                        NotificarEjecucionSinInterrumpir(
+                            ejecucionId,
+                            comandoEnCola,
+                            NotificacionEjecucionComandoTipo.ErrorPersistencia,
+                            origen,
+                            codigoOrigen,
+                            agregadoId,
+                            resultado.Duracion,
+                            ex.Message);
+                    }
+
+                    _colaComandosMemoria.CompletarResultado(
+                        comandoEnCola.Id,
+                        ResultadoComando.Fallo($"Error al persistir resultado: {ex.Message}", resultado.Duracion));
+                }
             }
             finally
             {
                 scope?.Dispose();
                 LimpiarTareasCompletadas();
+            }
+        }
+
+        private static (
+            OrigenEjecucionComandoTipo Origen,
+            string? CodigoOrigen,
+            long? AgregadoId) ObtenerMetadatosOrigen(string? argumentos)
+        {
+            if (string.IsNullOrWhiteSpace(argumentos))
+                return (OrigenEjecucionComandoTipo.Directo, null, null);
+
+            string[] partes = argumentos.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            bool tieneOrigen = TryObtenerValorArgumento(partes, "--origen", out string? valorOrigen);
+
+            if (!tieneOrigen)
+                return (OrigenEjecucionComandoTipo.Directo, null, null);
+
+            TryObtenerValorArgumento(partes, "--codigo", out string? codigoOrigen);
+            bool tieneAgregado = TryObtenerValorArgumento(partes, "--agregado-id", out string? valorAgregado);
+            long? agregadoId = null;
+
+            if (tieneAgregado)
+            {
+                if (!long.TryParse(valorAgregado, out long agregadoParseado))
+                    return (OrigenEjecucionComandoTipo.Desconocido, codigoOrigen, null);
+
+                agregadoId = agregadoParseado;
+            }
+
+            if (string.IsNullOrWhiteSpace(codigoOrigen))
+                return (OrigenEjecucionComandoTipo.Desconocido, codigoOrigen, agregadoId);
+
+            if (string.Equals(valorOrigen, "evento", StringComparison.OrdinalIgnoreCase))
+                return (OrigenEjecucionComandoTipo.Evento, codigoOrigen, agregadoId);
+
+            if (string.Equals(valorOrigen, "disparador", StringComparison.OrdinalIgnoreCase))
+                return (OrigenEjecucionComandoTipo.Disparador, codigoOrigen, agregadoId);
+
+            return (OrigenEjecucionComandoTipo.Desconocido, codigoOrigen, agregadoId);
+        }
+
+        private static bool TryObtenerValorArgumento(
+            IEnumerable<string> argumentos,
+            string nombre,
+            out string? valor)
+        {
+            string prefijo = $"{nombre}=";
+
+            foreach (string argumento in argumentos)
+            {
+                if (string.Equals(argumento, nombre, StringComparison.Ordinal))
+                {
+                    valor = null;
+                    return true;
+                }
+
+                if (argumento.StartsWith(prefijo, StringComparison.Ordinal))
+                {
+                    valor = argumento[prefijo.Length..];
+                    return true;
+                }
+            }
+
+            valor = null;
+            return false;
+        }
+
+        private void NotificarEjecucionSinInterrumpir(
+            Guid ejecucionId,
+            ComandoEnCola comando,
+            NotificacionEjecucionComandoTipo tipo,
+            OrigenEjecucionComandoTipo origen,
+            string? codigoOrigen,
+            long? agregadoId,
+            TimeSpan? duracion,
+            string? error)
+        {
+            try
+            {
+                _publicadorNotificaciones.Notificar(
+                    new NotificacionEjecucionComando(
+                        ejecucionId,
+                        comando.Id,
+                        comando.RutaComando,
+                        tipo,
+                        origen,
+                        codigoOrigen,
+                        agregadoId,
+                        DateTime.UtcNow,
+                        duracion,
+                        error));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "No fue posible notificar el estado {TipoNotificacion} del comando {ComandoId}",
+                    tipo,
+                    comando.Id);
             }
         }
 

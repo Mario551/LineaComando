@@ -7,9 +7,11 @@ using PER.Comandos.LineaComandos.BuilderComando;
 using PER.Comandos.LineaComandos.BuilderInicializador;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
+using PER.Comandos.LineaComandos.Cola.Notificaciones;
 using PER.Comandos.LineaComandos.Cola.Procesadores;
 using PER.Comandos.LineaComandos.Cola.Registro;
 using PER.Comandos.LineaComandos.Cola.Resultados;
+using PER.Comandos.LineaComandos.EventDriven.Bus;
 using PER.Comandos.LineaComandos.EventDriven.Colas;
 using PER.Comandos.LineaComandos.EventDriven.Manejador;
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
@@ -140,6 +142,16 @@ namespace PER.Comandos.LineaComandos.Builder
                 _services.AddSingleton<IRegistroTiposEvento>(sp => new RegistroTiposEventoSqlServer(_connectionString, EsquemaBaseDatos));
             }
 
+              _services.AddSingleton<BusNotificacionEventosEnMemoria>();
+              _services.AddSingleton<IBusNotificacionEventos>(
+                  sp => sp.GetRequiredService<BusNotificacionEventosEnMemoria>());
+              _services.AddSingleton<IPublicadorNotificacionEventos>(
+                  sp => sp.GetRequiredService<BusNotificacionEventosEnMemoria>());
+              _services.AddSingleton<BusNotificacionEjecucionComandosEnMemoria>();
+              _services.AddSingleton<IBusNotificacionEjecucionComandos>(
+                  sp => sp.GetRequiredService<BusNotificacionEjecucionComandosEnMemoria>());
+              _services.AddSingleton<IPublicadorNotificacionEjecucionComandos>(
+                  sp => sp.GetRequiredService<BusNotificacionEjecucionComandosEnMemoria>());
               _services.AddTransient<IRegistrarEventoBuilder>(sp => new RegistrarEventoBuilder(sp));
               _services.AddSingleton<IColaComandosMemoria, ColaComandosMemoria>();
               _services.AddSingleton(new OpcionesResultadosComandos { RutaBase = RutaResultadosComandos });
@@ -159,6 +171,7 @@ namespace PER.Comandos.LineaComandos.Builder
                   new ProcesadorColaComandos(
                       sp.GetRequiredService<IServiceScopeFactory>(),
                       sp.GetRequiredService<IColaComandosMemoria>(),
+                      sp.GetRequiredService<IPublicadorNotificacionEjecucionComandos>(),
                       MaxParalelismoCola,
                       sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
 

@@ -4,6 +4,7 @@ using Moq;
 using ComandosColaTest.Helpers;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
+using PER.Comandos.LineaComandos.Cola.Notificaciones;
 using PER.Comandos.LineaComandos.Cola.Procesadores;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.FactoriaComandos;
@@ -73,15 +74,27 @@ namespace ComandosColaTest
                     orden.Add("entregado");
                 });
 
+            Mock<IPublicadorNotificacionEjecucionComandos> publicadorNotificaciones =
+                new Mock<IPublicadorNotificacionEjecucionComandos>();
+            publicadorNotificaciones
+                .Setup(p => p.Notificar(It.IsAny<NotificacionEjecucionComando>()))
+                .Callback<NotificacionEjecucionComando>(notificacion =>
+                {
+                    orden.Add(notificacion.Tipo.ToString().ToLowerInvariant());
+                });
+
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 serviceProvider.GetRequiredService<IServiceScopeFactory>(),
                 colaComandosMemoria.Object,
+                publicadorNotificaciones.Object,
                 1,
                 NullLogger<ProcesadorColaComandos>.Instance);
 
             await procesador.StartAsync(CancellationToken.None);
 
-            Assert.Equal(new[] { "persistido", "entregado" }, orden);
+            Assert.Equal(
+                new[] { "iniciada", "persistido", "completada", "entregado" },
+                orden);
         }
 
         private static async IAsyncEnumerable<ComandoEnCola> LeerComandosAsync(IEnumerable<ComandoEnCola> comandos)
