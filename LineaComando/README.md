@@ -1457,26 +1457,6 @@ Los registros de comandos, tipos, manejadores y disparadores son insert-only:
 
 La base de datos conserva así prioridad sobre los metadatos declarados durante inicializaciones posteriores. Para cambiar una descripción, argumentos o configuración existentes se debe realizar una operación administrativa explícita sobre el registro.
 
-## Límites operativos conocidos
-
-- La operación recomendada es una sola instancia de aplicación.
-- La consulta de pendientes y el marcado como `procesando` no forman una reclamación atómica entre réplicas; dos procesos pueden intentar ejecutar el mismo trabajo.
-- No existe garantía exactly-once. Los comandos y manejadores deben ser idempotentes.
-- Los comandos fallidos no tienen reintento automático.
-- Con paralelismo mayor que uno no se garantiza el orden de finalización.
-- `ComandoEncolado.Resultado` es una espera del proceso actual, no una promesa distribuida.
-- Si el servicio hospedado se cancela durante la ejecución o la persistencia, esa espera puede permanecer pendiente; espere siempre con cancelación o timeout.
-- Los pendientes de base de datos se cargan al iniciar; durante la operación normal se consume el canal local.
-- La factoría ejecutable y las instancias de comando viven en memoria y se reconstruyen desde código.
-- Sin `IProcesadorResultadoComando`, la salida puede observarse en la espera local, pero no se reconstruye de forma tipada después de reiniciar.
-- Los payloads grandes dependen de que el sistema de archivos permanezca disponible en ejecuciones posteriores.
-- El Outbox no se incorpora automáticamente a la transacción de negocio del consumidor.
-- Las tareas programadas usan la hora local del proceso y de la base de datos; el despliegue debe mantener una zona horaria coherente.
-- Las notificaciones son locales, no durables y no ofrecen replay.
-- La suscripción por ruta recibe comandos concurrentes de esa ruta; el consumidor debe correlacionar sus identificadores.
-- Los canales en memoria no tienen un límite de capacidad explícito ni aplican backpressure.
-- No hay dead-letter queue para comandos.
-
 ## Compilación y pruebas
 
 Desde la raíz Git:
