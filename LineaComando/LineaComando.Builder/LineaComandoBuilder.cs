@@ -156,7 +156,9 @@ namespace PER.Comandos.LineaComandos.Builder
               _services.AddSingleton<IColaComandosMemoria, ColaComandosMemoria>();
               _services.AddSingleton(new OpcionesResultadosComandos { RutaBase = RutaResultadosComandos });
               _services.AddSingleton<IAlmacenamientoPayloadResultadoComando, AlmacenamientoPayloadResultadoComando>();
-              _services.AddSingleton<IRegistroProcesadoresResultadoComando, RegistroProcesadoresResultadoComando>();
+              _services.AddSingleton<
+                  IRegistroProcesadoresSerializacionResultadosComando,
+                  RegistroProcesadoresSerializacionResultadosComando>();
               _services.AddTransient<IResultadosComandos, ResultadosComandos>();
               _services.AddSingleton<IColaEventosMemoria, ColaEventosMemoria>();
               _services.AddSingleton<CoordinadorTareasProgramadas>();

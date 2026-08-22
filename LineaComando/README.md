@@ -230,16 +230,58 @@ Al arrancar, el servicio vuelve a cargar desde la base de datos los comandos pen
 - Una identidad de base de datos con permisos para crear el esquema, tablas, índices, funciones y procedimientos requeridos.
 - Una ruta escribible y persistente si algún resultado serializado puede superar 256 KiB.
 
+## Namespaces de la API
+
+`PER.Comandos` es el nombre del paquete agregador, no un namespace único que exponga toda la API. Cada funcionalidad conserva el namespace del componente que la implementa.
+
+La siguiente tabla cubre la API de uso habitual. Los almacenes concretos, DAO, inicializadores de esquema, registros internos y procesadores hospedados son infraestructura que `Build()` registra y `InicializarLineaComandoAsync()` inicializa cuando corresponde; no es necesario importarlos para integrar la librería.
+
+| Funcionalidad | API principal | Qué es | `using` necesario | Cómo se obtiene |
+|---|---|---|---|---|
+| Registrar y configurar la librería | `AddLineaComando`, `LineaComandoBuilder`, `UsePostgresql`, `UseSqlServer`, `SetEsquemaBaseDatos`, `SetMaxParalelismoCola`, `SetRutaResultadosComandos`, `Build`, `InicializarLineaComandoAsync` | `AddLineaComando` e `InicializarLineaComandoAsync` son métodos de extensión de la clase estática `LineaComandoExtensions`; `LineaComandoBuilder` es una clase y los demás símbolos son sus métodos de instancia | `using PER.Comandos.LineaComandos.Builder;` | `AddLineaComando` extiende `IServiceCollection` y devuelve `LineaComandoBuilder`; `InicializarLineaComandoAsync` extiende `IServiceProvider` |
+| Registrar comandos | `IBuilderInicializador`, `IBuilderComando` | Interfaces | `using PER.Comandos.LineaComandos.BuilderInicializador;`<br>`using PER.Comandos.LineaComandos.BuilderComando;` | El callback de `AddLineaComando` recibe el inicializador; `NewBuilderComando()` devuelve `IBuilderComando` |
+| Implementar un comando | `ComandoBase<,>`, `IComando<,>` | Clase base abstracta e interfaz | `using PER.Comandos.LineaComandos.Comando;` | La aplicación hereda de `ComandoBase<,>` o implementa `IComando<,>` |
+| Declarar y validar parámetros | `Parametro`, `IParametro`, `[Nombre]`, `Resultado`, `Error` | `Parametro`, `Resultado` y `Error` son clases; `IParametro` es una interfaz; `[Nombre]` es `NombreAttribute`, una clase de atributo | `using PER.Comandos.LineaComandos.Atributo;`<br>`using PER.Comandos.Tipos.Resultado;` | La aplicación implementa `IParametro`; el parser crea la colección de `Parametro` |
+| Encolar y esperar comandos | `IColaComandosMemoria`, `SolicitudComando`, `ComandoEncolado` | Interfaz y dos clases selladas | `using PER.Comandos.LineaComandos.Cola.Colas;` | Se inyecta `IColaComandosMemoria` después de `Build()` |
+| Representar el resultado de ejecución | `ResultadoComando` | Clase | `using PER.Comandos.LineaComandos.Cola.Almacen;` | Lo devuelve el comando y las operaciones de espera o consulta |
+| Serializar y recuperar resultados durables | `IProcesadorResultadoComando`, `IResultadosComandos` | Interfaces | `using PER.Comandos.LineaComandos.Cola.Resultados;` | El procesador lo implementa la aplicación; `IResultadosComandos` se inyecta después de `Build()` |
+| Registrar eventos y tareas programadas | `IBuilderTipoEvento`, `ITipoEvento`, `IBuilderManejador`, `IBuilderDisparador` | Interfaces | `using PER.Comandos.LineaComandos.BuilderTipoEvento;`<br>`using PER.Comandos.LineaComandos.BuilderManejador;`<br>`using PER.Comandos.LineaComandos.BuilderDisparador;` | El inicializador crea el builder de tipo; registrar un comando devuelve el builder de manejador y registrar el manejador devuelve el builder de disparador |
+| Publicar eventos persistidos | `IRegistrarEventoBuilder`, `IRegistrarEvento` | Interfaces | `using PER.Comandos.LineaComandos.EventDriven.Outbox;` | Se inyecta `IRegistrarEventoBuilder`; `NewEvento()` devuelve `IRegistrarEvento` |
+| Observar ejecuciones de comandos | `IBusNotificacionEjecucionComandos`, `IObservadorNotificacionEjecucionComando`, `NotificacionEjecucionComando`, `NotificacionEjecucionComandoTipo`, `OrigenEjecucionComandoTipo` | Dos interfaces, una clase sellada y dos enums | `using PER.Comandos.LineaComandos.Cola.Notificaciones;` | Se inyecta el bus; `Suscribir(...)` devuelve el observador y `EsperarAsync(...)` devuelve la notificación |
+| Observar eventos publicados | `IBusNotificacionEventos`, `IObservadorNotificacionEvento`, `NotificacionEventoLanzado` | Dos interfaces y una clase sellada | `using PER.Comandos.LineaComandos.EventDriven.Bus;` | Se inyecta el bus; `Suscribir(...)` devuelve el observador y `EsperarAsync(...)` devuelve la notificación |
+
+Los proyectos Web y Worker de los ejemplos tienen habilitados los `ImplicitUsings` del SDK. La tabla muestra específicamente los imports de `LineaComando`; si el proyecto consumidor deshabilita los imports implícitos, también debe declarar los namespaces de .NET y `Microsoft.Extensions.*` que utilice.
+
 ## Modelo compartido de los ejemplos
 
 Los ejemplos ASP.NET Core y Generic Host usan el mismo comando. La factoría registra una función que crea una instancia nueva para cada ejecución; así no se comparte estado mutable entre comandos procesados en paralelo.
 
+| Símbolo | Qué es | Namespace / procedencia |
+|---|---|---|
+| `ComandoBase<string, ResultadoComando>` | Clase base abstracta | `PER.Comandos.LineaComandos.Comando` |
+| `ResultadoComando` | Clase | `PER.Comandos.LineaComandos.Cola.Almacen` |
+| `Parametro` | Clase | `PER.Comandos.LineaComandos.Atributo` |
+| `IProcesadorResultadoComando` | Interfaz | `PER.Comandos.LineaComandos.Cola.Resultados` |
+| `IBuilderInicializador` | Interfaz recibida por el callback de configuración | `PER.Comandos.LineaComandos.BuilderInicializador` |
+| `IBuilderComando` | Interfaz retornada por `NewBuilderComando()` | `PER.Comandos.LineaComandos.BuilderComando` |
+| `IBuilderManejador` | Interfaz retornada al registrar el comando | `PER.Comandos.LineaComandos.BuilderManejador` |
+| `SolicitudSaludo`, `SaludoResultado` | Records del ejemplo | Namespace elegido por la aplicación consumidora |
+| `SaludarComando`, `SaludoResultadoProcesador` | Clases del ejemplo | Namespace elegido por la aplicación consumidora |
+| `RegistroLineaComando` | Clase estática de configuración del ejemplo | Namespace elegido por la aplicación consumidora |
+
 ```csharp
 using System.Text.Json;
 using PER.Comandos.LineaComandos.Atributo;
+using PER.Comandos.LineaComandos.BuilderComando;
+using PER.Comandos.LineaComandos.BuilderInicializador;
+using PER.Comandos.LineaComandos.BuilderManejador;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Comandos.LineaComandos.Comando;
+
+public sealed record SolicitudSaludo(string Nombre);
+
+public sealed record SaludoResultado(string Mensaje);
 
 public sealed class SaludarComando : ComandoBase<string, ResultadoComando>
 {
@@ -310,6 +352,26 @@ public sealed class SaludoResultadoProcesador : IProcesadorResultadoComando
         return Task.FromResult<object?>(resultado);
     }
 }
+
+public static class RegistroLineaComando
+{
+    public static async Task ConfigurarAsync(
+        IServiceProvider proveedorServicios,
+        IBuilderInicializador inicializador,
+        CancellationToken tokenInicializacion)
+    {
+        tokenInicializacion.ThrowIfCancellationRequested();
+
+        IBuilderComando builderComando =
+            inicializador.NewBuilderComando();
+
+        IBuilderManejador builderManejador = await builderComando
+            .Argumentos("saludo crear", "Crea un saludo")
+            .Accion(_ => new SaludarComando())
+            .Resultado(new SaludoResultadoProcesador())
+            .RegistrarAsync();
+    }
+}
 ```
 
 ## Uso con ASP.NET Core y PostgreSQL
@@ -328,6 +390,20 @@ Este recorrido parte de un proyecto .NET 10 basado en `Microsoft.NET.Sdk.Web`.
 
 ### Programa completo
 
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `AddLineaComando` | Método de extensión de `IServiceCollection` | `PER.Comandos.LineaComandos.Builder` | Declarado por la clase estática `LineaComandoExtensions` |
+| `WebApplicationBuilder` | Clase del framework ASP.NET Core | `Microsoft.AspNetCore.Builder` | Retornada por `WebApplication.CreateBuilder(...)` |
+| `WebApplication` | Clase del framework ASP.NET Core | `Microsoft.AspNetCore.Builder` | Retornada por `WebApplicationBuilder.Build()` |
+| `IResult` | Interfaz del framework ASP.NET Core | `Microsoft.AspNetCore.Http` | Tipo retornado por el endpoint |
+| `LineaComandoBuilder` | Clase | `PER.Comandos.LineaComandos.Builder` | Retornada por `AddLineaComando` |
+| `RegistroLineaComando` | Clase estática del modelo compartido | Namespace elegido por la aplicación | Definida en el modelo compartido |
+| `SolicitudSaludo` | Record del modelo compartido | Namespace elegido por la aplicación | Definido en el modelo compartido |
+| `IColaComandosMemoria` | Interfaz | `PER.Comandos.LineaComandos.Cola.Colas` | Inyectada en el endpoint por DI |
+| `SolicitudComando` | Clase sellada | `PER.Comandos.LineaComandos.Cola.Colas` | Creada por el endpoint |
+| `ComandoEncolado` | Clase sellada | `PER.Comandos.LineaComandos.Cola.Colas` | Retornada por `EncolarAsync` |
+| `ResultadoComando` | Clase | `PER.Comandos.LineaComandos.Cola.Almacen` | Retornada por la espera del comando |
+
 ```csharp
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -343,16 +419,11 @@ string connectionString =
     ?? throw new InvalidOperationException(
         "Falta ConnectionStrings:LineaComando.");
 
-builder.Services
-    .AddLineaComando(async (_, inicializador, _) =>
-    {
-        await inicializador
-            .NewBuilderComando()
-            .Argumentos("saludo crear", "Crea un saludo")
-            .Accion(_ => new SaludarComando())
-            .Resultado(new SaludoResultadoProcesador())
-            .RegistrarAsync();
-    })
+LineaComandoBuilder lineaComandoBuilder =
+    builder.Services.AddLineaComando(
+        RegistroLineaComando.ConfigurarAsync);
+
+lineaComandoBuilder
     .UsePostgresql(connectionString, "linea_comando")
     .SetMaxParalelismoCola(4)
     .Build();
@@ -404,7 +475,7 @@ Cancelar el token HTTP cancela la espera del cliente, no elimina el comando ya p
 
 ## Uso con Generic Host y SQL Server
 
-Este recorrido parte de un proyecto Worker .NET 10 basado en `Microsoft.NET.Sdk.Worker`.
+Este recorrido parte de un proyecto Worker .NET 10 creado con el template estándar `dotnet new worker`. Además de utilizar `Microsoft.NET.Sdk.Worker`, ese template referencia `Microsoft.Extensions.Hosting`, que proporciona `Host`, `HostApplicationBuilder`, `BackgroundService` y `AddHostedService`.
 
 ### Configuración
 
@@ -418,6 +489,22 @@ Este recorrido parte de un proyecto Worker .NET 10 basado en `Microsoft.NET.Sdk.
 
 ### Programa completo
 
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `HostApplicationBuilder` | Clase del framework Worker | `Microsoft.Extensions.Hosting` | Retornada por `Host.CreateApplicationBuilder` |
+| `LineaComandoBuilder` | Clase de LineaComando | `PER.Comandos.LineaComandos.Builder` | Retornada por `AddLineaComando` |
+| `IHost` | Interfaz del framework Worker | `Microsoft.Extensions.Hosting` | Retornada por `HostApplicationBuilder.Build()` |
+| `BackgroundService` | Clase base abstracta del framework Worker | `Microsoft.Extensions.Hosting` | Base de `SaludoWorkerServicio` |
+| `IHostApplicationLifetime` | Interfaz del framework Worker | `Microsoft.Extensions.Hosting` | Inyectada en `SaludoWorkerServicio` |
+| `ILogger<SaludoWorkerServicio>` | Interfaz del framework de logging | `Microsoft.Extensions.Logging` | Inyectada en `SaludoWorkerServicio` |
+| `RegistroLineaComando` | Clase estática del modelo compartido | Namespace elegido por la aplicación | Definida en el modelo compartido |
+| `SolicitudSaludo` | Record del modelo compartido | Namespace elegido por la aplicación | Definido en el modelo compartido |
+| `SaludoWorkerServicio` | Clase del ejemplo | Namespace elegido por la aplicación | Registrada como servicio hospedado |
+| `IColaComandosMemoria` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Inyectada en `SaludoWorkerServicio` |
+| `SolicitudComando` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Creada por `SaludoWorkerServicio` |
+| `ComandoEncolado` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Retornada por `EncolarAsync` |
+| `ResultadoComando` | Clase de LineaComando | `PER.Comandos.LineaComandos.Cola.Almacen` | Retornada por la espera del comando |
+
 ```csharp
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -430,16 +517,11 @@ string connectionString =
     ?? throw new InvalidOperationException(
         "Falta ConnectionStrings:LineaComando.");
 
-builder.Services
-    .AddLineaComando(async (_, inicializador, _) =>
-    {
-        await inicializador
-            .NewBuilderComando()
-            .Argumentos("saludo crear", "Crea un saludo")
-            .Accion(_ => new SaludarComando())
-            .Resultado(new SaludoResultadoProcesador())
-            .RegistrarAsync();
-    })
+LineaComandoBuilder lineaComandoBuilder =
+    builder.Services.AddLineaComando(
+        RegistroLineaComando.ConfigurarAsync);
+
+lineaComandoBuilder
     .UseSqlServer(connectionString, "linea_comando")
     .SetMaxParalelismoCola(4)
     .Build();
@@ -523,23 +605,35 @@ Este worker detiene el host después de ejecutar el ejemplo. En un servicio real
 
 ## Registro seguro de comandos
 
-El paralelismo predeterminado es cuatro. No registre una única instancia mutable si `Preparar` escribe campos internos:
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `IBuilderComando` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderComando` | Recibida por `RegistroComandoConParametros.Configurar` |
+| `Parametro` | Clase de LineaComando | `PER.Comandos.LineaComandos.Atributo` | Elemento de la colección recibida por la factoría |
+| `SaludarConParametrosComando` | Clase del ejemplo | Namespace elegido por la aplicación | Creada por la factoría para cada ejecución |
+| `RegistroComandoConParametros` | Clase estática del ejemplo | Namespace elegido por la aplicación | Configura la acción sobre `IBuilderComando` |
+
+El paralelismo predeterminado es cuatro. La sobrecarga `Accion(ComandoBase<string, ResultadoComando>)` recibe una única instancia; no debe utilizarse cuando `Preparar` modifica estado interno. Para ese caso use la sobrecarga de factoría, cuyo parámetro es `ICollection<Parametro>` y cuyo resultado implementa `IComando<string, ResultadoComando>`:
 
 ```csharp
-.Accion(new SaludarConParametrosComando())
-```
+using PER.Comandos.LineaComandos.Atributo;
+using PER.Comandos.LineaComandos.BuilderComando;
 
-Use una factoría que cree y prepare una instancia por ejecución:
-
-```csharp
-.Accion(parametros =>
+public static class RegistroComandoConParametros
 {
-    SaludarConParametrosComando comando =
-        new SaludarConParametrosComando();
+    public static IBuilderComando Configurar(
+        IBuilderComando builderComando)
+    {
+        return builderComando.Accion(
+            (ICollection<Parametro> parametros) =>
+            {
+                SaludarConParametrosComando comando =
+                    new SaludarConParametrosComando();
 
-    comando.Preparar(parametros);
-    return comando;
-})
+                comando.Preparar(parametros);
+                return comando;
+            });
+    }
+}
 ```
 
 La sobrecarga de factoría no llama automáticamente a `Preparar`; por eso el ejemplo lo hace de forma explícita.
@@ -556,8 +650,20 @@ La sobrecarga de factoría no llama automáticamente a `Preparar`; por eso el ej
 
 ### Parámetros tipados
 
+| Símbolo | Qué es | Namespace / procedencia |
+|---|---|---|
+| `IParametro` | Interfaz | `PER.Comandos.LineaComandos.Atributo` |
+| `NombreAttribute` usado como `[Nombre]` | Clase de atributo | `PER.Comandos.LineaComandos.Atributo` |
+| `Parametro` | Clase | `PER.Comandos.LineaComandos.Atributo` |
+| `Resultado`, `Error` | Clases | `PER.Comandos.Tipos.Resultado` |
+| `ComandoBase<string, ResultadoComando>` | Clase base abstracta | `PER.Comandos.LineaComandos.Comando` y `PER.Comandos.LineaComandos.Cola.Almacen` |
+| `ParametrosSaludo`, `SaludarConParametrosComando` | Clases del ejemplo | Namespace elegido por la aplicación consumidora |
+
 ```csharp
+using System.Text.Json;
 using PER.Comandos.LineaComandos.Atributo;
+using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.Tipos.Resultado;
 
 public sealed class ParametrosSaludo : IParametro
@@ -577,15 +683,43 @@ public sealed class ParametrosSaludo : IParametro
         return new Resultado(true);
     }
 }
-```
 
-```csharp
-private ParametrosSaludo _parametros = new ParametrosSaludo();
-
-public override void Preparar(ICollection<Parametro> parametros)
+public sealed class SaludarConParametrosComando :
+    ComandoBase<string, ResultadoComando>
 {
-    _parametros =
-        (ParametrosSaludo)Parametro.New<ParametrosSaludo>(parametros);
+    private ParametrosSaludo _parametros = new ParametrosSaludo();
+
+    public override void Preparar(ICollection<Parametro> parametros)
+    {
+        _parametros =
+            (ParametrosSaludo)Parametro.New<ParametrosSaludo>(parametros);
+    }
+
+    public override async Task<ResultadoComando> EjecutarAsync(
+        string entrada,
+        CancellationToken cancellationToken = default)
+    {
+        await EmpezarAsync(cancellationToken);
+
+        try
+        {
+            SolicitudSaludo? solicitud =
+                JsonSerializer.Deserialize<SolicitudSaludo>(entrada);
+
+            if (solicitud is null)
+                return ResultadoComando.Fallo("La solicitud es obligatoria.");
+
+            string tratamiento = _parametros.Tratamiento ?? string.Empty;
+            SaludoResultado salida = new SaludoResultado(
+                $"Hola, {tratamiento} {solicitud.Nombre}.");
+
+            return ResultadoComando.Exito(salida);
+        }
+        finally
+        {
+            await FinalizarAsync(cancellationToken);
+        }
+    }
 }
 ```
 
@@ -593,25 +727,67 @@ El parser admite `--clave=valor` y `--bandera`. No implementa comillas ni escape
 
 ## Esperar y recuperar resultados
 
-`EncolarAsync` devuelve el identificador y una espera local:
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `EjecucionSaludoServicio` | Clase del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IColaComandosMemoria` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Inyectada por constructor después de `Build()` |
+| `SolicitudComando` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Creada en `EjecutarAsync` |
+| `ComandoEncolado` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Retornada por `EncolarAsync` y `EsperarComandoAsync` |
+| `ResultadoComando` | Clase de LineaComando | `PER.Comandos.LineaComandos.Cola.Almacen` | Retornada por la espera local |
+
+`EncolarAsync` devuelve `ComandoEncolado`, que contiene `ComandoId` y la espera local `Resultado`. Para retomar la espera por identificador, `EsperarComandoAsync` devuelve otra instancia de la misma clase:
 
 ```csharp
-ComandoEncolado comando = await colaComandos.EncolarAsync(
-    solicitud,
-    token);
+using System.Text.Json;
+using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Colas;
 
-long comandoId = comando.ComandoId;
-ResultadoComando resultado = await comando.Resultado.WaitAsync(token);
-```
+public sealed class EjecucionSaludoServicio
+{
+    private readonly IColaComandosMemoria _colaComandos;
 
-Si el proceso conserva la espera, el resultado se completa desde memoria. Para retomar la espera por identificador o recuperar un resultado ya persistido:
+    public EjecucionSaludoServicio(
+        IColaComandosMemoria colaComandos)
+    {
+        _colaComandos = colaComandos;
+    }
 
-```csharp
-ComandoEncolado comandoRecuperado =
-    await colaComandos.EsperarComandoAsync(comandoId, token);
+    public async Task<(long ComandoId, ResultadoComando Resultado)>
+        EjecutarAsync(
+            SolicitudSaludo solicitud,
+            CancellationToken cancellationToken)
+    {
+        SolicitudComando solicitudComando = new SolicitudComando
+        {
+            RutaComando = "saludo crear",
+            Argumentos = string.Empty,
+            DatosDeComando = JsonSerializer.Serialize(solicitud)
+        };
 
-ResultadoComando resultadoRecuperado =
-    await comandoRecuperado.Resultado.WaitAsync(token);
+        ComandoEncolado comandoEncolado =
+            await _colaComandos.EncolarAsync(
+                solicitudComando,
+                cancellationToken);
+
+        ResultadoComando resultado =
+            await comandoEncolado.Resultado.WaitAsync(cancellationToken);
+
+        return (comandoEncolado.ComandoId, resultado);
+    }
+
+    public async Task<ResultadoComando> RecuperarAsync(
+        long comandoId,
+        CancellationToken cancellationToken)
+    {
+        ComandoEncolado comandoEncolado =
+            await _colaComandos.EsperarComandoAsync(
+                comandoId,
+                cancellationToken);
+
+        return await comandoEncolado.Resultado.WaitAsync(
+            cancellationToken);
+    }
+}
 ```
 
 `EsperarComandoAsync` lanza una excepción si el identificador no existe o el estado no permite esperar.
@@ -629,21 +805,78 @@ La ejecución local puede devolver cualquier objeto en `Salida`. Para reconstrui
 
 El procesador define un tipo estable, una versión de formato, el tipo MIME y las operaciones de serialización y deserialización.
 
+### Consultar un resultado por identificador
+
+`Build()` registra `IResultadosComandos` en el contenedor. La aplicación puede recibirlo por constructor y consultar directamente el resultado durable sin conservar la espera local creada por `EncolarAsync`:
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `ConsultaResultadoComandoServicio` | Clase del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IResultadosComandos` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Resultados` | Inyectada por constructor después de `Build()` |
+| `ResultadoComando` | Clase de LineaComando | `PER.Comandos.LineaComandos.Cola.Almacen` | Retornada por `ObtenerResultadoAsync` cuando existe un resultado terminal |
+
+```csharp
+using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Cola.Resultados;
+
+public sealed class ConsultaResultadoComandoServicio
+{
+    private readonly IResultadosComandos _resultadosComandos;
+
+    public ConsultaResultadoComandoServicio(
+        IResultadosComandos resultadosComandos)
+    {
+        _resultadosComandos = resultadosComandos;
+    }
+
+    public Task<ResultadoComando?> ObtenerAsync(
+        long comandoId,
+        CancellationToken token = default)
+    {
+        return _resultadosComandos.ObtenerResultadoAsync(
+            comandoId,
+            token);
+    }
+}
+```
+
+`ObtenerResultadoAsync` devuelve `null` si el identificador no existe o el comando sigue `pendiente` o `procesando`. Si terminó, devuelve un `ResultadoComando` exitoso o fallido; para reconstruir una salida exitosa tipada debe seguir registrado el `IProcesadorResultadoComando` correspondiente a su tipo y versión.
+
 ### Almacenamiento del payload
 
 - Hasta `256 * 1024` bytes UTF-8: se guarda en `per_cola_comandos_resultados.payload`.
 - Más de 256 KiB: se guarda en un archivo y la tabla conserva `ruta_payload`.
 
-La aplicación consumidora escoge el directorio base mediante `SetRutaResultadosComandos(...)`. La configuración debe realizarse antes de `Build()`:
+La aplicación consumidora escoge el directorio base mediante `SetRutaResultadosComandos(...)`. La configuración debe realizarse antes de `Build()`.
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `ResultadosComandosConfiguracion` | Clase estática del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `LineaComandoBuilder` | Clase de LineaComando | `PER.Comandos.LineaComandos.Builder` | Devuelta por `AddLineaComando(...)` y recibida por parámetro |
+| `connectionString` | `string` | `System` | Configuración de la aplicación consumidora |
+| `directorioContenido` | `string` | `System` | Directorio raíz de contenido de la aplicación consumidora |
 
 ```csharp
-.UsePostgresql(connectionString, "linea_comando")
-.SetRutaResultadosComandos(
-    Path.Combine(
-        builder.Environment.ContentRootPath,
-        "App_Data",
-        "resultados-comandos"))
-.Build();
+using PER.Comandos.LineaComandos.Builder;
+
+public static class ResultadosComandosConfiguracion
+{
+    public static void Configurar(
+        LineaComandoBuilder lineaComandoBuilder,
+        string connectionString,
+        string directorioContenido)
+    {
+        string rutaResultadosComandos = Path.Combine(
+            directorioContenido,
+            "App_Data",
+            "resultados-comandos");
+
+        lineaComandoBuilder
+            .UsePostgresql(connectionString, "linea_comando")
+            .SetRutaResultadosComandos(rutaResultadosComandos)
+            .Build();
+    }
+}
 ```
 
 Para un resultado cuyo tipo sea `saludo` y cuya versión sea `1`, la estructura resultante será:
@@ -664,51 +897,80 @@ La ruta general sigue el patrón `<ruta-base>/<tipo>/v<version>/<comandoId>.<gui
 
 ## Eventos persistidos
 
-Los eventos se guardan antes de escribirse en el canal local. `ServicioProcesadorEventos` resuelve los manejadores activos por prioridad y convierte cada uno en una `SolicitudComando`.
+Los eventos se guardan antes de escribirse en el canal local. `ServicioProcesadorEventos` recupera y coordina el procesamiento; `ProcesadorEventos` resuelve los manejadores activos por prioridad y convierte cada uno en una `SolicitudComando`.
 
 ### Registrar tipo, manejador y disparador
 
-El registro se realiza dentro del callback de `AddLineaComando`:
+El método del ejemplo se invoca desde el callback de `AddLineaComando`. Cada transición del registro se conserva en la interfaz que devuelve realmente la API:
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `RegistroEventosLineaComando` | Clase estática del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IBuilderInicializador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderInicializador` | Parámetro del callback de `AddLineaComando` |
+| `IBuilderComando` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderComando` | Devuelta por `IBuilderInicializador.NewBuilderComando()` |
+| `IBuilderManejador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderManejador` | Devuelta por `IBuilderComando.RegistrarAsync()` |
+| `IBuilderTipoEvento` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderTipoEvento` | Devuelta por `IBuilderInicializador.NewBuilderTipoEvento()` |
+| `ITipoEvento` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderTipoEvento` | Devuelta por `IBuilderTipoEvento.RegistrarAsync()` |
+| `IBuilderDisparador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderDisparador` | Devuelta por `IBuilderManejador.RegistrarAsync()` |
+| `SaludarComando` y `SaludoResultadoProcesador` | Clases del modelo compartido | Namespace elegido por la aplicación | Definidas por la aplicación consumidora |
 
 ```csharp
+using PER.Comandos.LineaComandos.BuilderComando;
 using PER.Comandos.LineaComandos.BuilderDisparador;
+using PER.Comandos.LineaComandos.BuilderInicializador;
 using PER.Comandos.LineaComandos.BuilderManejador;
 using PER.Comandos.LineaComandos.BuilderTipoEvento;
 
-IBuilderManejador builderManejador = await inicializador
-    .NewBuilderComando()
-    .Argumentos("saludo crear", "Crea un saludo")
-    .Accion(_ => new SaludarComando())
-    .Resultado(new SaludoResultadoProcesador())
-    .RegistrarAsync();
+public static class RegistroEventosLineaComando
+{
+    public static async Task RegistrarAsync(
+        IBuilderInicializador inicializador)
+    {
+        IBuilderComando builderComando =
+            inicializador.NewBuilderComando();
 
-IBuilderTipoEvento builderTipoEvento =
-    inicializador.NewBuilderTipoEvento();
+        IBuilderManejador builderManejador = await builderComando
+            .Argumentos("saludo crear", "Crea un saludo")
+            .Accion(_ => new SaludarComando())
+            .Resultado(new SaludoResultadoProcesador())
+            .RegistrarAsync();
 
-ITipoEvento tipoEvento = await builderTipoEvento
-    .Argumentos(
-        "USUARIO_REGISTRADO",
-        "Usuario registrado",
-        "Se emite al registrar un usuario")
-    .RegistrarAsync();
+        IBuilderTipoEvento builderTipoEvento =
+            inicializador.NewBuilderTipoEvento();
 
-IBuilderDisparador builderDisparador = await builderManejador
-    .Argumentos(
-        "CREAR_SALUDO_USUARIO",
-        "Crear saludo para usuario",
-        string.Empty,
-        "Ejecuta el comando de saludo")
-    .RegistrarAsync();
+        ITipoEvento tipoEvento = await builderTipoEvento
+            .Argumentos(
+                "USUARIO_REGISTRADO",
+                "Usuario registrado",
+                "Se emite al registrar un usuario")
+            .RegistrarAsync();
 
-await builderDisparador
-    .Argumentos(
-        "USUARIO_REGISTRADO_CREAR_SALUDO",
-        1,
-        tipoEvento)
-    .RegistrarAsync();
+        IBuilderDisparador builderDisparador = await builderManejador
+            .Argumentos(
+                "CREAR_SALUDO_USUARIO",
+                "Crear saludo para usuario",
+                string.Empty,
+                "Ejecuta el comando de saludo")
+            .RegistrarAsync();
+
+        await builderDisparador
+            .Argumentos(
+                "USUARIO_REGISTRADO_CREAR_SALUDO",
+                1,
+                tipoEvento)
+            .RegistrarAsync();
+    }
+}
 ```
 
 ### Publicar un evento
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `UsuarioServicio` | Clase del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IRegistrarEventoBuilder` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Outbox` | Inyectada por constructor después de `Build()` |
+| `IRegistrarEvento` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Outbox` | Devuelta por `IRegistrarEventoBuilder.NewEvento()` |
+| `SolicitudSaludo` | Record del modelo compartido | Namespace elegido por la aplicación | Definido por la aplicación consumidora |
 
 ```csharp
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
@@ -726,8 +988,10 @@ public sealed class UsuarioServicio
         SolicitudSaludo solicitud,
         long usuarioId)
     {
-        return _registradorEventos
-            .NewEvento()
+        IRegistrarEvento registradorEvento =
+            _registradorEventos.NewEvento();
+
+        return registradorEvento
             .Argumentos("USUARIO_REGISTRADO", solicitud, usuarioId)
             .RegistrarEnColaAsync();
     }
@@ -778,44 +1042,71 @@ Cada `NotificacionEjecucionComando` expone:
 
 La suscripción debe crearse antes de encolar para no perder notificaciones. El observador conserva orden FIFO y puede reutilizarse con esperas consecutivas, pero solo admite una espera activa.
 
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `SeguimientoSaludoServicio` | Clase del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IBusNotificacionEjecucionComandos` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Inyectada por constructor después de `Build()` |
+| `IColaComandosMemoria` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Inyectada por constructor después de `Build()` |
+| `IObservadorNotificacionEjecucionComando` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Devuelta por `IBusNotificacionEjecucionComandos.Suscribir(...)` |
+| `SolicitudComando` y `ComandoEncolado` | Clases selladas de LineaComando | `PER.Comandos.LineaComandos.Cola.Colas` | Creadas o devueltas por la cola |
+| `NotificacionEjecucionComando` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Devuelta por `IObservadorNotificacionEjecucionComando.EsperarAsync(...)` |
+| `NotificacionEjecucionComandoTipo` | Enum de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Propiedad `Tipo` de la notificación |
+| `SolicitudSaludo` | Record del modelo compartido | Namespace elegido por la aplicación | Definido por la aplicación consumidora |
+
 ```csharp
 using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Notificaciones;
 using System.Text.Json;
 
-using IObservadorNotificacionEjecucionComando observador =
-    busNotificaciones.Suscribir("saludo crear");
-
-SolicitudComando solicitud = new SolicitudComando
+public sealed class SeguimientoSaludoServicio
 {
-    RutaComando = "saludo crear",
-    Argumentos = string.Empty,
-    DatosDeComando = JsonSerializer.Serialize(
-        new SolicitudSaludo("Ada"))
-};
+    private readonly IBusNotificacionEjecucionComandos _busNotificaciones;
+    private readonly IColaComandosMemoria _colaComandos;
 
-ComandoEncolado comando = await colaComandos.EncolarAsync(
-    solicitud,
-    token);
-
-NotificacionEjecucionComando? estadoFinal = null;
-
-while (estadoFinal is null)
-{
-    NotificacionEjecucionComando notificacion =
-        await observador.EsperarAsync(token);
-
-    if (notificacion.ComandoId != comando.ComandoId)
-        continue;
-
-    switch (notificacion.Tipo)
+    public SeguimientoSaludoServicio(
+        IBusNotificacionEjecucionComandos busNotificaciones,
+        IColaComandosMemoria colaComandos)
     {
-        case NotificacionEjecucionComandoTipo.Completada:
-        case NotificacionEjecucionComandoTipo.Fallida:
-        case NotificacionEjecucionComandoTipo.Interrumpida:
-        case NotificacionEjecucionComandoTipo.ErrorPersistencia:
-            estadoFinal = notificacion;
-            break;
+        _busNotificaciones = busNotificaciones;
+        _colaComandos = colaComandos;
+    }
+
+    public async Task<NotificacionEjecucionComando> EjecutarAsync(
+        SolicitudSaludo solicitud,
+        CancellationToken cancellationToken)
+    {
+        using IObservadorNotificacionEjecucionComando observador =
+            _busNotificaciones.Suscribir("saludo crear");
+
+        SolicitudComando solicitudComando = new SolicitudComando
+        {
+            RutaComando = "saludo crear",
+            Argumentos = string.Empty,
+            DatosDeComando = JsonSerializer.Serialize(solicitud)
+        };
+
+        ComandoEncolado comandoEncolado =
+            await _colaComandos.EncolarAsync(
+                solicitudComando,
+                cancellationToken);
+
+        while (true)
+        {
+            NotificacionEjecucionComando notificacion =
+                await observador.EsperarAsync(cancellationToken);
+
+            if (notificacion.ComandoId != comandoEncolado.ComandoId)
+                continue;
+
+            bool esEstadoTerminal = notificacion.Tipo is
+                NotificacionEjecucionComandoTipo.Completada or
+                NotificacionEjecucionComandoTipo.Fallida or
+                NotificacionEjecucionComandoTipo.Interrumpida or
+                NotificacionEjecucionComandoTipo.ErrorPersistencia;
+
+            if (esEstadoTerminal)
+                return notificacion;
+        }
     }
 }
 ```
@@ -827,6 +1118,13 @@ El patrón anterior crea un observador dedicado para una ejecución. No lo reuti
 ### Recibir estados mediante callback
 
 Un observador de callback debe mantenerse vivo durante todo el periodo que se desea observar y liberarse cuando deja de ser necesario.
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `ObservadorSaludosServicio` | Clase del ejemplo que implementa `IDisposable` | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IBusNotificacionEjecucionComandos` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Inyectada por constructor después de `Build()` |
+| `IObservadorNotificacionEjecucionComando` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Devuelta por `IBusNotificacionEjecucionComandos.Suscribir(...)` |
+| `NotificacionEjecucionComando` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.Cola.Notificaciones` | Argumento del callback |
 
 ```csharp
 using PER.Comandos.LineaComandos.Cola.Notificaciones;
@@ -868,49 +1166,145 @@ Las excepciones de callbacks se registran en logs y no interrumpen la ejecución
 
 `IBusNotificacionEventos` permite observar por código exacto del tipo de evento aquellos eventos que acaban de persistirse y encolarse localmente.
 
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `PublicacionEventoServicio` | Clase del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IBusNotificacionEventos` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Bus` | Inyectada por constructor después de `Build()` |
+| `IRegistrarEventoBuilder` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Outbox` | Inyectada por constructor después de `Build()` |
+| `IObservadorNotificacionEvento` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Bus` | Devuelta por `IBusNotificacionEventos.Suscribir(...)` |
+| `IRegistrarEvento` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Outbox` | Devuelta por `IRegistrarEventoBuilder.NewEvento()` |
+| `NotificacionEventoLanzado` | Clase sellada de LineaComando | `PER.Comandos.LineaComandos.EventDriven.Bus` | Devuelta por `IObservadorNotificacionEvento.EsperarAsync(...)` |
+| `SolicitudSaludo` | Record del modelo compartido | Namespace elegido por la aplicación | Definido por la aplicación consumidora |
+
 ```csharp
 using PER.Comandos.LineaComandos.EventDriven.Bus;
 using PER.Comandos.LineaComandos.EventDriven.Outbox;
 
-using IObservadorNotificacionEvento observador =
-    busNotificacionEventos.Suscribir("USUARIO_REGISTRADO");
+public sealed class PublicacionEventoServicio
+{
+    private readonly IBusNotificacionEventos _busNotificacionEventos;
+    private readonly IRegistrarEventoBuilder _registradorEventos;
 
-Task<NotificacionEventoLanzado> espera =
-    observador.EsperarAsync(token);
+    public PublicacionEventoServicio(
+        IBusNotificacionEventos busNotificacionEventos,
+        IRegistrarEventoBuilder registradorEventos)
+    {
+        _busNotificacionEventos = busNotificacionEventos;
+        _registradorEventos = registradorEventos;
+    }
 
-await registradorEventos
-    .NewEvento()
-    .Argumentos("USUARIO_REGISTRADO", solicitud, usuarioId)
-    .RegistrarEnColaAsync();
+    public async Task<NotificacionEventoLanzado> PublicarAsync(
+        SolicitudSaludo solicitud,
+        long usuarioId,
+        CancellationToken cancellationToken)
+    {
+        using IObservadorNotificacionEvento observador =
+            _busNotificacionEventos.Suscribir("USUARIO_REGISTRADO");
 
-NotificacionEventoLanzado notificacion = await espera;
+        Task<NotificacionEventoLanzado> esperaNotificacion =
+            observador.EsperarAsync(cancellationToken);
+
+        IRegistrarEvento registradorEvento =
+            _registradorEventos.NewEvento();
+
+        await registradorEvento
+            .Argumentos("USUARIO_REGISTRADO", solicitud, usuarioId)
+            .RegistrarEnColaAsync();
+
+        return await esperaNotificacion;
+    }
+}
 ```
 
 La notificación contiene el identificador durable, nombre, agregado, JSON y fecha de creación. Confirma que el evento fue persistido y escrito en el canal local; no significa que sus manejadores o los comandos resultantes hayan finalizado.
 
-`RegistrarEnColaAsync()` no recibe un `CancellationToken`. En el ejemplo, `token` cancela únicamente la espera del observador, no la persistencia ni el encolado del evento.
+`RegistrarEnColaAsync()` no recibe un `CancellationToken`. En el ejemplo, `cancellationToken` cancela únicamente la espera del observador, no la persistencia ni el encolado del evento.
 
 Los observadores de eventos tienen las mismas reglas de modalidad, espera única, comparación exacta, `Dispose` y ausencia de replay que los observadores de comandos.
 
 ## Tareas programadas
 
-Las tareas programadas reutilizan un manejador y crean un disparador con una expresión `dd:hh:mm:ss`.
+Las tareas programadas crean un manejador asociado a un comando y un disparador con una expresión `dd:hh:mm:ss`. El planificador construye cada solicitud con `DatosDeComando = "{}"`; por eso el comando del ejemplo no depende de un payload externo.
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `RegistroTareaProgramadaLineaComando` | Clase estática del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IBuilderInicializador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderInicializador` | Parámetro recibido desde el callback de `AddLineaComando` |
+| `IBuilderComando` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderComando` | Devuelta por `IBuilderInicializador.NewBuilderComando()` |
+| `IBuilderManejador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderManejador` | Devuelta por `IBuilderComando.RegistrarAsync()` |
+| `IBuilderDisparador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderDisparador` | Devuelta por `IBuilderManejador.RegistrarAsync()` |
+| `SaludoProgramadoComando` | Clase del ejemplo derivada de `ComandoBase<string, ResultadoComando>` | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `SaludoResultadoProcesador` y `SaludoResultado` | Clase y record del modelo compartido | Namespace elegido por la aplicación | Definidos por la aplicación consumidora |
 
 ```csharp
-IBuilderDisparador builderDisparador = await builderManejador
-    .Argumentos(
-        "CREAR_SALUDO_PROGRAMADO",
-        "Crear saludo programado",
-        string.Empty,
-        "Ejecuta periódicamente el comando")
-    .RegistrarAsync();
+using PER.Comandos.LineaComandos.Atributo;
+using PER.Comandos.LineaComandos.BuilderComando;
+using PER.Comandos.LineaComandos.BuilderDisparador;
+using PER.Comandos.LineaComandos.BuilderInicializador;
+using PER.Comandos.LineaComandos.BuilderManejador;
+using PER.Comandos.LineaComandos.Cola.Almacen;
+using PER.Comandos.LineaComandos.Comando;
 
-await builderDisparador
-    .Argumentos(
-        "SALUDO_CADA_HORA",
-        1,
-        "00:01:00:00")
-    .RegistrarAsync();
+public sealed class SaludoProgramadoComando :
+    ComandoBase<string, ResultadoComando>
+{
+    public override void Preparar(ICollection<Parametro> parametros)
+    {
+    }
+
+    public override async Task<ResultadoComando> EjecutarAsync(
+        string entrada,
+        CancellationToken cancellationToken = default)
+    {
+        await EmpezarAsync(cancellationToken);
+
+        try
+        {
+            SaludoResultado salida =
+                new SaludoResultado("Hola desde la tarea programada.");
+
+            return ResultadoComando.Exito(salida);
+        }
+        finally
+        {
+            await FinalizarAsync(cancellationToken);
+        }
+    }
+}
+
+public static class RegistroTareaProgramadaLineaComando
+{
+    public static async Task RegistrarAsync(
+        IBuilderInicializador inicializador)
+    {
+        IBuilderComando builderComando =
+            inicializador.NewBuilderComando();
+
+        IBuilderManejador builderManejador = await builderComando
+            .Argumentos(
+                "saludo programado",
+                "Crea un saludo programado")
+            .Accion(_ => new SaludoProgramadoComando())
+            .Resultado(new SaludoResultadoProcesador())
+            .RegistrarAsync();
+
+        IBuilderDisparador builderDisparador =
+            await builderManejador
+                .Argumentos(
+                    "CREAR_SALUDO_PROGRAMADO",
+                    "Crear saludo programado",
+                    string.Empty,
+                    "Ejecuta periódicamente el comando")
+                .RegistrarAsync();
+
+        await builderDisparador
+            .Argumentos(
+                "SALUDO_CADA_HORA",
+                1,
+                "00:01:00:00")
+            .RegistrarAsync();
+    }
+}
 ```
 
 | Expresión | Intervalo |
@@ -922,32 +1316,85 @@ await builderDisparador
 
 Si `ultima_ejecucion` es nula, el primer disparo ocurre inmediatamente al iniciar. Después se calcula el siguiente intervalo usando la hora local. Los comandos programados reciben `--origen=disparador` y `--codigo={codigoDelDisparador}`.
 
+### Conectar los registros al callback
+
+Para habilitar los ejemplos de eventos y tareas, se usa el siguiente callback en lugar de `RegistroLineaComando.ConfigurarAsync` en los programas Web o Worker. De esta forma ambos registros se ejecutan durante `InicializarLineaComandoAsync()`:
+
+| Símbolo | Qué es | Namespace | Origen en el ejemplo |
+|---|---|---|---|
+| `RegistroEventDrivenLineaComando` | Clase estática del ejemplo | Namespace elegido por la aplicación | Definida por la aplicación consumidora |
+| `IServiceProvider` | Interfaz de .NET | `System` | Primer parámetro del callback de `AddLineaComando` |
+| `IBuilderInicializador` | Interfaz de LineaComando | `PER.Comandos.LineaComandos.BuilderInicializador` | Segundo parámetro del callback de `AddLineaComando` |
+| `CancellationToken` | Struct de .NET | `System.Threading` | Tercer parámetro del callback de `AddLineaComando` |
+
+```csharp
+using PER.Comandos.LineaComandos.BuilderInicializador;
+
+public static class RegistroEventDrivenLineaComando
+{
+    public static async Task ConfigurarAsync(
+        IServiceProvider proveedorServicios,
+        IBuilderInicializador inicializador,
+        CancellationToken tokenInicializacion)
+    {
+        tokenInicializacion.ThrowIfCancellationRequested();
+
+        await RegistroEventosLineaComando.RegistrarAsync(inicializador);
+
+        tokenInicializacion.ThrowIfCancellationRequested();
+
+        await RegistroTareaProgramadaLineaComando.RegistrarAsync(
+            inicializador);
+    }
+}
+```
+
+Los métodos `RegistrarAsync()` de los builders no reciben `CancellationToken`; las comprobaciones del ejemplo evitan iniciar el siguiente registro cuando la inicialización ya fue cancelada.
+
 ## Configuración del builder
 
 ### Proveedor y esquema
 
+Todos los métodos de esta sección son métodos de instancia de la clase `LineaComandoBuilder`:
+
+| Receptor | Namespace | Método | Retorno | Efecto |
+|---|---|---|---|---|
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `UsePostgresql(string)` | `LineaComandoBuilder` | Selecciona PostgreSQL y el esquema predeterminado |
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `UsePostgresql(string, string)` | `LineaComandoBuilder` | Selecciona PostgreSQL y recibe el esquema |
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `UseSqlServer(string)` | `LineaComandoBuilder` | Selecciona SQL Server y el esquema predeterminado |
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `UseSqlServer(string, string)` | `LineaComandoBuilder` | Selecciona SQL Server y recibe el esquema |
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `SetEsquemaBaseDatos(string)` | `LineaComandoBuilder` | Cambia el esquema después de seleccionar el proveedor |
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `Build()` | `void` | Registra la infraestructura en el contenedor |
+
+El ejemplo recibe explícitamente la clase devuelta por `AddLineaComando(...)`:
+
 ```csharp
-.UsePostgresql(connectionString)
-.UsePostgresql(connectionString, "linea_comando")
-.UseSqlServer(connectionString)
-.UseSqlServer(connectionString, "linea_comando")
+using PER.Comandos.LineaComandos.Builder;
+
+public static class LineaComandoBaseDatosConfiguracion
+{
+    public static void ConfigurarPostgresql(
+        LineaComandoBuilder lineaComandoBuilder,
+        string connectionString)
+    {
+        lineaComandoBuilder
+            .UsePostgresql(connectionString)
+            .SetEsquemaBaseDatos("linea_comando")
+            .Build();
+    }
+}
 ```
 
-También puede elegirse el esquema después del proveedor:
-
-```csharp
-.UsePostgresql(connectionString)
-.SetEsquemaBaseDatos("linea_comando")
-```
+Para SQL Server se utiliza `UseSqlServer(...)` sobre el mismo `LineaComandoBuilder`. Las sobrecargas con segundo parámetro permiten indicar el esquema en la misma llamada.
 
 Los nombres de esquema admiten letras, números y guion bajo; el primer carácter debe ser una letra o un guion bajo.
 
 ### Opciones
 
-| Método | Efecto | Predeterminado |
-|---|---|---|
-| `SetMaxParalelismoCola(int)` | Máximo de comandos simultáneos | `4` |
-| `SetRutaResultadosComandos(string)` | [Directorio base para payloads grandes](#almacenamiento-del-payload) | Sin configurar |
+| Receptor | Namespace | Método | Retorno | Efecto | Predeterminado |
+|---|---|---|---|---|---|
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `SetMaxParalelismoCola(int)` | `LineaComandoBuilder` | Máximo de comandos simultáneos | `4` |
+| `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `SetRutaResultadosComandos(string)` | `LineaComandoBuilder` | [Directorio base para payloads grandes](#almacenamiento-del-payload) | Sin configurar |
 
 `SetMaxParalelismoCola` debe recibir un valor mayor que cero.
 

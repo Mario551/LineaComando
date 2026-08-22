@@ -3,7 +3,7 @@ using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Mensajeria.Aplicacion.Contexto;
-using PER.Mensajeria.Builder.Contexto.LineaComando;
+using PER.Mensajeria.Builder.Contexto.EjecutorComandos.LineaComando;
 
 namespace BuilderTest;
 
@@ -13,7 +13,7 @@ public class EjecutorComandoLineaComandoServicioTest
     public async Task EncolarAsync_ConProcesador_DebeRetornarComandoId()
     {
         ColaComandosMemoriaFake cola = new(41);
-        RegistroProcesadoresResultadoComandoFake registro = new(true);
+        RegistroProcesadoresSerializacionResultadosComandoFake registro = new(true);
         EjecutorComandoLineaComandoServicio servicio = CrearServicio(cola, new AlmacenColaComandosFake(), registro);
 
         ReferenciaEjecucionComandoContexto referencia = await servicio.EncolarAsync(
@@ -32,7 +32,7 @@ public class EjecutorComandoLineaComandoServicioTest
         EjecutorComandoLineaComandoServicio servicio = CrearServicio(
             cola,
             new AlmacenColaComandosFake(),
-            new RegistroProcesadoresResultadoComandoFake(false));
+            new RegistroProcesadoresSerializacionResultadosComandoFake(false));
 
         InvalidOperationException excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
             () => servicio.EncolarAsync(CrearSolicitud(), CancellationToken.None));
@@ -61,7 +61,7 @@ public class EjecutorComandoLineaComandoServicioTest
         EjecutorComandoLineaComandoServicio servicio = CrearServicio(
             new ColaComandosMemoriaFake(41),
             almacen,
-            new RegistroProcesadoresResultadoComandoFake(true));
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
 
         ConsultaEjecucionComandoContexto consulta = await servicio.ConsultarAsync(
             CrearReferencia(),
@@ -84,7 +84,7 @@ public class EjecutorComandoLineaComandoServicioTest
         EjecutorComandoLineaComandoServicio servicio = CrearServicio(
             new ColaComandosMemoriaFake(41),
             almacen,
-            new RegistroProcesadoresResultadoComandoFake(true));
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
 
         ResultadoComandoContexto resultado = await servicio.EsperarResultadoAsync(
             CrearReferencia(),
@@ -108,7 +108,7 @@ public class EjecutorComandoLineaComandoServicioTest
         EjecutorComandoLineaComandoServicio servicio = CrearServicio(
             new ColaComandosMemoriaFake(41),
             almacen,
-            new RegistroProcesadoresResultadoComandoFake(true));
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
 
         await servicio.AbandonarAsync(CrearReferencia(), "reinicio", CancellationToken.None);
 
@@ -119,7 +119,7 @@ public class EjecutorComandoLineaComandoServicioTest
     private static EjecutorComandoLineaComandoServicio CrearServicio(
         ColaComandosMemoriaFake cola,
         AlmacenColaComandosFake almacen,
-        RegistroProcesadoresResultadoComandoFake registro)
+        RegistroProcesadoresSerializacionResultadosComandoFake registro)
     {
         return new EjecutorComandoLineaComandoServicio(
             cola,
@@ -265,11 +265,12 @@ public class EjecutorComandoLineaComandoServicioTest
         }
     }
 
-    private sealed class RegistroProcesadoresResultadoComandoFake : IRegistroProcesadoresResultadoComando
+    private sealed class RegistroProcesadoresSerializacionResultadosComandoFake
+        : IRegistroProcesadoresSerializacionResultadosComando
     {
         private readonly IProcesadorResultadoComando? procesador;
 
-        public RegistroProcesadoresResultadoComandoFake(bool tieneProcesador)
+        public RegistroProcesadoresSerializacionResultadosComandoFake(bool tieneProcesador)
         {
             procesador = tieneProcesador ? new ProcesadorResultadoComandoFake() : null;
         }

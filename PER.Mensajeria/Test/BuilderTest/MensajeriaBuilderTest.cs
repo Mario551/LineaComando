@@ -27,7 +27,7 @@ using PER.Mensajeria.Aplicacion.RegistrarMensajeEntrante;
 using PER.Mensajeria.Aplicacion.RegistrarMensajeSalida;
 using PER.Mensajeria.Aplicacion.RegistrarResultadoEnvioMensaje;
 using PER.Mensajeria.Aplicacion.RenovarLineaContexto;
-using PER.Mensajeria.Builder.Contexto.LineaComando;
+using PER.Mensajeria.Builder.Contexto.EjecutorComandos.LineaComando;
 using PER.Mensajeria.Builder.Worker;
 using PER.Mensajeria.Datos.Contexto;
 using PER.Mensajeria.Datos.UnitOfWork;
@@ -571,6 +571,7 @@ public class MensajeriaBuilderTest
             servicios,
             descriptorActual => descriptorActual.ServiceType == typeof(IEjecutorComandoContextoServicio));
         Assert.Equal(typeof(EjecutorComandoLineaComandoServicio), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Transient, descriptor.Lifetime);
     }
 
     [Fact]

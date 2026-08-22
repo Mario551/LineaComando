@@ -85,8 +85,9 @@ public class BuilderComando : IBuilderComando
 
         if (_procesadorResultado is not null)
         {
-            IRegistroProcesadoresResultadoComando registroProcesadores = _serviceProvider.GetRequiredService<IRegistroProcesadoresResultadoComando>();
-            registroProcesadores.Registrar(_rutaComando, _procesadorResultado);
+            IRegistroProcesadoresSerializacionResultadosComando registroProcesadoresSerializacionResultados =
+                _serviceProvider.GetRequiredService<IRegistroProcesadoresSerializacionResultadosComando>();
+            registroProcesadoresSerializacionResultados.Registrar(_rutaComando, _procesadorResultado);
         }
 
         return new BuilderManejador.BuilderManejador(metadatos, _serviceProvider);

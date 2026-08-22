@@ -2,12 +2,13 @@ using System.Collections.Concurrent;
 
 namespace PER.Comandos.LineaComandos.Cola.Resultados
 {
-    public sealed class RegistroProcesadoresResultadoComando : IRegistroProcesadoresResultadoComando
+    public sealed class RegistroProcesadoresSerializacionResultadosComando
+        : IRegistroProcesadoresSerializacionResultadosComando
     {
         private readonly ConcurrentDictionary<string, IProcesadorResultadoComando> _procesadoresPorRuta;
         private readonly ConcurrentDictionary<string, IProcesadorResultadoComando> _procesadoresPorTipoVersion;
 
-        public RegistroProcesadoresResultadoComando()
+        public RegistroProcesadoresSerializacionResultadosComando()
         {
             _procesadoresPorRuta = new ConcurrentDictionary<string, IProcesadorResultadoComando>();
             _procesadoresPorTipoVersion = new ConcurrentDictionary<string, IProcesadorResultadoComando>();

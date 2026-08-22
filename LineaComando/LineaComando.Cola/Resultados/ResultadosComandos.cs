@@ -5,16 +5,18 @@ namespace PER.Comandos.LineaComandos.Cola.Resultados
     public sealed class ResultadosComandos : IResultadosComandos
     {
         private readonly IAlmacenColaComandos _almacenColaComandos;
-        private readonly IRegistroProcesadoresResultadoComando _registroProcesadores;
+        private readonly IRegistroProcesadoresSerializacionResultadosComando
+            _registroProcesadoresSerializacionResultados;
         private readonly IAlmacenamientoPayloadResultadoComando _almacenamientoPayload;
 
         public ResultadosComandos(
             IAlmacenColaComandos almacenColaComandos,
-            IRegistroProcesadoresResultadoComando registroProcesadores,
+            IRegistroProcesadoresSerializacionResultadosComando registroProcesadoresSerializacionResultados,
             IAlmacenamientoPayloadResultadoComando almacenamientoPayload)
         {
             _almacenColaComandos = almacenColaComandos ?? throw new ArgumentNullException(nameof(almacenColaComandos));
-            _registroProcesadores = registroProcesadores ?? throw new ArgumentNullException(nameof(registroProcesadores));
+            _registroProcesadoresSerializacionResultados = registroProcesadoresSerializacionResultados
+                ?? throw new ArgumentNullException(nameof(registroProcesadoresSerializacionResultados));
             _almacenamientoPayload = almacenamientoPayload ?? throw new ArgumentNullException(nameof(almacenamientoPayload));
         }
 
@@ -41,7 +43,8 @@ namespace PER.Comandos.LineaComandos.Cola.Resultados
             object? salida = null;
             if (resultadoPersistido.PayloadResultado is not null)
             {
-                IProcesadorResultadoComando procesador = _registroProcesadores.ObtenerPorTipoVersion(
+                IProcesadorResultadoComando procesador =
+                    _registroProcesadoresSerializacionResultados.ObtenerPorTipoVersion(
                     resultadoPersistido.PayloadResultado.Tipo,
                     resultadoPersistido.PayloadResultado.Version)
                     ?? throw new InvalidOperationException(

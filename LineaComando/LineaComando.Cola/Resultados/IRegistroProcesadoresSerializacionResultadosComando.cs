@@ -1,6 +1,6 @@
 namespace PER.Comandos.LineaComandos.Cola.Resultados
 {
-    public interface IRegistroProcesadoresResultadoComando
+    public interface IRegistroProcesadoresSerializacionResultadosComando
     {
         void Registrar(string rutaComando, IProcesadorResultadoComando procesador);
 

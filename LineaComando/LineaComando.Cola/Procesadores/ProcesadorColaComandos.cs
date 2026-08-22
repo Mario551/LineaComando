@@ -146,7 +146,9 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                     scope = _serviceScopeFactory.CreateScope();
                     almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
                     IFactoriaComandos<string, ResultadoComando> factoriaComandos = scope.ServiceProvider.GetRequiredService<IFactoriaComandos<string, ResultadoComando>>();
-                    IRegistroProcesadoresResultadoComando? registroProcesadores = scope.ServiceProvider.GetService<IRegistroProcesadoresResultadoComando>();
+                    IRegistroProcesadoresSerializacionResultadosComando?
+                        registroProcesadoresSerializacionResultados =
+                            scope.ServiceProvider.GetService<IRegistroProcesadoresSerializacionResultadosComando>();
                     IAlmacenamientoPayloadResultadoComando? almacenamientoPayload = scope.ServiceProvider.GetService<IAlmacenamientoPayloadResultadoComando>();
 
                     _logger.LogInformation("Procesando comando {ComandoId}: {RutaComando} {Argumentos}",
@@ -180,7 +182,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                         comandoEnCola.RutaComando,
                         comandoEnCola.Id,
                         resultado,
-                        registroProcesadores,
+                        registroProcesadoresSerializacionResultados,
                         almacenamientoPayload,
                         token);
 
@@ -401,14 +403,18 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
             string rutaComando,
             long comandoId,
             ResultadoComando resultado,
-            IRegistroProcesadoresResultadoComando? registroProcesadores,
+            IRegistroProcesadoresSerializacionResultadosComando? registroProcesadoresSerializacionResultados,
             IAlmacenamientoPayloadResultadoComando? almacenamientoPayload,
             CancellationToken token)
         {
-            if (!resultado.Exitoso || resultado.Salida is null || registroProcesadores is null || almacenamientoPayload is null)
+            if (!resultado.Exitoso
+                || resultado.Salida is null
+                || registroProcesadoresSerializacionResultados is null
+                || almacenamientoPayload is null)
                 return null;
 
-            IProcesadorResultadoComando? procesador = registroProcesadores.ObtenerPorRutaComando(rutaComando);
+            IProcesadorResultadoComando? procesador =
+                registroProcesadoresSerializacionResultados.ObtenerPorRutaComando(rutaComando);
 
             if (procesador is null)
                 return null;

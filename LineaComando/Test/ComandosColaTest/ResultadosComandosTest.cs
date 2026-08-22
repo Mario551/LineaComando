@@ -11,9 +11,9 @@ namespace ComandosColaTest
         public async Task ObtenerResultadoAsync_CompletadoConPayload_DebeDeserializarSalida()
         {
             Mock<IAlmacenColaComandos> almacen = new Mock<IAlmacenColaComandos>();
-            RegistroProcesadoresResultadoComando registroProcesadores = new RegistroProcesadoresResultadoComando();
+            RegistroProcesadoresSerializacionResultadosComando registroProcesadoresSerializacionResultados = new();
             ProcesadorResultadoTexto procesador = new ProcesadorResultadoTexto();
-            registroProcesadores.Registrar("resultado_texto", procesador);
+            registroProcesadoresSerializacionResultados.Registrar("resultado_texto", procesador);
 
             almacen
                 .Setup(a => a.ObtenerResultadoPersistidoAsync(10, It.IsAny<CancellationToken>()))
@@ -33,7 +33,10 @@ namespace ComandosColaTest
 
             AlmacenamientoPayloadResultadoComando almacenamientoPayload = new AlmacenamientoPayloadResultadoComando(
                 new OpcionesResultadosComandos());
-            ResultadosComandos resultados = new ResultadosComandos(almacen.Object, registroProcesadores, almacenamientoPayload);
+            ResultadosComandos resultados = new ResultadosComandos(
+                almacen.Object,
+                registroProcesadoresSerializacionResultados,
+                almacenamientoPayload);
 
             ResultadoComando? resultado = await resultados.ObtenerResultadoAsync(10);
 
@@ -51,9 +54,9 @@ namespace ComandosColaTest
             try
             {
                 Mock<IAlmacenColaComandos> almacen = new Mock<IAlmacenColaComandos>();
-                RegistroProcesadoresResultadoComando registroProcesadores = new RegistroProcesadoresResultadoComando();
+                RegistroProcesadoresSerializacionResultadosComando registroProcesadoresSerializacionResultados = new();
                 ProcesadorResultadoTexto procesador = new ProcesadorResultadoTexto();
-                registroProcesadores.Registrar("resultado_texto", procesador);
+                registroProcesadoresSerializacionResultados.Registrar("resultado_texto", procesador);
 
                 string rutaRelativa = "texto/v1/10.11111111111111111111111111111111.payload";
                 string rutaCompleta = Path.Combine(rutaBase, rutaRelativa.Replace('/', Path.DirectorySeparatorChar));
@@ -78,7 +81,10 @@ namespace ComandosColaTest
 
                 AlmacenamientoPayloadResultadoComando almacenamientoPayload = new AlmacenamientoPayloadResultadoComando(
                     new OpcionesResultadosComandos { RutaBase = rutaBase });
-                ResultadosComandos resultados = new ResultadosComandos(almacen.Object, registroProcesadores, almacenamientoPayload);
+                ResultadosComandos resultados = new ResultadosComandos(
+                    almacen.Object,
+                    registroProcesadoresSerializacionResultados,
+                    almacenamientoPayload);
 
                 ResultadoComando? resultado = await resultados.ObtenerResultadoAsync(10);
 
@@ -97,7 +103,7 @@ namespace ComandosColaTest
         public async Task ObtenerResultadoAsync_Pendiente_DebeRetornarNull()
         {
             Mock<IAlmacenColaComandos> almacen = new Mock<IAlmacenColaComandos>();
-            RegistroProcesadoresResultadoComando registroProcesadores = new RegistroProcesadoresResultadoComando();
+            RegistroProcesadoresSerializacionResultadosComando registroProcesadoresSerializacionResultados = new();
 
             almacen
                 .Setup(a => a.ObtenerResultadoPersistidoAsync(10, It.IsAny<CancellationToken>()))
@@ -109,7 +115,10 @@ namespace ComandosColaTest
 
             AlmacenamientoPayloadResultadoComando almacenamientoPayload = new AlmacenamientoPayloadResultadoComando(
                 new OpcionesResultadosComandos());
-            ResultadosComandos resultados = new ResultadosComandos(almacen.Object, registroProcesadores, almacenamientoPayload);
+            ResultadosComandos resultados = new ResultadosComandos(
+                almacen.Object,
+                registroProcesadoresSerializacionResultados,
+                almacenamientoPayload);
 
             ResultadoComando? resultado = await resultados.ObtenerResultadoAsync(10);
 

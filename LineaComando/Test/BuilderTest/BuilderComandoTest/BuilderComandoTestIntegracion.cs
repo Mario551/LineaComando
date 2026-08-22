@@ -23,7 +23,9 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
         var services = new ServiceCollection();
         services.AddSingleton<IRegistroComandos<string, ResultadoComando>>(
             new RegistroComandosPostgres<string, ResultadoComando>(ConnectionString, Esquema));
-        services.AddSingleton<IRegistroProcesadoresResultadoComando, RegistroProcesadoresResultadoComando>();
+        services.AddSingleton<
+            IRegistroProcesadoresSerializacionResultadosComando,
+            RegistroProcesadoresSerializacionResultadosComando>();
         _serviceProvider = services.BuildServiceProvider();
     }
 
@@ -93,10 +95,17 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
 
         await builderComando.RegistrarAsync();
 
-        IRegistroProcesadoresResultadoComando registroProcesadores = _serviceProvider.GetRequiredService<IRegistroProcesadoresResultadoComando>();
+        IRegistroProcesadoresSerializacionResultadosComando registroProcesadoresSerializacionResultados =
+            _serviceProvider.GetRequiredService<IRegistroProcesadoresSerializacionResultadosComando>();
 
-        Assert.Same(procesador, registroProcesadores.ObtenerPorRutaComando(rutaComando));
-        Assert.Same(procesador, registroProcesadores.ObtenerPorTipoVersion(procesador.Tipo, procesador.Version));
+        Assert.Same(
+            procesador,
+            registroProcesadoresSerializacionResultados.ObtenerPorRutaComando(rutaComando));
+        Assert.Same(
+            procesador,
+            registroProcesadoresSerializacionResultados.ObtenerPorTipoVersion(
+                procesador.Tipo,
+                procesador.Version));
     }
 
     [Fact]

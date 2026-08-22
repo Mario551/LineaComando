@@ -84,11 +84,11 @@ Resultados/
  AlmacenamientoPayloadResultadoComando.cs
  IAlmacenamientoPayloadResultadoComando.cs
  IProcesadorResultadoComando.cs
- IRegistroProcesadoresResultadoComando.cs
+ IRegistroProcesadoresSerializacionResultadosComando.cs
  IResultadosComandos.cs
  OpcionesResultadosComandos.cs
  PayloadResultadoComando.cs
- RegistroProcesadoresResultadoComando.cs
+ RegistroProcesadoresSerializacionResultadosComando.cs
  ResultadoComandoPersistido.cs
  ResultadosComandos.cs
 

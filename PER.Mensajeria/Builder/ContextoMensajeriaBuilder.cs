@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using PER.Mensajeria.Aplicacion.Contexto;
 using PER.Mensajeria.Aplicacion.Contexto.IntencionOpenCode;
-using PER.Mensajeria.Builder.Contexto.LineaComando;
+using PER.Mensajeria.Builder.Contexto.EjecutorComandos.LineaComando;
 
 namespace PER.Mensajeria.Builder;
 

@@ -5,25 +5,28 @@ using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 using PER.Mensajeria.Aplicacion.Contexto;
 
-namespace PER.Mensajeria.Builder.Contexto.LineaComando;
+namespace PER.Mensajeria.Builder.Contexto.EjecutorComandos.LineaComando;
 
 public class EjecutorComandoLineaComandoServicio : IEjecutorComandoContextoServicio
 {
     private readonly IColaComandosMemoria colaComandosMemoria;
     private readonly IAlmacenColaComandos almacenColaComandos;
     private readonly IResultadosComandos resultadosComandos;
-    private readonly IRegistroProcesadoresResultadoComando registroProcesadoresResultadoComando;
+    private readonly IRegistroProcesadoresSerializacionResultadosComando
+        registroProcesadoresSerializacionResultadosComando;
 
     public EjecutorComandoLineaComandoServicio(
         IColaComandosMemoria colaComandosMemoria,
         IAlmacenColaComandos almacenColaComandos,
         IResultadosComandos resultadosComandos,
-        IRegistroProcesadoresResultadoComando registroProcesadoresResultadoComando)
+        IRegistroProcesadoresSerializacionResultadosComando
+            registroProcesadoresSerializacionResultadosComando)
     {
         this.colaComandosMemoria = colaComandosMemoria;
         this.almacenColaComandos = almacenColaComandos;
         this.resultadosComandos = resultadosComandos;
-        this.registroProcesadoresResultadoComando = registroProcesadoresResultadoComando;
+        this.registroProcesadoresSerializacionResultadosComando =
+            registroProcesadoresSerializacionResultadosComando;
     }
 
     public string Proveedor => "lineacomando";
@@ -32,12 +35,12 @@ public class EjecutorComandoLineaComandoServicio : IEjecutorComandoContextoServi
         SolicitudEjecutarComandoContexto solicitud,
         CancellationToken cancellationToken)
     {
-        IProcesadorResultadoComando? procesador = registroProcesadoresResultadoComando.ObtenerPorRutaComando(
-            solicitud.Comando.Codigo);
-        if (procesador is null)
+        if (registroProcesadoresSerializacionResultadosComando
+                .ObtenerPorRutaComando(solicitud.Comando.Codigo) is null)
         {
             throw new InvalidOperationException(
-                $"El comando '{solicitud.Comando.Codigo}' debe registrar IProcesadorResultadoComando mediante Resultado(...).");
+                $"El comando '{solicitud.Comando.Codigo}' debe registrar " +
+                "IProcesadorResultadoComando mediante Resultado(...).");
         }
 
         ComandoEncolado comando = await colaComandosMemoria.EncolarAsync(
