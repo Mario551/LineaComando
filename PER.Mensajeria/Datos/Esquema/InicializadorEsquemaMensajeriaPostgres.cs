@@ -229,7 +229,7 @@ CREATE TABLE {nombres.Mensajes} (
     telefono_origen VARCHAR(64) NULL,
     telefono_destino VARCHAR(64) NULL,
     contenido TEXT NULL,
-    identificador_externo_mensaje VARCHAR(128) NULL,
+    identificador_externo_mensaje TEXT NULL,
     fecha_mensaje TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     fecha_creacion TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT LOCALTIMESTAMP,
     fecha_actualizacion TIMESTAMP WITHOUT TIME ZONE NOT NULL,
