@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PER.Comandos.LineaComandos.Excepcion;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Resultados;
 
@@ -59,7 +60,17 @@ namespace PER.Comandos.LineaComandos.Cola.Colas
 
         public async Task<ComandoEncolado> EncolarAsync(SolicitudComando solicitud, CancellationToken token = default)
         {
-            ComandoEnCola comando = CrearComandoEnCola(solicitud);
+            ArgumentNullException.ThrowIfNull(solicitud);
+
+            ResultadoArgumentosLineaComando argumentos = ArgumentosLineaComando.Parsear(solicitud.Argumentos);
+            if (argumentos.Data is not null
+                && !string.IsNullOrWhiteSpace(solicitud.DatosDeComando))
+            {
+                throw new ErrorDeSintaxisExcepcion(
+                    "La solicitud no puede enviar --data y DatosDeComando simultáneamente.");
+            }
+
+            ComandoEnCola comando = CrearComandoEnCola(solicitud, argumentos);
 
             using IServiceScope scope = _serviceScopeFactory.CreateScope();
             IAlmacenColaComandos almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
@@ -180,13 +191,15 @@ namespace PER.Comandos.LineaComandos.Cola.Colas
             };
         }
 
-        private static ComandoEnCola CrearComandoEnCola(SolicitudComando solicitud)
+        private static ComandoEnCola CrearComandoEnCola(
+            SolicitudComando solicitud,
+            ResultadoArgumentosLineaComando argumentos)
         {
             return new ComandoEnCola
             {
                 RutaComando = solicitud.RutaComando,
-                Argumentos = solicitud.Argumentos,
-                DatosDeComando = solicitud.DatosDeComando,
+                Argumentos = ArgumentosLineaComando.Serializar(argumentos.Parametros),
+                DatosDeComando = argumentos.Data ?? solicitud.DatosDeComando,
                 FechaCreacion = DateTime.Now,
                 Estado = "pendiente",
                 Intentos = 0

@@ -9,49 +9,52 @@ namespace PER.Comandos.LineaComandos
     {
         public ICollection<string> Ruta { get; set; }
         public ICollection<Parametro> Parametros { get; set; }
+        public string? Data { get; set; }
 
-        public LineaComando(ICollection<string> args) 
+        public LineaComando(ICollection<string> args)
         {
+            ArgumentNullException.ThrowIfNull(args);
+
             if (!args.Any())
                 throw new ArgumentException("Colección de argumentos vacía");
 
-            int pos = -1;
-            for (int i = 0; i < args.Count; i++)
-            {
-                if (args.ElementAt(i).Substring(0, 2) == "--")
-                {
-                    pos = i;
-                    break;
-                }
-            }
-
-            this.Parametros = new List<Parametro>();
+            int pos = args
+                .Select((argumento, indice) => new { argumento, indice })
+                .Where(elemento => elemento.argumento.StartsWith("--", StringComparison.Ordinal))
+                .Select(elemento => elemento.indice)
+                .DefaultIfEmpty(-1)
+                .First();
 
             //Comando sin parámetros
             if (pos == -1)
             {
-                this.Ruta = args;
+                Ruta = args.ToList();
+                Parametros = new List<Parametro>();
                 return;
             }
 
-            for (int i = pos; i < args.Count; i++)
-            {
-                string arg = args.ElementAt(i);
-                string[] keyValor = arg.Split('=');
-                if (keyValor.Length == 2)
-                    Parametros.Add(new Parametro
-                    {
-                        Nombre = keyValor[0],
-                        Valor = keyValor[1]
-                    });
-                else
-                    Parametros.Add(new Parametro
-                    {
-                        Nombre = keyValor[0]
-                    });
-            }
+            ResultadoArgumentosLineaComando argumentos = ArgumentosLineaComando.Parsear(
+                args.Skip(pos).ToList());
 
-            this.Ruta = args.Take(pos).ToList();
+            Ruta = args.Take(pos).ToList();
+            Parametros = argumentos.Parametros;
+            Data = argumentos.Data;
+        }
+
+        public LineaComando(
+            ICollection<string> ruta,
+            ICollection<Parametro> parametros,
+            string? data = null)
+        {
+            ArgumentNullException.ThrowIfNull(ruta);
+            ArgumentNullException.ThrowIfNull(parametros);
+
+            if (!ruta.Any())
+                throw new ArgumentException("Colección de ruta vacía", nameof(ruta));
+
+            Ruta = ruta.ToList();
+            Parametros = parametros.ToList();
+            Data = data;
         }
     }
 }

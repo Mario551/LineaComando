@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
+using PER.Comandos.LineaComandos;
+using PER.Comandos.LineaComandos.Atributo;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Resultados;
@@ -43,12 +45,53 @@ public class EjecutorComandoLineaComandoServicio : IEjecutorComandoContextoServi
                 "IProcesadorResultadoComando mediante Resultado(...).");
         }
 
+        List<Parametro> parametros = new List<Parametro>();
+        HashSet<string> nombres = new HashSet<string>(StringComparer.Ordinal);
+        string nombreIdentificadorPropietario =
+            $"--{ParametrosReservadosComandoContexto.IdentificadorPropietarioContexto}";
+
+        foreach ((string nombre, string valor) in solicitud.Parametros)
+        {
+            string nombreNormalizado = NormalizarNombreParametro(nombre);
+            if (!nombres.Add(nombreNormalizado))
+            {
+                throw new InvalidOperationException(
+                    $"El parámetro '{nombreNormalizado}' fue proporcionado más de una vez.");
+            }
+
+            if (string.Equals(
+                    nombreNormalizado,
+                    nombreIdentificadorPropietario,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"El parámetro interno '{nombreIdentificadorPropietario}' no puede ser proporcionado por la IA.");
+            }
+
+            parametros.Add(new Parametro
+            {
+                Nombre = nombreNormalizado,
+                Valor = valor
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(solicitud.Solicitud.TelefonoOrigen))
+        {
+            parametros.Add(new Parametro
+            {
+                Nombre = nombreIdentificadorPropietario,
+                Valor = solicitud.Solicitud.TelefonoOrigen
+            });
+        }
+
+        string argumentos = ArgumentosLineaComando.Serializar(parametros);
+
         ComandoEncolado comando = await colaComandosMemoria.EncolarAsync(
             new SolicitudComando
             {
                 RutaComando = solicitud.Comando.Codigo,
-                Argumentos = string.Empty,
-                DatosDeComando = JsonSerializer.Serialize(solicitud.Parametros)
+                Argumentos = argumentos,
+                DatosDeComando = null
             },
             cancellationToken);
 
@@ -57,6 +100,15 @@ public class EjecutorComandoLineaComandoServicio : IEjecutorComandoContextoServi
             Proveedor = Proveedor,
             IdentificadorExterno = comando.ComandoId.ToString(CultureInfo.InvariantCulture)
         };
+    }
+
+    private static string NormalizarNombreParametro(string nombre)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
+
+        return nombre.StartsWith("--", StringComparison.Ordinal)
+            ? nombre
+            : $"--{nombre}";
     }
 
     public async Task<ConsultaEjecucionComandoContexto> ConsultarAsync(

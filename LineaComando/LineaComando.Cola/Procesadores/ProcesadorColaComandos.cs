@@ -7,6 +7,8 @@ using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Notificaciones;
 using PER.Comandos.LineaComandos.Cola.Resultados;
+using PER.Comandos.LineaComandos.Atributo;
+using PER.Comandos.LineaComandos.Excepcion;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 
 namespace PER.Comandos.LineaComandos.Cola.Procesadores
@@ -151,15 +153,26 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                             scope.ServiceProvider.GetService<IRegistroProcesadoresSerializacionResultadosComando>();
                     IAlmacenamientoPayloadResultadoComando? almacenamientoPayload = scope.ServiceProvider.GetService<IAlmacenamientoPayloadResultadoComando>();
 
-                    _logger.LogInformation("Procesando comando {ComandoId}: {RutaComando} {Argumentos}",
-                        comandoEnCola.Id, comandoEnCola.RutaComando, comandoEnCola.Argumentos);
+                    _logger.LogInformation(
+                        "Procesando comando {ComandoId}: {RutaComando}",
+                        comandoEnCola.Id,
+                        comandoEnCola.RutaComando);
 
                     IEnumerable<ComandoEnCola> comandosProcesando = await almacenColaComandos.MarcarComandosProcesandoAsync(
                         new[] { comandoEnCola.Id },
                         token);
 
                     comandoEnCola = comandosProcesando.FirstOrDefault() ?? comandoEnCola;
-                    (origen, codigoOrigen, agregadoId) = ObtenerMetadatosOrigen(comandoEnCola.Argumentos);
+                    ResultadoArgumentosLineaComando argumentos = ArgumentosLineaComando.Parsear(comandoEnCola.Argumentos);
+
+                    if (argumentos.Data is not null
+                        && !string.IsNullOrWhiteSpace(comandoEnCola.DatosDeComando))
+                    {
+                        throw new ErrorDeSintaxisExcepcion(
+                            "El comando persistido contiene --data y DatosDeComando simultáneamente.");
+                    }
+
+                    (origen, codigoOrigen, agregadoId) = ObtenerMetadatosOrigen(argumentos.Parametros);
                     ejecucionIniciada = true;
                     NotificarEjecucionSinInterrumpir(
                         ejecucionId,
@@ -171,10 +184,14 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                         null,
                         null);
 
-                    LineaComando lineaComando = ParsearLineaComando(comandoEnCola);
+                    string? data = argumentos.Data ?? comandoEnCola.DatosDeComando;
+                    LineaComando lineaComando = ParsearLineaComando(
+                        comandoEnCola,
+                        argumentos.Parametros,
+                        data);
                     var comando = factoriaComandos.Crear(lineaComando);
 
-                    resultado = await comando.EjecutarAsync(comandoEnCola.DatosDeComando ?? string.Empty, token);
+                    resultado = await comando.EjecutarAsync(lineaComando.Data ?? string.Empty, token);
 
                     stopwatch.Stop();
                     resultado.Duracion = stopwatch.Elapsed;
@@ -287,19 +304,18 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
         private static (
             OrigenEjecucionComandoTipo Origen,
             string? CodigoOrigen,
-            long? AgregadoId) ObtenerMetadatosOrigen(string? argumentos)
+            long? AgregadoId) ObtenerMetadatosOrigen(IEnumerable<Parametro> argumentos)
         {
-            if (string.IsNullOrWhiteSpace(argumentos))
+            if (!argumentos.Any())
                 return (OrigenEjecucionComandoTipo.Directo, null, null);
 
-            string[] partes = argumentos.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            bool tieneOrigen = TryObtenerValorArgumento(partes, "--origen", out string? valorOrigen);
+            bool tieneOrigen = TryObtenerValorArgumento(argumentos, "--origen", out string? valorOrigen);
 
             if (!tieneOrigen)
                 return (OrigenEjecucionComandoTipo.Directo, null, null);
 
-            TryObtenerValorArgumento(partes, "--codigo", out string? codigoOrigen);
-            bool tieneAgregado = TryObtenerValorArgumento(partes, "--agregado-id", out string? valorAgregado);
+            TryObtenerValorArgumento(argumentos, "--codigo", out string? codigoOrigen);
+            bool tieneAgregado = TryObtenerValorArgumento(argumentos, "--agregado-id", out string? valorAgregado);
             long? agregadoId = null;
 
             if (tieneAgregado)
@@ -323,23 +339,15 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
         }
 
         private static bool TryObtenerValorArgumento(
-            IEnumerable<string> argumentos,
+            IEnumerable<Parametro> argumentos,
             string nombre,
             out string? valor)
         {
-            string prefijo = $"{nombre}=";
-
-            foreach (string argumento in argumentos)
+            foreach (Parametro argumento in argumentos)
             {
-                if (string.Equals(argumento, nombre, StringComparison.Ordinal))
+                if (string.Equals(argumento.Nombre, nombre, StringComparison.Ordinal))
                 {
-                    valor = null;
-                    return true;
-                }
-
-                if (argumento.StartsWith(prefijo, StringComparison.Ordinal))
-                {
-                    valor = argumento[prefijo.Length..];
+                    valor = argumento.Valor;
                     return true;
                 }
             }
@@ -383,20 +391,13 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
             }
         }
 
-        private LineaComando ParsearLineaComando(ComandoEnCola comandoEnCola)
+        private static LineaComando ParsearLineaComando(
+            ComandoEnCola comandoEnCola,
+            ICollection<Parametro> parametros,
+            string? data)
         {
-            List<string> partes = new List<string>();
-
             string[] rutaPartes = comandoEnCola.RutaComando.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            partes.AddRange(rutaPartes);
-
-            if (!string.IsNullOrWhiteSpace(comandoEnCola.Argumentos))
-            {
-                string[] argumentosPartes = comandoEnCola.Argumentos.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                partes.AddRange(argumentosPartes);
-            }
-
-            return new LineaComando(partes);
+            return new LineaComando(rutaPartes, parametros, data);
         }
 
         private static async Task<PayloadResultadoComando?> CrearPayloadResultadoAsync(

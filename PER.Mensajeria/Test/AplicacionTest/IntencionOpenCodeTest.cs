@@ -182,6 +182,102 @@ public class IntencionOpenCodeTest
     }
 
     [Fact]
+    public void CrearSolicitudDecision_Data_DebePublicarseEnCatalogoAutorizado()
+    {
+        OpenCodeAgenteAdaptador adaptador = CrearAdaptador();
+        SolicitudIntencionContexto solicitud = CrearSolicitudIntencionConParametros(
+            "modo",
+            "data");
+
+        DTOOpenCodeMensajeSolicitud resultado = adaptador.CrearSolicitudDecision(solicitud);
+
+        using JsonDocument documento = JsonDocument.Parse(Assert.Single(resultado.Partes).Texto);
+        JsonElement comando = Assert.Single(
+            documento.RootElement.GetProperty("comandosAutorizados").EnumerateArray());
+        JsonElement parametros = comando.GetProperty("Parametros");
+        Assert.True(parametros.TryGetProperty("modo", out _));
+        Assert.True(parametros.TryGetProperty("data", out _));
+    }
+
+    [Theory]
+    [InlineData("{\"id\":1}", JsonValueKind.Object)]
+    [InlineData("[1,2,3]", JsonValueKind.Array)]
+    [InlineData("\"texto\"", JsonValueKind.String)]
+    [InlineData("42", JsonValueKind.Number)]
+    [InlineData("12.5", JsonValueKind.Number)]
+    [InlineData("true", JsonValueKind.True)]
+    [InlineData("false", JsonValueKind.False)]
+    [InlineData("null", JsonValueKind.Null)]
+    [InlineData("{ \"texto\": \"O'Connor --modo\", \"ruta\": \"C:\\\\tmp\", \"unicode\": \"\\u0041\" }", JsonValueKind.Object)]
+    public void InterpretarDecision_Data_DebeConservarTextoYTipoJson(
+        string dataJson,
+        JsonValueKind tipoEsperado)
+    {
+        OpenCodeAgenteAdaptador adaptador = CrearAdaptador();
+        SolicitudIntencionContexto solicitud = CrearSolicitudIntencionConParametros(
+            "modo",
+            "data");
+        string contenido = "{\"accion\":\"comando\","
+            + "\"codigoComando\":\"pedido consultar\","
+            + "\"parametros\":{\"modo\":\"validar\",\"data\":"
+            + dataJson
+            + "}}";
+
+        ResultadoIntencionContexto resultado = adaptador.InterpretarDecision(
+            solicitud,
+            CrearRespuestaExitosa(contenido));
+
+        Assert.Equal(AccionContextoTipo.Comando, resultado.TipoAccion);
+        Assert.Equal("validar", resultado.ParametrosComando["modo"]);
+        Assert.Equal(dataJson, resultado.ParametrosComando["data"]);
+        using JsonDocument documento = JsonDocument.Parse(resultado.ContenidoDecision);
+        JsonElement data = documento.RootElement.GetProperty("parametros").GetProperty("data");
+        using JsonDocument dataEsperada = JsonDocument.Parse(dataJson);
+        Assert.Equal(tipoEsperado, data.ValueKind);
+        Assert.True(JsonElement.DeepEquals(dataEsperada.RootElement, data));
+    }
+
+    [Theory]
+    [InlineData("{\"pedido\":\"54013\",\"data\":{\"id\":1}}")]
+    [InlineData("{\"pedido\":\"54013\",\"extra\":\"valor\"}")]
+    public void InterpretarDecision_ParametroNoDeclarado_DebeRetornarError(
+        string parametros)
+    {
+        OpenCodeAgenteAdaptador adaptador = CrearAdaptador();
+
+        ResultadoIntencionContexto resultado = adaptador.InterpretarDecision(
+            CrearSolicitudIntencion(),
+            CrearRespuestaExitosa(
+                "{\"accion\":\"comando\",\"codigoComando\":\"pedido consultar\","
+                + $"\"parametros\":{parametros}}}"));
+
+        Assert.Equal(AccionContextoTipo.Error, resultado.TipoAccion);
+        Assert.Contains("no declarados", resultado.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("{\"pedido\":\"54013\",\"pedido\":\"54014\"}", false)]
+    [InlineData("{\"data\":{\"id\":1},\"data\":{\"id\":2}}", true)]
+    public void InterpretarDecision_ParametroDuplicado_DebeRetornarError(
+        string parametros,
+        bool declaraData)
+    {
+        OpenCodeAgenteAdaptador adaptador = CrearAdaptador();
+        SolicitudIntencionContexto solicitud = declaraData
+            ? CrearSolicitudIntencionConParametros("data")
+            : CrearSolicitudIntencion();
+
+        ResultadoIntencionContexto resultado = adaptador.InterpretarDecision(
+            solicitud,
+            CrearRespuestaExitosa(
+                "{\"accion\":\"comando\",\"codigoComando\":\"pedido consultar\","
+                + $"\"parametros\":{parametros}}}"));
+
+        Assert.Equal(AccionContextoTipo.Error, resultado.TipoAccion);
+        Assert.Contains("mas de una vez", resultado.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void InterpretarDecision_DebeMapearConsultaAnterior()
     {
         OpenCodeAgenteAdaptador adaptador = CrearAdaptador();
@@ -782,6 +878,17 @@ public class IntencionOpenCodeTest
         };
     }
 
+    private static SolicitudIntencionContexto CrearSolicitudIntencionConParametros(
+        params string[] nombresParametros)
+    {
+        SolicitudIntencionContexto solicitud = CrearSolicitudIntencion();
+        solicitud.Comandos[0].Parametros = nombresParametros.ToDictionary(
+            nombre => nombre,
+            nombre => $"Descripcion de {nombre}",
+            StringComparer.Ordinal);
+        return solicitud;
+    }
+
     private static SolicitudContextoConversacion CrearSolicitudContexto()
     {
         return new SolicitudContextoConversacion
@@ -1040,7 +1147,7 @@ public class IntencionOpenCodeTest
         public int SesionesEliminadas { get; private set; }
         public bool FallarAbortar { get; init; }
         public List<DTOOpenCodeMensajeSolicitud> SolicitudesMensaje
-            { get; } = [];
+        { get; } = [];
 
         public void AgregarRespuesta(
             ResultadoOpenCodeCliente<DTOOpenCodeRespuestaMensaje>

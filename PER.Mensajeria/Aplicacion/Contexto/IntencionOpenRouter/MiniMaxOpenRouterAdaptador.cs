@@ -325,11 +325,25 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
     {
         Dictionary<string, object> propiedades = comando.Parametros.ToDictionary(
             parametro => parametro.Key,
-            parametro => (object)new
-            {
-                type = "string",
-                description = parametro.Value
-            },
+            parametro => (object)(ParametrosReservadosComandoContexto.EsData(parametro.Key)
+                ? new
+                {
+                    type = (object)new[]
+                    {
+                        "object",
+                        "array",
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                    },
+                    description = parametro.Value
+                }
+                : new
+                {
+                    type = (object)"string",
+                    description = parametro.Value
+                }),
             StringComparer.Ordinal);
 
         string descripcion = string.Join(
@@ -502,6 +516,16 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
         try
         {
             Dictionary<string, string> parametros = LeerParametros(argumentos);
+            List<string> inesperados = parametros.Keys
+                .Where(parametro => !comando.Parametros.ContainsKey(parametro))
+                .ToList();
+            if (inesperados.Count > 0)
+            {
+                return CrearErrorDecision(
+                    metadata,
+                    $"OpenRouter envio parametros no declarados para {comando.Codigo}: {string.Join(", ", inesperados)}.");
+            }
+
             List<string> faltantes = comando.Parametros.Keys
                 .Where(parametro => !parametros.ContainsKey(parametro))
                 .ToList();
@@ -512,11 +536,12 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
                     $"OpenRouter omitio parametros obligatorios de {comando.Codigo}: {string.Join(", ", faltantes)}.");
             }
 
+            using JsonDocument documentoParametros = JsonDocument.Parse(argumentos);
             string contenidoDecision = JsonSerializer.Serialize(new
             {
                 accion = "comando",
                 codigoComando = comando.Codigo,
-                parametros,
+                parametros = documentoParametros.RootElement,
                 toolCallID = llamada.ID
             });
             metadata.Content = contenidoDecision;
@@ -666,9 +691,16 @@ public class MiniMaxOpenRouterAdaptador : IOpenRouterModeloAdaptador
         Dictionary<string, string> parametros = new(StringComparer.Ordinal);
         foreach (JsonProperty propiedad in documento.RootElement.EnumerateObject())
         {
-            parametros[propiedad.Name] = propiedad.Value.ValueKind == JsonValueKind.String
+            string valor = ParametrosReservadosComandoContexto.EsData(propiedad.Name)
+                ? propiedad.Value.GetRawText()
+                : propiedad.Value.ValueKind == JsonValueKind.String
                 ? propiedad.Value.GetString() ?? string.Empty
                 : propiedad.Value.GetRawText();
+            if (!parametros.TryAdd(propiedad.Name, valor))
+            {
+                throw new JsonException(
+                    $"El parametro '{propiedad.Name}' fue proporcionado mas de una vez.");
+            }
         }
 
         return parametros;

@@ -482,6 +482,18 @@ public sealed class OpenCodeAgenteAdaptador : IOpenCodeAgenteAdaptador
         Dictionary<string, string> parametros = LeerParametros(
             raiz,
             "parametros");
+        List<string> inesperados = parametros.Keys
+            .Where(parametro => !comando.Parametros.ContainsKey(parametro))
+            .ToList();
+        if (inesperados.Count > 0)
+        {
+            return CrearErrorDecision(
+                informacionTecnica,
+                $"OpenCode envio parametros no declarados para {codigoComando}: "
+                + string.Join(", ", inesperados)
+                + ".");
+        }
+
         List<string> faltantes = comando.Parametros.Keys
             .Where(parametro => !parametros.ContainsKey(parametro))
             .ToList();
@@ -798,10 +810,16 @@ public sealed class OpenCodeAgenteAdaptador : IOpenCodeAgenteAdaptador
             new(StringComparer.Ordinal);
         foreach (JsonProperty parametro in parametrosJson.EnumerateObject())
         {
-            parametros[parametro.Name] =
-                parametro.Value.ValueKind == JsonValueKind.String
-                    ? parametro.Value.GetString() ?? string.Empty
-                    : parametro.Value.GetRawText();
+            string valor = ParametrosReservadosComandoContexto.EsData(parametro.Name)
+                ? parametro.Value.GetRawText()
+                : parametro.Value.ValueKind == JsonValueKind.String
+                ? parametro.Value.GetString() ?? string.Empty
+                : parametro.Value.GetRawText();
+            if (!parametros.TryAdd(parametro.Name, valor))
+            {
+                throw new InvalidOperationException(
+                    $"El parametro '{parametro.Name}' fue proporcionado mas de una vez.");
+            }
         }
 
         return parametros;

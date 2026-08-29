@@ -691,6 +691,7 @@ public static class IntegracionCompletaMensajeriaLineaComandoEscenarioPrueba
     internal sealed class ConsultarPedidoComando : ComandoBase<string, ResultadoComando>
     {
         private readonly RegistroIntegracionMensajeriaPrueba registro;
+        private string pedido = string.Empty;
 
         public ConsultarPedidoComando(RegistroIntegracionMensajeriaPrueba registro)
         {
@@ -699,12 +700,14 @@ public static class IntegracionCompletaMensajeriaLineaComandoEscenarioPrueba
 
         public override void Preparar(ICollection<Parametro> parametros)
         {
+            pedido = parametros
+                .Single(parametro => parametro.Nombre == "--pedido")
+                .Valor
+                ?? string.Empty;
         }
 
         public override Task<ResultadoComando> EjecutarAsync(string entrada, CancellationToken token = default)
         {
-            using JsonDocument documento = JsonDocument.Parse(entrada);
-            string pedido = documento.RootElement.GetProperty("pedido").GetString() ?? string.Empty;
             if (pedido != Pedido)
             {
                 return Task.FromResult(ResultadoComando.Fallo($"Pedido de prueba inesperado: {pedido}"));

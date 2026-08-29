@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using PER.Comandos.LineaComandos;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.Cola.Colas;
 using PER.Comandos.LineaComandos.Cola.Resultados;
@@ -23,6 +24,112 @@ public class EjecutorComandoLineaComandoServicioTest
         Assert.Equal("lineacomando", referencia.Proveedor);
         Assert.Equal("41", referencia.IdentificadorExterno);
         Assert.Equal(1, cola.Encolados);
+    }
+
+    [Fact]
+    public async Task EncolarAsync_ParametrosDataYTelefono_DebeConstruirSolicitudCli()
+    {
+        const string data = """{ "mensaje": "O'Connor --modo", "ruta": "C:\\tmp", "unicode": "\u0041" }""";
+        ColaComandosMemoriaFake cola = new(41);
+        EjecutorComandoLineaComandoServicio servicio = CrearServicio(
+            cola,
+            new AlmacenColaComandosFake(),
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
+        SolicitudEjecutarComandoContexto solicitud = CrearSolicitud(
+            "3001234567",
+            new Dictionary<string, string>
+            {
+                ["modo"] = "validar",
+                ["data"] = data
+            });
+
+        await servicio.EncolarAsync(solicitud, CancellationToken.None);
+
+        Assert.NotNull(cola.SolicitudRecibida);
+        Assert.Equal("pedido consultar", cola.SolicitudRecibida!.RutaComando);
+        Assert.Null(cola.SolicitudRecibida.DatosDeComando);
+        ResultadoArgumentosLineaComando argumentos = ArgumentosLineaComando.Parsear(
+            cola.SolicitudRecibida.Argumentos);
+        Dictionary<string, string?> parametros = argumentos.Parametros.ToDictionary(
+            parametro => parametro.Nombre,
+            parametro => parametro.Valor,
+            StringComparer.Ordinal);
+        Assert.Equal("validar", parametros["--modo"]);
+        Assert.Equal("3001234567", parametros["--identificador-propietario-contexto"]);
+        Assert.Equal(data, argumentos.Data);
+        Assert.DoesNotContain(argumentos.Parametros, parametro => parametro.Nombre == "--data");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task EncolarAsync_TelefonoVacio_DebeOmitirIdentificador(string? telefonoOrigen)
+    {
+        ColaComandosMemoriaFake cola = new(41);
+        EjecutorComandoLineaComandoServicio servicio = CrearServicio(
+            cola,
+            new AlmacenColaComandosFake(),
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
+
+        await servicio.EncolarAsync(
+            CrearSolicitud(telefonoOrigen),
+            CancellationToken.None);
+
+        Assert.NotNull(cola.SolicitudRecibida);
+        ResultadoArgumentosLineaComando argumentos = ArgumentosLineaComando.Parsear(
+            cola.SolicitudRecibida!.Argumentos);
+        Assert.DoesNotContain(
+            argumentos.Parametros,
+            parametro => parametro.Nombre == "--identificador-propietario-contexto");
+    }
+
+    [Theory]
+    [InlineData("identificador-propietario-contexto")]
+    [InlineData("--identificador-propietario-contexto")]
+    public async Task EncolarAsync_IdentificadorProporcionadoPorIa_DebeFallarAntesDeEncolar(
+        string nombreParametro)
+    {
+        ColaComandosMemoriaFake cola = new(41);
+        EjecutorComandoLineaComandoServicio servicio = CrearServicio(
+            cola,
+            new AlmacenColaComandosFake(),
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
+        SolicitudEjecutarComandoContexto solicitud = CrearSolicitud(
+            parametros: new Dictionary<string, string>
+            {
+                [nombreParametro] = "telefono-no-confiable"
+            });
+
+        InvalidOperationException excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.EncolarAsync(solicitud, CancellationToken.None));
+
+        Assert.Contains("no puede ser proporcionado", excepcion.Message);
+        Assert.Equal(0, cola.Encolados);
+        Assert.Null(cola.SolicitudRecibida);
+    }
+
+    [Fact]
+    public async Task EncolarAsync_NombresEquivalentes_DebeFallarAntesDeEncolar()
+    {
+        ColaComandosMemoriaFake cola = new(41);
+        EjecutorComandoLineaComandoServicio servicio = CrearServicio(
+            cola,
+            new AlmacenColaComandosFake(),
+            new RegistroProcesadoresSerializacionResultadosComandoFake(true));
+        SolicitudEjecutarComandoContexto solicitud = CrearSolicitud(
+            parametros: new Dictionary<string, string>
+            {
+                ["pedido"] = "54013",
+                ["--pedido"] = "54014"
+            });
+
+        InvalidOperationException excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.EncolarAsync(solicitud, CancellationToken.None));
+
+        Assert.Contains("más de una vez", excepcion.Message);
+        Assert.Equal(0, cola.Encolados);
+        Assert.Null(cola.SolicitudRecibida);
     }
 
     [Fact]
@@ -128,19 +235,32 @@ public class EjecutorComandoLineaComandoServicioTest
             registro);
     }
 
-    private static SolicitudEjecutarComandoContexto CrearSolicitud()
+    private static SolicitudEjecutarComandoContexto CrearSolicitud(
+        string? telefonoOrigen = null,
+        IReadOnlyDictionary<string, string>? parametros = null)
     {
+        IReadOnlyDictionary<string, string> parametrosSolicitud = parametros
+            ?? new Dictionary<string, string>
+            {
+                ["pedido"] = "54013"
+            };
+
         return new SolicitudEjecutarComandoContexto
         {
+            Solicitud = new()
+            {
+                TelefonoOrigen = telefonoOrigen
+            },
             Comando = new ComandoContexto
             {
                 Codigo = "pedido consultar",
-                Autorizado = true
+                Autorizado = true,
+                Parametros = parametrosSolicitud.Keys.ToDictionary(
+                    nombre => nombre,
+                    nombre => $"Descripcion de {nombre}",
+                    StringComparer.Ordinal)
             },
-            Parametros = new Dictionary<string, string>
-            {
-                ["pedido"] = "54013"
-            }
+            Parametros = parametrosSolicitud
         };
     }
 
@@ -163,6 +283,7 @@ public class EjecutorComandoLineaComandoServicioTest
         }
 
         public int Encolados { get; private set; }
+        public SolicitudComando? SolicitudRecibida { get; private set; }
 
         public Task CargarPendientesDesdeBaseDatosAsync(CancellationToken token = default)
         {
@@ -172,6 +293,7 @@ public class EjecutorComandoLineaComandoServicioTest
         public Task<ComandoEncolado> EncolarAsync(SolicitudComando solicitud, CancellationToken token = default)
         {
             Encolados++;
+            SolicitudRecibida = solicitud;
             return Task.FromResult(new ComandoEncolado
             {
                 ComandoId = comandoId,

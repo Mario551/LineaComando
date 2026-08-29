@@ -106,6 +106,137 @@ public class IntencionOpenRouterMiniMaxTest
     }
 
     [Fact]
+    public void CrearSolicitudDecision_Data_DebePublicarTodosLosTiposJson()
+    {
+        MiniMaxOpenRouterAdaptador adaptador = CrearAdaptador();
+        SolicitudIntencionContexto solicitud = CrearSolicitudIntencionConParametros(
+            "modo",
+            "data");
+
+        DTOOpenRouterSolicitudChat resultado = adaptador.CrearSolicitudDecision(solicitud);
+
+        DTOOpenRouterHerramienta herramienta = Assert.Single(
+            resultado.Herramientas!,
+            herramienta => herramienta.Funcion.Nombre == "comando_pedido_consultar");
+        JsonElement esquema = herramienta.Funcion.Parametros!.Value;
+        JsonElement propiedades = esquema.GetProperty("properties");
+        JsonElement tiposDataJson = propiedades.GetProperty("data").GetProperty("type");
+        HashSet<string> tiposData = tiposDataJson
+            .EnumerateArray()
+            .Select(tipo => tipo.GetString()!)
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.Equal("string", propiedades.GetProperty("modo").GetProperty("type").GetString());
+        Assert.Equal(6, tiposDataJson.GetArrayLength());
+        Assert.True(tiposData.SetEquals(["object", "array", "string", "number", "boolean", "null"]));
+        Assert.False(esquema.GetProperty("additionalProperties").GetBoolean());
+        Assert.Contains("data", esquema.GetProperty("required").EnumerateArray().Select(valor => valor.GetString()));
+    }
+
+    [Theory]
+    [InlineData("{\"id\":1}", JsonValueKind.Object)]
+    [InlineData("[1,2,3]", JsonValueKind.Array)]
+    [InlineData("\"texto\"", JsonValueKind.String)]
+    [InlineData("42", JsonValueKind.Number)]
+    [InlineData("12.5", JsonValueKind.Number)]
+    [InlineData("true", JsonValueKind.True)]
+    [InlineData("false", JsonValueKind.False)]
+    [InlineData("null", JsonValueKind.Null)]
+    [InlineData("{ \"texto\": \"O'Connor --modo\", \"ruta\": \"C:\\\\tmp\", \"unicode\": \"\\u0041\" }", JsonValueKind.Object)]
+    public void InterpretarDecision_Data_DebeConservarTextoYTipoJson(
+        string dataJson,
+        JsonValueKind tipoEsperado)
+    {
+        MiniMaxOpenRouterAdaptador adaptador = CrearAdaptador();
+        SolicitudIntencionContexto solicitud = CrearSolicitudIntencionConParametros(
+            "modo",
+            "data");
+        ResultadoOpenRouterCliente respuesta = CrearRespuestaTool(
+            "call-data-1",
+            "comando_pedido_consultar",
+            $"{{\"modo\":\"validar\",\"data\":{dataJson}}}");
+
+        ResultadoIntencionContexto resultado = adaptador.InterpretarDecision(solicitud, respuesta);
+
+        Assert.Equal(AccionContextoTipo.Comando, resultado.TipoAccion);
+        Assert.Equal("validar", resultado.ParametrosComando["modo"]);
+        Assert.Equal(dataJson, resultado.ParametrosComando["data"]);
+        using JsonDocument documento = JsonDocument.Parse(resultado.ContenidoDecision);
+        JsonElement data = documento.RootElement.GetProperty("parametros").GetProperty("data");
+        using JsonDocument dataEsperada = JsonDocument.Parse(dataJson);
+        Assert.Equal(tipoEsperado, data.ValueKind);
+        Assert.True(JsonElement.DeepEquals(dataEsperada.RootElement, data));
+
+        solicitud.MetadataEntradasContextoIA =
+        [
+            solicitud.MetadataEntradasContextoIA[0],
+            new MetadataEntradaContextoIA
+            {
+                ID = 2,
+                Orden = 2,
+                IDRolContextoIA = "assistant",
+                IDTipoEntradaContextoIA = "decision_comando",
+                Contenido = resultado.ContenidoDecision,
+                ToolCallID = "call-data-1",
+                FechaEntrada = new DateTime(2026, 7, 15, 10, 1, 0)
+            }
+        ];
+
+        DTOOpenRouterSolicitudChat solicitudReconstruida = adaptador.CrearSolicitudDecision(solicitud);
+
+        DTOOpenRouterMensaje mensaje = Assert.Single(
+            solicitudReconstruida.Mensajes,
+            mensaje => mensaje.Rol == "assistant");
+        DTOOpenRouterLlamadaHerramienta llamada = Assert.Single(mensaje.LlamadasHerramientas!);
+        Assert.False(string.IsNullOrWhiteSpace(llamada.Funcion.Argumentos));
+        using JsonDocument argumentos = JsonDocument.Parse(llamada.Funcion.Argumentos!);
+        JsonElement dataReconstruida = argumentos.RootElement.GetProperty("data");
+        Assert.Equal("validar", argumentos.RootElement.GetProperty("modo").GetString());
+        Assert.Equal(tipoEsperado, dataReconstruida.ValueKind);
+        Assert.True(JsonElement.DeepEquals(dataEsperada.RootElement, dataReconstruida));
+    }
+
+    [Theory]
+    [InlineData("{\"pedido\":\"54013\",\"data\":{\"id\":1}}")]
+    [InlineData("{\"pedido\":\"54013\",\"extra\":\"valor\"}")]
+    public void InterpretarDecision_ParametroNoDeclarado_DebeRetornarError(string argumentos)
+    {
+        MiniMaxOpenRouterAdaptador adaptador = CrearAdaptador();
+
+        ResultadoIntencionContexto resultado = adaptador.InterpretarDecision(
+            CrearSolicitudIntencion(),
+            CrearRespuestaTool(
+                "call-data-1",
+                "comando_pedido_consultar",
+                argumentos));
+
+        Assert.Equal(AccionContextoTipo.Error, resultado.TipoAccion);
+        Assert.Contains("no declarados", resultado.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("{\"pedido\":\"54013\",\"pedido\":\"54014\"}", false)]
+    [InlineData("{\"data\":{\"id\":1},\"data\":{\"id\":2}}", true)]
+    public void InterpretarDecision_ParametroDuplicado_DebeRetornarError(
+        string argumentos,
+        bool declaraData)
+    {
+        MiniMaxOpenRouterAdaptador adaptador = CrearAdaptador();
+        SolicitudIntencionContexto solicitud = declaraData
+            ? CrearSolicitudIntencionConParametros("data")
+            : CrearSolicitudIntencion();
+
+        ResultadoIntencionContexto resultado = adaptador.InterpretarDecision(
+            solicitud,
+            CrearRespuestaTool(
+                "call-data-1",
+                "comando_pedido_consultar",
+                argumentos));
+
+        Assert.Equal(AccionContextoTipo.Error, resultado.TipoAccion);
+        Assert.Contains("mas de una vez", resultado.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void InterpretarDecision_DebeMapearConsultaDeCicloAnterior()
     {
         MiniMaxOpenRouterAdaptador adaptador = CrearAdaptador();
@@ -626,6 +757,17 @@ public class IntencionOpenRouterMiniMaxTest
                 CrearEntrada(1, "user", "mensaje_entrada", "Consulta el pedido 54013")
             ]
         };
+    }
+
+    private static SolicitudIntencionContexto CrearSolicitudIntencionConParametros(
+        params string[] nombresParametros)
+    {
+        SolicitudIntencionContexto solicitud = CrearSolicitudIntencion();
+        solicitud.Comandos[0].Parametros = nombresParametros.ToDictionary(
+            nombre => nombre,
+            nombre => $"Descripcion de {nombre}",
+            StringComparer.Ordinal);
+        return solicitud;
     }
 
     private static SolicitudContextoConversacion CrearSolicitudContexto()
