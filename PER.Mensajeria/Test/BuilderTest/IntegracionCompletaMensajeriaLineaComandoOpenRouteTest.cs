@@ -75,10 +75,10 @@ public class IntegracionCompletaMensajeriaLineaComandoOpenRouteTest
         ComunicacionMensajeriaIntegracionPrueba comunicacion = new();
         servicios.AddSingleton(comunicacion);
 
-        LineaComandoBuilder lineaComandoBuilder = servicios.AddLineaComando(async (serviceProvider, builderInicializador, cancellationToken) =>
-        {
-            await RegistrarComandosPruebaAsync(serviceProvider, builderInicializador, cancellationToken);
-        });
+        servicios.AddLineaComando(
+            NombreFactoriaComando,
+            RegistrarComandosPruebaAsync);
+        LineaComandoBuilder lineaComandoBuilder = servicios.AddLineaComando();
 
         ConfigurarBaseDatos(lineaComandoBuilder, baseDatos);
 

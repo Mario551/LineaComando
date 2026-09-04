@@ -15,6 +15,7 @@ namespace BuilderTest.BuilderComandoTest;
 public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
 {
     protected override string PrefijoTest => "builder_cmd_";
+    private string NombreFactoria => PrefijoTest + "factoria";
 
     private readonly ServiceProvider _serviceProvider;
 
@@ -32,12 +33,13 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
     [Fact]
     public async Task RegistrarAsync_DebeInsertarComandoEnBaseDeDatos_AccionFunc()
     {
-        string rutaComando = PrefijoTest + "test_registro";
+        string rutaRelativa = "test_registro_func";
+        string rutaComando = $"{NombreFactoria} {rutaRelativa}";
         string descripcion = "Comando de prueba para BuilderComando";
 
-        var builderComando = new BuilderComando(_serviceProvider);
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
         builderComando
-            .Argumentos(rutaComando, descripcion)
+            .Argumentos(rutaRelativa, descripcion)
             .Accion((parametros) => new ComandoPrueba());
 
         await builderComando.RegistrarAsync();
@@ -58,12 +60,13 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
     [Fact]
     public async Task RegistrarAsync_DebeInsertarComandoEnBaseDeDatos_AccionComandoBase()
     {
-        string rutaComando = PrefijoTest + "test_registro";
+        string rutaRelativa = "test_registro_base";
+        string rutaComando = $"{NombreFactoria} {rutaRelativa}";
         string descripcion = "Comando de prueba para BuilderComando";
 
-        var builderComando = new BuilderComando(_serviceProvider);
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
         builderComando
-            .Argumentos(rutaComando, descripcion)
+            .Argumentos(rutaRelativa, descripcion)
             .Accion(new ComandoPrueba());
 
         await builderComando.RegistrarAsync();
@@ -84,12 +87,13 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
     [Fact]
     public async Task RegistrarAsync_ConResultado_DebeRegistrarProcesador()
     {
-        string rutaComando = PrefijoTest + "test_resultado";
+        string rutaRelativa = "test_resultado";
+        string rutaComando = $"{NombreFactoria} {rutaRelativa}";
         ProcesadorResultadoTexto procesador = new ProcesadorResultadoTexto();
 
-        var builderComando = new BuilderComando(_serviceProvider);
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
         builderComando
-            .Argumentos(rutaComando, "Comando con resultado")
+            .Argumentos(rutaRelativa, "Comando con resultado")
             .Accion(new ComandoPrueba())
             .Resultado(procesador);
 
@@ -111,11 +115,20 @@ public class BuilderComandoTestIntegracion : BaseIntegracionTestBuilder
     [Fact]
     public async Task RegistrarAsync_SinArgumentosYAccion_DebeLanzarExcepcion()
     {
-        var builderComando = new BuilderComando(_serviceProvider);
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await builderComando.RegistrarAsync();
         });
+    }
+
+    [Fact]
+    public void Argumentos_ConParametroEnRuta_DebeLanzarExcepcion()
+    {
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
+
+        Assert.Throws<ArgumentException>(() =>
+            builderComando.Argumentos("consultar --id=1", null));
     }
 }

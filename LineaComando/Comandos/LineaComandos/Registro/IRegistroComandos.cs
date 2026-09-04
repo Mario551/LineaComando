@@ -16,9 +16,9 @@ namespace PER.Comandos.LineaComandos.Registro
         Task<IEnumerable<MetadatosComando>> ObtenerComandosRegistradosAsync(CancellationToken token = default);
 
         /// <summary>
-        /// Construye la factoría con los comandos registrados.
+        /// Construye las factorías nombradas con los comandos registrados.
         /// </summary>
-        Task ConstruirFactoriaAsync(FactoriaComandos<TRead, TWrite> factoria, CancellationToken token = default);
+        Task ConstruirFactoriaAsync(IFactoriaAbstractaComandos<TRead, TWrite> factoria, CancellationToken token = default);
 
         /// <summary>
         /// Registra un nuevo comando.

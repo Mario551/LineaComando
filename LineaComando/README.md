@@ -23,7 +23,9 @@ Permite definir y ejecutar comandos desde una interfaz de línea de comandos o d
 ```mermaid
 flowchart TB
     Host["Host / IServiceCollection"]
-    Add["AddLineaComando(callback)"]
+    Add["AddLineaComando()"]
+    ModuloA["Módulo pedido<br/>AddLineaComando(pedido, callback)"]
+    ModuloB["Módulo cliente<br/>AddLineaComando(cliente, callback)"]
     Build["LineaComandoBuilder.Build()"]
     DI["Registrar almacenes, colas, buses<br/>y servicios hospedados"]
     ConstruirHost["Construir host"]
@@ -31,15 +33,19 @@ flowchart TB
     EsquemaCola["Crear esquema de Cola"]
     EsquemaEventos["Crear esquema EventDriven"]
     InicializadoresExternos["Ejecutar inicializadores externos"]
-    Callback["Ejecutar ConfiguracionLineaComandos"]
+    Callbacks["Ejecutar configuraciones<br/>de factorías nombradas"]
 
     Host --> Add --> Build --> DI
+    Host --> ModuloA
+    Host --> ModuloB
+    ModuloA --> DI
+    ModuloB --> DI
     DI --> ConstruirHost --> Inicializar
     Inicializar --> EsquemaCola --> EsquemaEventos
-    EsquemaEventos --> InicializadoresExternos --> Callback
+    EsquemaEventos --> InicializadoresExternos --> Callbacks
 
-    Callback --> BuilderComando["BuilderComando<br/>ruta + acción + resultado"]
-    Callback --> BuilderTipoEvento["BuilderTipoEvento<br/>código + descripción"]
+    Callbacks --> BuilderComando["BuilderComando<br/>ruta relativa + acción + resultado"]
+    Callbacks --> BuilderTipoEvento["BuilderTipoEvento<br/>código + descripción"]
 
     BuilderComando --> RegistroComando[("per_comandos_registrados")]
     BuilderComando --> Creador["Registrar creador del comando<br/>en memoria"]
@@ -57,13 +63,16 @@ flowchart TB
     DisparadorEvento --> RegistroDisparador[("per_disparadores_manejador")]
     DisparadorProgramado --> RegistroDisparador
 
-    Callback -->|"al terminar"| ConstruirFactoria["ConstruirFactoriaAsync"]
+    Callbacks -->|"al terminar"| ConstruirFactoria["ConstruirFactoriaAsync"]
     Creador -. "insumo" .-> ConstruirFactoria
-    ConstruirFactoria --> Factoria["FactoriaComandos"]
-    Factoria --> Arbol["Árbol jerárquico de Nodo<br/>construido a partir de las rutas"]
+    ConstruirFactoria --> FactoriaAbstracta["FactoriaAbstractaComandos"]
+    FactoriaAbstracta --> FactoriaPedido["FactoriaComandos(pedido)"]
+    FactoriaAbstracta --> FactoriaCliente["FactoriaComandos(cliente)"]
+    FactoriaPedido --> ArbolPedido["Árbol local de Nodo"]
+    FactoriaCliente --> ArbolCliente["Árbol local de Nodo"]
 ```
 
-La inicialización registra las definiciones funcionales y conserva en memoria los creadores de comandos. Con ellos construye el árbol jerárquico que la factoría recorre posteriormente para resolver cada ruta.
+Cada módulo registra una factoría con nombre propio y declara rutas relativas dentro de ella. La ruta completa conserva el formato `factoría comando`: por ejemplo, la factoría `pedido` registra `consultar` y el comando se ejecuta y persiste como `pedido consultar`. La factoría abstracta consume la primera palabra y delega el resto de la ruta al árbol local correspondiente.
 
 ```mermaid
 flowchart TB
@@ -148,7 +157,7 @@ flowchart TB
         Scope["IServiceScope por ejecución"]
         MarcarProcesando["Marcar estado procesando"]
         Parsear["Parsear LineaComando"]
-        Factoria["FactoriaComandos.Crear<br/>recorrer árbol de Nodo"]
+        Factoria["FactoriaAbstractaComandos.Crear<br/>seleccionar factoría y recorrer Nodo"]
         Comando["IComando.EjecutarAsync"]
         Resultado["ResultadoComando en memoria"]
         ProcesarPayload["IProcesadorResultadoComando"]
@@ -238,8 +247,8 @@ La siguiente tabla cubre la API de uso habitual. Los almacenes concretos, DAO, i
 
 | Funcionalidad | API principal | Qué es | `using` necesario | Cómo se obtiene |
 |---|---|---|---|---|
-| Registrar y configurar la librería | `AddLineaComando`, `LineaComandoBuilder`, `UsePostgresql`, `UseSqlServer`, `SetEsquemaBaseDatos`, `SetMaxParalelismoCola`, `SetRutaResultadosComandos`, `Build`, `InicializarLineaComandoAsync` | `AddLineaComando` e `InicializarLineaComandoAsync` son métodos de extensión de la clase estática `LineaComandoExtensions`; `LineaComandoBuilder` es una clase y los demás símbolos son sus métodos de instancia | `using PER.Comandos.LineaComandos.Builder;` | `AddLineaComando` extiende `IServiceCollection` y devuelve `LineaComandoBuilder`; `InicializarLineaComandoAsync` extiende `IServiceProvider` |
-| Registrar comandos | `IBuilderInicializador`, `IBuilderComando` | Interfaces | `using PER.Comandos.LineaComandos.BuilderInicializador;`<br>`using PER.Comandos.LineaComandos.BuilderComando;` | El callback de `AddLineaComando` recibe el inicializador; `NewBuilderComando()` devuelve `IBuilderComando` |
+| Registrar y configurar la librería | `AddLineaComando`, `LineaComandoBuilder`, `UsePostgresql`, `UseSqlServer`, `SetEsquemaBaseDatos`, `SetMaxParalelismoCola`, `SetRutaResultadosComandos`, `Build`, `InicializarLineaComandoAsync` | `AddLineaComando` e `InicializarLineaComandoAsync` son métodos de extensión de la clase estática `LineaComandoExtensions`; `LineaComandoBuilder` es una clase y los demás símbolos son sus métodos de instancia | `using PER.Comandos.LineaComandos.Builder;` | `AddLineaComando()` devuelve el builder global; `AddLineaComando(nombre, callback)` agrega una factoría desde cualquier módulo; `InicializarLineaComandoAsync` extiende `IServiceProvider` |
+| Registrar comandos | `IBuilderInicializador`, `IBuilderComando` | Interfaces | `using PER.Comandos.LineaComandos.BuilderInicializador;`<br>`using PER.Comandos.LineaComandos.BuilderComando;` | El callback de la factoría nombrada recibe el inicializador; `NewBuilderComando()` devuelve `IBuilderComando` y recibe rutas relativas |
 | Implementar un comando | `ComandoBase<,>`, `IComando<,>` | Clase base abstracta e interfaz | `using PER.Comandos.LineaComandos.Comando;` | La aplicación hereda de `ComandoBase<,>` o implementa `IComando<,>` |
 | Declarar y validar parámetros | `Parametro`, `IParametro`, `[Nombre]`, `Resultado`, `Error` | `Parametro`, `Resultado` y `Error` son clases; `IParametro` es una interfaz; `[Nombre]` es `NombreAttribute`, una clase de atributo | `using PER.Comandos.LineaComandos.Atributo;`<br>`using PER.Comandos.Tipos.Resultado;` | La aplicación implementa `IParametro`; el parser crea la colección de `Parametro` |
 | Encolar y esperar comandos | `IColaComandosMemoria`, `SolicitudComando`, `ComandoEncolado` | Interfaz y dos clases selladas | `using PER.Comandos.LineaComandos.Cola.Colas;` | Se inyecta `IColaComandosMemoria` después de `Build()` |
@@ -366,7 +375,7 @@ public static class RegistroLineaComando
             inicializador.NewBuilderComando();
 
         IBuilderManejador builderManejador = await builderComando
-            .Argumentos("saludo crear", "Crea un saludo")
+            .Argumentos("crear", "Crea un saludo")
             .Accion(_ => new SaludarComando())
             .Resultado(new SaludoResultadoProcesador())
             .RegistrarAsync();
@@ -419,9 +428,12 @@ string connectionString =
     ?? throw new InvalidOperationException(
         "Falta ConnectionStrings:LineaComando.");
 
+builder.Services.AddLineaComando(
+    "saludo",
+    RegistroLineaComando.ConfigurarAsync);
+
 LineaComandoBuilder lineaComandoBuilder =
-    builder.Services.AddLineaComando(
-        RegistroLineaComando.ConfigurarAsync);
+    builder.Services.AddLineaComando();
 
 lineaComandoBuilder
     .UsePostgresql(connectionString, "linea_comando")
@@ -517,9 +529,12 @@ string connectionString =
     ?? throw new InvalidOperationException(
         "Falta ConnectionStrings:LineaComando.");
 
+builder.Services.AddLineaComando(
+    "saludo",
+    RegistroLineaComando.ConfigurarAsync);
+
 LineaComandoBuilder lineaComandoBuilder =
-    builder.Services.AddLineaComando(
-        RegistroLineaComando.ConfigurarAsync);
+    builder.Services.AddLineaComando();
 
 lineaComandoBuilder
     .UseSqlServer(connectionString, "linea_comando")
@@ -901,7 +916,7 @@ Los eventos se guardan antes de escribirse en el canal local. `ServicioProcesado
 
 ### Registrar tipo, manejador y disparador
 
-El método del ejemplo se invoca desde el callback de `AddLineaComando`. Cada transición del registro se conserva en la interfaz que devuelve realmente la API:
+El método del ejemplo se invoca desde el callback de `AddLineaComando("saludo", callback)`. Cada transición del registro se conserva en la interfaz que devuelve realmente la API:
 
 | Símbolo | Qué es | Namespace | Origen en el ejemplo |
 |---|---|---|---|
@@ -930,7 +945,7 @@ public static class RegistroEventosLineaComando
             inicializador.NewBuilderComando();
 
         IBuilderManejador builderManejador = await builderComando
-            .Argumentos("saludo crear", "Crea un saludo")
+            .Argumentos("crear", "Crea un saludo")
             .Accion(_ => new SaludarComando())
             .Resultado(new SaludoResultadoProcesador())
             .RegistrarAsync();
@@ -1282,7 +1297,7 @@ public static class RegistroTareaProgramadaLineaComando
 
         IBuilderManejador builderManejador = await builderComando
             .Argumentos(
-                "saludo programado",
+                "programado",
                 "Crea un saludo programado")
             .Accion(_ => new SaludoProgramadoComando())
             .Resultado(new SaludoResultadoProcesador())
@@ -1318,7 +1333,7 @@ Si `ultima_ejecucion` es nula, el primer disparo ocurre inmediatamente al inicia
 
 ### Conectar los registros al callback
 
-Para habilitar los ejemplos de eventos y tareas, se usa el siguiente callback en lugar de `RegistroLineaComando.ConfigurarAsync` en los programas Web o Worker. De esta forma ambos registros se ejecutan durante `InicializarLineaComandoAsync()`:
+Para habilitar los ejemplos de eventos y tareas, la factoría `saludo` usa el siguiente callback en lugar de `RegistroLineaComando.ConfigurarAsync` en los programas Web o Worker. De esta forma ambos registros se ejecutan durante `InicializarLineaComandoAsync()`:
 
 | Símbolo | Qué es | Namespace | Origen en el ejemplo |
 |---|---|---|---|
@@ -1366,7 +1381,7 @@ Todos los métodos de esta sección son métodos de instancia de la clase `Linea
 | `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `SetEsquemaBaseDatos(string)` | `LineaComandoBuilder` | Cambia el esquema después de seleccionar el proveedor |
 | `LineaComandoBuilder` | `PER.Comandos.LineaComandos.Builder` | `Build()` | `void` | Registra la infraestructura en el contenedor |
 
-El ejemplo recibe explícitamente la clase devuelta por `AddLineaComando(...)`:
+El ejemplo recibe explícitamente la clase devuelta por `AddLineaComando()`:
 
 ```csharp
 using PER.Comandos.LineaComandos.Builder;
@@ -1405,8 +1420,8 @@ Los nombres de esquema admiten letras, números y guion bajo; el primer carácte
 1. Crea los objetos de Cola que no existen y actualiza sus funciones o procedimientos para el proveedor elegido.
 2. Hace lo mismo con EventDriven y aplica las migraciones puntuales implementadas.
 3. Ejecuta inicializadores externos registrados por otros componentes.
-4. Ejecuta el callback de registro de comandos, eventos y disparadores.
-5. Construye la factoría ejecutable con los comandos registrados por el callback y desactiva en base de datos las rutas activas que ya no fueron registradas.
+4. Ejecuta el callback de cada factoría nombrada para registrar comandos, eventos y disparadores.
+5. Construye la factoría abstracta y los árboles locales con los comandos registrados, y desactiva en base de datos las rutas activas que ya no fueron registradas.
 
 La inicialización ejecuta DDL aunque la aplicación solo use el encolado directo. Es idempotente para la creación de objetos, pero no es un migrador general de esquemas existentes: solo aplica las migraciones codificadas explícitamente.
 

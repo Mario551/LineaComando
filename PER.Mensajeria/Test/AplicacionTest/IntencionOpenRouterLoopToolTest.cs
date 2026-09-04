@@ -47,7 +47,7 @@ public class IntencionOpenRouterLoopToolTest
         output.WriteLine($"Archivos OpenRouter loop tool: {directorio}");
 
         RegistroLoopToolPrueba registro = new();
-        FactoriaComandos<string, ResultadoComando> factoria = CrearFactoria(registro);
+        IFactoriaAbstractaComandos<string, ResultadoComando> factoria = CrearFactoria(registro);
         IReadOnlyList<DTOOpenRouterToolPrueba> tools = CrearTools();
         List<DTOOpenRouterMensajePrueba> mensajes = CrearMensajesIniciales();
         List<TrazaLoopToolPrueba> traza = [];
@@ -159,19 +159,22 @@ public class IntencionOpenRouterLoopToolTest
         return cliente;
     }
 
-    private static FactoriaComandos<string, ResultadoComando> CrearFactoria(RegistroLoopToolPrueba registro)
+    private static IFactoriaAbstractaComandos<string, ResultadoComando> CrearFactoria(
+        RegistroLoopToolPrueba registro)
     {
-        FactoriaComandos<string, ResultadoComando> factoria = new();
-        factoria
-            .Add("pedido")
-            .Add("consultar", CrearNodo(parametros => new ConsultarPedidoComando(registro, parametros)));
-        factoria
-            .Add("cliente")
-            .Add("consultar", CrearNodo(parametros => new ConsultarClienteComando(registro, parametros)));
-        factoria
-            .Add("envio")
-            .Add("consultar", CrearNodo(parametros => new ConsultarEnvioComando(registro, parametros)));
-        return factoria;
+        FactoriaComandos<string, ResultadoComando> pedidos = new("pedido");
+        pedidos.Add(
+            "consultar",
+            CrearNodo(parametros => new ConsultarPedidoComando(registro, parametros)));
+        FactoriaComandos<string, ResultadoComando> clientes = new("cliente");
+        clientes.Add(
+            "consultar",
+            CrearNodo(parametros => new ConsultarClienteComando(registro, parametros)));
+        FactoriaComandos<string, ResultadoComando> envios = new("envio");
+        envios.Add(
+            "consultar",
+            CrearNodo(parametros => new ConsultarEnvioComando(registro, parametros)));
+        return new FactoriaAbstractaComandos<string, ResultadoComando>([pedidos, clientes, envios]);
     }
 
     private static Nodo<string, ResultadoComando> CrearNodo(Func<ICollection<Parametro>, ComandoBase<string, ResultadoComando>> crearComando)
@@ -277,7 +280,7 @@ public class IntencionOpenRouterLoopToolTest
     }
 
     private static async Task<ResultadoToolLoopPrueba> EjecutarToolAsync(
-        FactoriaComandos<string, ResultadoComando> factoria,
+        IFactoriaAbstractaComandos<string, ResultadoComando> factoria,
         DTOOpenRouterToolCallPrueba toolCall,
         RegistroLoopToolPrueba registro,
         CancellationToken cancellationToken)

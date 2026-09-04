@@ -17,6 +17,7 @@ namespace BuilderTest.BuilderManejadorTest;
 public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
 {
     protected override string PrefijoTest => "builder_manejador_";
+    private string NombreFactoria => PrefijoTest + "factoria";
 
     private readonly ServiceProvider _serviceProvider;
 
@@ -63,14 +64,15 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
         Assert.Equal(nombreManejador, (string)manejadorDb.nombre);
         Assert.Equal(descripcionManejador, (string)manejadorDb.descripcion);
         Assert.Equal(metadatosComando.Id, (int)manejadorDb.id_comando_registrado);
-        Assert.Equal(rutaComando, (string)manejadorDb.ruta_comando);
+        Assert.Equal(metadatosComando.RutaComando, (string)manejadorDb.ruta_comando);
         Assert.Equal(argumentosComando, (string)manejadorDb.argumentos_comando);
         Assert.True((bool)manejadorDb.activo);
     }
 
     private async Task<MetadatosComando> CrearComandoAsync(string rutaComando)
     {
-        var builderComando = new BuilderComando(_serviceProvider);
+        string rutaCompleta = $"{NombreFactoria} {rutaComando}";
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
         builderComando
             .Argumentos(rutaComando, "Comando de prueba para manejador")
             .Accion((parametros) => new ComandoPrueba());
@@ -82,7 +84,7 @@ public class BuilderManejadorTestIntegracion : BaseIntegracionTestBuilder
         
         var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
             $"SELECT id, ruta_comando, descripcion, activo, creado_en FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
-            new { Ruta = rutaComando });
+            new { Ruta = rutaCompleta });
 
         Assert.NotNull(comandoDb);
         

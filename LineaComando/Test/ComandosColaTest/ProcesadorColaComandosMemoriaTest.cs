@@ -43,13 +43,12 @@ namespace ComandosColaTest
                 .Returns(Task.CompletedTask);
 
             ComandoCaptura comandoCaptura = new ComandoCaptura();
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            factoria
-                .Add("test")
-                .Add("data", new Nodo<string, ResultadoComando>(comandoCaptura));
+            FactoriaComandos<string, ResultadoComando> factoriaComandos = new("test");
+            factoriaComandos.Add("data", new Nodo<string, ResultadoComando>(comandoCaptura));
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new([factoriaComandos]);
             ServiceProvider serviceProvider = new ServiceCollection()
                 .AddSingleton(almacen.Object)
-                .AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria)
+                .AddSingleton<IFactoriaAbstractaComandos<string, ResultadoComando>>(factoria)
                 .BuildServiceProvider();
             ColaComandosMemoria cola = new ColaComandosMemoria(
                 serviceProvider.GetRequiredService<IServiceScopeFactory>());
@@ -63,6 +62,8 @@ namespace ComandosColaTest
                 cola,
                 Mock.Of<IPublicadorNotificacionEjecucionComandos>(),
                 1,
+                TimeSpan.FromSeconds(30),
+                10,
                 NullLogger<ProcesadorColaComandos>.Instance);
             using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(
                 TestContext.Current.CancellationToken);
@@ -130,14 +131,15 @@ namespace ComandosColaTest
                 })
                 .Returns(Task.CompletedTask);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            factoria
-                .Add("test")
-                .Add("persistencia", new Nodo<string, ResultadoComando>(new ComandoPrueba("ok")));
+            FactoriaComandos<string, ResultadoComando> factoriaComandos = new("test");
+            factoriaComandos.Add(
+                "persistencia",
+                new Nodo<string, ResultadoComando>(new ComandoPrueba("ok")));
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new([factoriaComandos]);
 
             ServiceProvider serviceProvider = new ServiceCollection()
                 .AddSingleton(almacen.Object)
-                .AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria)
+                .AddSingleton<IFactoriaAbstractaComandos<string, ResultadoComando>>(factoria)
                 .BuildServiceProvider();
 
             Mock<IColaComandosMemoria> colaComandosMemoria = new Mock<IColaComandosMemoria>();
@@ -169,6 +171,8 @@ namespace ComandosColaTest
                 colaComandosMemoria.Object,
                 publicadorNotificaciones.Object,
                 1,
+                TimeSpan.FromSeconds(30),
+                10,
                 NullLogger<ProcesadorColaComandos>.Instance);
 
             await procesador.StartAsync(CancellationToken.None);
@@ -176,6 +180,85 @@ namespace ComandosColaTest
             Assert.Equal(
                 new[] { "iniciada", "persistido", "completada", "entregado" },
                 orden);
+        }
+
+        [Fact]
+        public async Task StartAsync_ConMismaRutaLocal_DebeEjecutarComandosDeDistintasFactorias()
+        {
+            ComandoEnCola comandoPedido = new()
+            {
+                Id = 9101,
+                RutaComando = "pedido consultar",
+                DatosDeComando = "pedido",
+                FechaCreacion = DateTime.UtcNow,
+                Estado = "pendiente"
+            };
+            ComandoEnCola comandoCliente = new()
+            {
+                Id = 9102,
+                RutaComando = "cliente consultar",
+                DatosDeComando = "cliente",
+                FechaCreacion = DateTime.UtcNow,
+                Estado = "pendiente"
+            };
+            Dictionary<long, ComandoEnCola> comandos = new()
+            {
+                [comandoPedido.Id] = comandoPedido,
+                [comandoCliente.Id] = comandoCliente
+            };
+            Mock<IAlmacenColaComandos> almacen = new();
+            almacen
+                .Setup(a => a.MarcarComandosProcesandoAsync(
+                    It.IsAny<long[]>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((long[] ids, CancellationToken _) =>
+                    ids.Select(id => comandos[id]));
+            almacen
+                .Setup(a => a.MarcarComoProcesadoAsync(
+                    It.IsAny<long>(),
+                    It.IsAny<ResultadoComando>(),
+                    It.IsAny<PayloadResultadoComando?>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+
+            ComandoCaptura capturaPedido = new();
+            ComandoCaptura capturaCliente = new();
+            FactoriaComandos<string, ResultadoComando> pedidos = new("pedido");
+            pedidos.Add("consultar", new Nodo<string, ResultadoComando>(capturaPedido));
+            FactoriaComandos<string, ResultadoComando> clientes = new("cliente");
+            clientes.Add("consultar", new Nodo<string, ResultadoComando>(capturaCliente));
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new([pedidos, clientes]);
+            using ServiceProvider serviceProvider = new ServiceCollection()
+                .AddSingleton(almacen.Object)
+                .AddSingleton<IFactoriaAbstractaComandos<string, ResultadoComando>>(factoria)
+                .BuildServiceProvider();
+            Mock<IColaComandosMemoria> cola = new();
+            cola
+                .Setup(c => c.CargarPendientesDesdeBaseDatosAsync(It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+            cola
+                .Setup(c => c.LeerAsync(It.IsAny<CancellationToken>()))
+                .Returns(LeerComandosAsync([comandoPedido, comandoCliente]));
+            ProcesadorColaComandos procesador = new(
+                serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+                cola.Object,
+                Mock.Of<IPublicadorNotificacionEjecucionComandos>(),
+                2,
+                TimeSpan.FromSeconds(30),
+                10,
+                NullLogger<ProcesadorColaComandos>.Instance);
+
+            await procesador.StartAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal("pedido", capturaPedido.Entrada);
+            Assert.Equal("cliente", capturaCliente.Entrada);
+            almacen.Verify(
+                a => a.MarcarComoProcesadoAsync(
+                    It.IsAny<long>(),
+                    It.Is<ResultadoComando>(resultado => resultado.Exitoso),
+                    It.IsAny<PayloadResultadoComando?>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Exactly(2));
         }
 
         private static async IAsyncEnumerable<ComandoEnCola> LeerComandosAsync(IEnumerable<ComandoEnCola> comandos)

@@ -28,13 +28,23 @@ namespace ComandosColaTest
         }
 
         private static async Task<ResultadoComando> EjecutarComandoAsync(
-            IFactoriaComandos<string, ResultadoComando> factoria,
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria,
             ComandoEnCola comandoEnCola)
         {
             PER.Comandos.LineaComandos.LineaComando lineaComando = ParsearLineaComando(comandoEnCola);
             PER.Comandos.LineaComandos.Comando.IComando<string, ResultadoComando> comando = factoria.Crear(lineaComando);
 
             return await comando.EjecutarAsync(comandoEnCola.DatosDeComando ?? string.Empty);
+        }
+
+        private async Task<IFactoriaAbstractaComandos<string, ResultadoComando>> ConstruirFactoriaAsync(
+            string ruta)
+        {
+            string nombreFactoria = ruta.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new(
+                [new FactoriaComandos<string, ResultadoComando>(nombreFactoria)]);
+            await _registro.ConstruirFactoriaAsync(factoria);
+            return factoria;
         }
 
         private static PER.Comandos.LineaComandos.LineaComando ParsearLineaComando(ComandoEnCola comandoEnCola)
@@ -67,8 +77,8 @@ namespace ComandosColaTest
 
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             ComandoEnCola comandoEnCola = new ComandoEnCola
             {
@@ -124,8 +134,8 @@ namespace ComandosColaTest
 
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             ComandoEnCola comandoEnCola = new ComandoEnCola
             {
@@ -172,8 +182,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             List<long> ids = new List<long>();
             for (int i = 1; i <= 5; i++)
@@ -229,8 +239,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("", deberiaFallar: true));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             ComandoEnCola comandoEnCola = new ComandoEnCola
             {
@@ -274,8 +284,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("", deberiaFallar: true));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             ComandoEnCola comandoEnCola = new ComandoEnCola
             {

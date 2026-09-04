@@ -18,6 +18,8 @@ namespace ComandosColaTest
         private readonly RegistroComandosSqlServer<string, ResultadoComando> _registro;
         private readonly ILogger<ProcesadorColaComandos> _logger;
         private readonly PublicadorNotificacionEjecucionComandosPrueba _publicadorNotificaciones;
+        private static readonly TimeSpan UmbralLargaDuracion = TimeSpan.FromSeconds(30);
+        private const int MaxTareasLargaDuracion = 10;
 
         protected override string PrefijoTest => "procesador_cola_sql_";
 
@@ -34,14 +36,25 @@ namespace ComandosColaTest
             ComandoPrueba.ResetearContador();
         }
 
-        private IServiceScopeFactory CrearServiceScopeFactory(FactoriaComandos<string, ResultadoComando> factoria)
+        private IServiceScopeFactory CrearServiceScopeFactory(
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria)
         {
             ServiceCollection services = new ServiceCollection();
             services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandosSqlServer(ConnectionString, Esquema));
-            services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria);
+            services.AddSingleton(factoria);
 
             ServiceProvider provider = services.BuildServiceProvider();
             return provider.GetRequiredService<IServiceScopeFactory>();
+        }
+
+        private async Task<IFactoriaAbstractaComandos<string, ResultadoComando>> ConstruirFactoriaAsync(
+            string ruta)
+        {
+            string nombreFactoria = ruta.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new(
+                [new FactoriaComandos<string, ResultadoComando>(nombreFactoria)]);
+            await _registro.ConstruirFactoriaAsync(factoria);
+            return factoria;
         }
 
         private static IColaComandosMemoria CrearColaComandosMemoria(IServiceScopeFactory serviceScopeFactory)
@@ -54,7 +67,8 @@ namespace ComandosColaTest
         [Fact]
         public void Constructor_MaxParalelismoMenorOIgualACero_DebeLanzarExcepcion()
         {
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             IServiceScopeFactory scopeFactory = CrearServiceScopeFactory(factoria);
 
             ArgumentException excepcion = Assert.Throws<ArgumentException>(() =>
@@ -63,6 +77,8 @@ namespace ComandosColaTest
                     CrearColaComandosMemoria(scopeFactory),
                     _publicadorNotificaciones,
                     0,
+                    UmbralLargaDuracion,
+                    MaxTareasLargaDuracion,
                     _logger));
 
             Assert.Contains("máximo paralelismo", excepcion.Message.ToLower());
@@ -71,7 +87,8 @@ namespace ComandosColaTest
         [Fact]
         public void Constructor_ColaComandosMemoriaNula_DebeLanzarExcepcion()
         {
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             IServiceScopeFactory scopeFactory = CrearServiceScopeFactory(factoria);
 
             Assert.Throws<ArgumentNullException>(() =>
@@ -80,13 +97,16 @@ namespace ComandosColaTest
                     null!,
                     _publicadorNotificaciones,
                     1,
+                    UmbralLargaDuracion,
+                    MaxTareasLargaDuracion,
                     _logger));
         }
 
         [Fact]
         public void Constructor_ScopeFactoryNulo_DebeLanzarExcepcion()
         {
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             IServiceScopeFactory scopeFactory = CrearServiceScopeFactory(factoria);
 
             Assert.Throws<ArgumentNullException>(() =>
@@ -95,19 +115,24 @@ namespace ComandosColaTest
                     CrearColaComandosMemoria(scopeFactory),
                     _publicadorNotificaciones,
                     1,
+                    UmbralLargaDuracion,
+                    MaxTareasLargaDuracion,
                     _logger));
         }
 
         [Fact]
         public async Task StartAsync_ConCancelacion_DebeTerminarCorrectamente()
         {
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             IServiceScopeFactory scopeFactory = CrearServiceScopeFactory(factoria);
             ProcesadorColaComandos procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 1,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using CancellationTokenSource cts = new CancellationTokenSource();
@@ -124,8 +149,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("Ejecutado por procesador"));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             AlmacenColaComandosSqlServer almacen = new AlmacenColaComandosSqlServer(ConnectionString, Esquema);
             ComandoEnCola comandoEnCola = new ComandoEnCola
@@ -146,6 +171,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 1,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using CancellationTokenSource cts = new CancellationTokenSource();
@@ -173,8 +200,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("", deberiaFallar: true));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             AlmacenColaComandosSqlServer almacen = new AlmacenColaComandosSqlServer(ConnectionString, Esquema);
             ComandoEnCola comandoEnCola = new ComandoEnCola
@@ -193,6 +220,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 1,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using CancellationTokenSource cts = new CancellationTokenSource();
@@ -219,8 +248,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             AlmacenColaComandosSqlServer almacen = new AlmacenColaComandosSqlServer(ConnectionString, Esquema);
             int cantidadComandos = 5;
@@ -245,6 +274,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 2,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using CancellationTokenSource cts = new CancellationTokenSource();
@@ -292,8 +323,8 @@ namespace ComandosColaTest
             Nodo<string, ResultadoComando> nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("OK", tiempoEjecucionMs: 100));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            FactoriaComandos<string, ResultadoComando> factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria =
+                await ConstruirFactoriaAsync(ruta);
 
             AlmacenColaComandosSqlServer almacen = new AlmacenColaComandosSqlServer(ConnectionString, Esquema);
             int cantidadComandos = 4;
@@ -315,6 +346,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 2,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using CancellationTokenSource cts = new CancellationTokenSource();

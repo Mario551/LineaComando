@@ -13,7 +13,7 @@ namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
             var rutaComando2 = new List<string> { "nodo1", "nodo2", "nodo3", "comando2", "--parametro1"};
             var rutaInexistente = new List<string> { "nodo1", "nodo2", "nodo_inexistente", "comando1", "--parametro1"};
 
-            var factoria = new FactoriaComandos<string, string>();
+            var factoria = new FactoriaComandos<string, string>("prueba");
             factoria.Add("nodo1").Add("nodo2").Add("nodo3")
                 .Add("comando1", new Nodo<string, string>(new ComandoPrueba1()))
                 .Padre?.Add("comando2", new Nodo<string, string>(new ComandoPrueba2()));
@@ -21,6 +21,16 @@ namespace ComandosTest.FactoriaComandosTest.FactoriaComandosTest
             LineaComando lineaComando = new LineaComando(rutaInexistente);
 
             Assert.Throws<NoEncontradoExcepcion>(() => factoria.Crear(lineaComando));
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData(" ")]
+        [InlineData("pedido consultar")]
+        [InlineData("--pedido")]
+        public void ErrorNombreInvalido(string nombre)
+        {
+            Assert.Throws<ArgumentException>(() => new FactoriaComandos<string, string>(nombre));
         }
     }
 }

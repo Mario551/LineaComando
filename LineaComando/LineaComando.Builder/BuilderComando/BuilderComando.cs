@@ -12,6 +12,7 @@ namespace PER.Comandos.LineaComandos.BuilderComando;
 
 public class BuilderComando : IBuilderComando
 {
+    private readonly string _nombreFactoria;
     private string _rutaComando = string.Empty;
     private string? _descripcion;
     private Func<ICollection<Parametro>, IComando<string, ResultadoComando>>? _accionFunc;
@@ -22,16 +23,24 @@ public class BuilderComando : IBuilderComando
 
     private readonly IServiceProvider _serviceProvider;
 
-    public BuilderComando(IServiceProvider serviceProvider)
+    public BuilderComando(IServiceProvider serviceProvider, string nombreFactoria)
     {
-        _serviceProvider = serviceProvider;
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        ArgumentException.ThrowIfNullOrWhiteSpace(nombreFactoria);
+        _nombreFactoria = nombreFactoria;
     }
 
-    public IBuilderComando New() => new BuilderComando(_serviceProvider);
+    public IBuilderComando New() => new BuilderComando(_serviceProvider, _nombreFactoria);
 
     public IBuilderComando Argumentos(string rutaComando, string? descripcion)
     {
-        _rutaComando = rutaComando;
+        ArgumentException.ThrowIfNullOrWhiteSpace(rutaComando);
+
+        string[] partesRuta = rutaComando.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (partesRuta.Any(parte => parte.StartsWith("--", StringComparison.Ordinal)))
+            throw new ArgumentException("La ruta relativa solo puede contener nombres de comandos.", nameof(rutaComando));
+
+        _rutaComando = $"{_nombreFactoria} {string.Join(' ', partesRuta)}";
         _descripcion = descripcion;
         _argumentosInicializados = true;
         return this;

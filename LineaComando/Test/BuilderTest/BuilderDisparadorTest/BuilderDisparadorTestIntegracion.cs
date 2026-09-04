@@ -20,6 +20,7 @@ namespace BuilderTest.BuilderDisparadorTest;
 public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
 {
     protected override string PrefijoTest => "builder_disparador_";
+    private string NombreFactoria => PrefijoTest + "factoria";
 
     private readonly ServiceProvider _serviceProvider;
 
@@ -127,7 +128,8 @@ public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
 
     private async Task<MetadatosComando> CrearComandoAsync(string rutaComando)
     {
-        var builderComando = new BuilderComando(_serviceProvider);
+        string rutaCompleta = $"{NombreFactoria} {rutaComando}";
+        var builderComando = new BuilderComando(_serviceProvider, NombreFactoria);
         builderComando
             .Argumentos(rutaComando, "Comando de prueba para disparador")
             .Accion((parametros) => new ComandoPrueba());
@@ -139,7 +141,7 @@ public class BuilderDisparadorTestIntegracion : BaseIntegracionTestBuilder
 
         var comandoDb = await connection.QuerySingleOrDefaultAsync<dynamic>(
             $"SELECT id, ruta_comando, descripcion, activo, creado_en FROM {Nombres.ComandosRegistrados} WHERE ruta_comando = @Ruta",
-            new { Ruta = rutaComando });
+            new { Ruta = rutaCompleta });
 
         Assert.NotNull(comandoDb);
 

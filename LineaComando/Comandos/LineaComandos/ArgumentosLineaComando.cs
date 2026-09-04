@@ -122,8 +122,7 @@ namespace PER.Comandos.LineaComandos
             return resultado.ToString();
         }
 
-        private static (Parametro Parametro, ReadOnlyMemory<char> Continuacion) SepararParametro(
-            ReadOnlyMemory<char> argumentos)
+        private static (Parametro Parametro, ReadOnlyMemory<char> Continuacion) SepararParametro(ReadOnlyMemory<char> argumentos)
         {
             ReadOnlySpan<char> span = argumentos.Span;
             int indiceFinNombre = 0;

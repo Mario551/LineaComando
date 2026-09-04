@@ -30,8 +30,8 @@ namespace PER.Comandos.LineaComandos.Builder
         private string? _rutaResultadosComandos;
 
         internal int MaxParalelismoCola { get; private set; } = 4;
-
-        internal Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> ConfiguracionLineaComandos;
+        internal TimeSpan UmbralComandoLargaDuracion { get; private set; } = TimeSpan.FromSeconds(30);
+        internal int MaxTareasLargaDuracion { get; private set; } = 10;
 
         public string ConnectionString => _connectionString ?? "";
         public string EsquemaBaseDatos => _esquemaBaseDatos ?? EsquemaPredeterminado();
@@ -46,10 +46,9 @@ namespace PER.Comandos.LineaComandos.Builder
 
         public int TipoBaseDatos { get; private set; }
 
-        public LineaComandoBuilder(IServiceCollection services, Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> configuracionLineaComandos)
+        public LineaComandoBuilder(IServiceCollection services)
         {
             _services = services ?? throw new ArgumentNullException(nameof(services));
-            ConfiguracionLineaComandos = configuracionLineaComandos ?? throw new ArgumentNullException(nameof(configuracionLineaComandos));
             TipoBaseDatos = NONE;
         }
 
@@ -115,6 +114,24 @@ namespace PER.Comandos.LineaComandos.Builder
             return this;
         }
 
+        public LineaComandoBuilder SetUmbralComandoLargaDuracion(TimeSpan umbral)
+        {
+            if (umbral <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(umbral), "El umbral de larga duración debe ser mayor que cero.");
+
+            UmbralComandoLargaDuracion = umbral;
+            return this;
+        }
+
+        public LineaComandoBuilder SetMaxTareasLargaDuracion(int max)
+        {
+            if (max <= 0)
+                throw new ArgumentOutOfRangeException(nameof(max), "El máximo de tareas de larga duración debe ser mayor que cero.");
+
+            MaxTareasLargaDuracion = max;
+            return this;
+        }
+
         public void Build()
         {
             if (TipoBaseDatos == NONE)
@@ -165,9 +182,9 @@ namespace PER.Comandos.LineaComandos.Builder
               _services.AddSingleton<IPlanificadorTareasProgramadas>(
                   sp => sp.GetRequiredService<CoordinadorTareasProgramadas>());
               _services.AddHostedService<ServicioTareasProgramadas>();
-              _services.AddSingleton<FactoriaComandos<string, ResultadoComando>>();
-              _services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(
-                  sp => sp.GetRequiredService<FactoriaComandos<string, ResultadoComando>>());
+              _services.AddSingleton<FactoriaAbstractaComandos<string, ResultadoComando>>();
+              _services.AddSingleton<IFactoriaAbstractaComandos<string, ResultadoComando>>(
+                  sp => sp.GetRequiredService<FactoriaAbstractaComandos<string, ResultadoComando>>());
 
               _services.AddSingleton(sp =>
                   new ProcesadorColaComandos(
@@ -175,6 +192,8 @@ namespace PER.Comandos.LineaComandos.Builder
                       sp.GetRequiredService<IColaComandosMemoria>(),
                       sp.GetRequiredService<IPublicadorNotificacionEjecucionComandos>(),
                       MaxParalelismoCola,
+                      UmbralComandoLargaDuracion,
+                      MaxTareasLargaDuracion,
                       sp.GetRequiredService<ILogger<ProcesadorColaComandos>>()));
 
             _services.AddHostedService<ServicioColaComandos>();

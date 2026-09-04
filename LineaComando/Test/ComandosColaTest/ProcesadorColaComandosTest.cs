@@ -18,6 +18,8 @@ namespace ComandosColaTest
         private readonly RegistroComandosPostgres<string, ResultadoComando> _registro;
         private readonly ILogger<ProcesadorColaComandos> _logger;
         private readonly PublicadorNotificacionEjecucionComandosPrueba _publicadorNotificaciones;
+        private static readonly TimeSpan UmbralLargaDuracion = TimeSpan.FromSeconds(30);
+        private const int MaxTareasLargaDuracion = 10;
 
         protected override string PrefijoTest => "procesador_cola_";
 
@@ -34,14 +36,25 @@ namespace ComandosColaTest
             ComandoPrueba.ResetearContador();
         }
 
-        private IServiceScopeFactory CrearServiceScopeFactory(FactoriaComandos<string, ResultadoComando> factoria)
+        private IServiceScopeFactory CrearServiceScopeFactory(
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria)
         {
             var services = new ServiceCollection();
             services.AddScoped<IAlmacenColaComandos>(sp => new AlmacenColaComandosPostgres(ConnectionString, Esquema));
-            services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria);
+            services.AddSingleton(factoria);
 
             var provider = services.BuildServiceProvider();
             return provider.GetRequiredService<IServiceScopeFactory>();
+        }
+
+        private async Task<IFactoriaAbstractaComandos<string, ResultadoComando>> ConstruirFactoriaAsync(
+            string ruta)
+        {
+            string nombreFactoria = ruta.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new(
+                [new FactoriaComandos<string, ResultadoComando>(nombreFactoria)]);
+            await _registro.ConstruirFactoriaAsync(factoria);
+            return factoria;
         }
 
         private IColaComandosMemoria CrearColaComandosMemoria(IServiceScopeFactory serviceScopeFactory)
@@ -54,7 +67,7 @@ namespace ComandosColaTest
         [Fact]
         public void Constructor_MaxParalelismoMenorOIgualACero_DebeLanzarExcepcion()
         {
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var factoria = new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             var scopeFactory = CrearServiceScopeFactory(factoria);
 
             var excepcion = Assert.Throws<ArgumentException>(() =>
@@ -63,6 +76,8 @@ namespace ComandosColaTest
                     CrearColaComandosMemoria(scopeFactory),
                     _publicadorNotificaciones,
                     0,
+                    UmbralLargaDuracion,
+                    MaxTareasLargaDuracion,
                     _logger));
 
             Assert.Contains("máximo paralelismo", excepcion.Message.ToLower());
@@ -71,7 +86,7 @@ namespace ComandosColaTest
         [Fact]
         public void Constructor_ColaComandosMemoriaNula_DebeLanzarExcepcion()
         {
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var factoria = new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             var scopeFactory = CrearServiceScopeFactory(factoria);
 
             Assert.Throws<ArgumentNullException>(() =>
@@ -80,13 +95,15 @@ namespace ComandosColaTest
                     null!,
                     _publicadorNotificaciones,
                     1,
+                    UmbralLargaDuracion,
+                    MaxTareasLargaDuracion,
                     _logger));
         }
 
         [Fact]
         public void Constructor_ScopeFactoryNulo_DebeLanzarExcepcion()
         {
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var factoria = new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             var scopeFactory = CrearServiceScopeFactory(factoria);
 
             Assert.Throws<ArgumentNullException>(() =>
@@ -95,19 +112,23 @@ namespace ComandosColaTest
                     CrearColaComandosMemoria(scopeFactory),
                     _publicadorNotificaciones,
                     1,
+                    UmbralLargaDuracion,
+                    MaxTareasLargaDuracion,
                     _logger));
         }
 
         [Fact]
         public async Task StartAsync_ConCancelacion_DebeTerminarCorrectamente()
         {
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            var factoria = new FactoriaAbstractaComandos<string, ResultadoComando>([]);
             var scopeFactory = CrearServiceScopeFactory(factoria);
             var procesador = new ProcesadorColaComandos(
                 scopeFactory,
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 1,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -124,8 +145,7 @@ namespace ComandosColaTest
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("Ejecutado por procesador"));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            var factoria = await ConstruirFactoriaAsync(ruta);
 
             var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             var comandoEnCola = new ComandoEnCola
@@ -146,6 +166,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 1,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -173,8 +195,7 @@ namespace ComandosColaTest
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("", deberiaFallar: true));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            var factoria = await ConstruirFactoriaAsync(ruta);
 
             var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             var comandoEnCola = new ComandoEnCola
@@ -193,6 +214,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 1,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -219,8 +242,7 @@ namespace ComandosColaTest
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            var factoria = await ConstruirFactoriaAsync(ruta);
 
             var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             int cantidadComandos = 5;
@@ -245,6 +267,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 2,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using var cts = new CancellationTokenSource();
@@ -292,8 +316,7 @@ namespace ComandosColaTest
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba("OK", tiempoEjecucionMs: 100));
             await _registro.RegistrarComandoAsync(metadatos, nodo);
 
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
-            await _registro.ConstruirFactoriaAsync(factoria);
+            var factoria = await ConstruirFactoriaAsync(ruta);
 
             var almacen = new AlmacenColaComandosPostgres(ConnectionString, Esquema);
             int cantidadComandos = 4;
@@ -315,6 +338,8 @@ namespace ComandosColaTest
                 CrearColaComandosMemoria(scopeFactory),
                 _publicadorNotificaciones,
                 2,
+                UmbralLargaDuracion,
+                MaxTareasLargaDuracion,
                 _logger);
 
             using var cts = new CancellationTokenSource();

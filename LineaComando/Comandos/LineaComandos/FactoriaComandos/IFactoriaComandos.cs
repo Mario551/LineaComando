@@ -5,6 +5,11 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
     public interface IFactoriaComandos<TRead, TWrite>
     {
         /// <summary>
+        /// Nombre con el que la factoría se registra en la factoría abstracta.
+        /// </summary>
+        string Nombre { get; }
+
+        /// <summary>
         /// Agrega un arbol de comandos a la factoria
         /// </summary>
         /// <param name="nombre">Nombre del primer nodo del arbol de comandos</param>
@@ -20,8 +25,8 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
         Nodo<TRead, TWrite> Add(string nombre, Nodo<TRead, TWrite> nodo);
 
         /// <summary>
-        /// Recibe una ruta de búsqueda en el arbol de comandos para la creación del comando. Ejemplo:
-        ///     [módulo].[submodulo].[submodulo].[nombrecomando] --parametro1 --parametro2=valor
+        /// Recibe una ruta local de búsqueda en el arbol de comandos para la creación del comando. Ejemplo:
+        ///     [submodulo].[submodulo].[nombrecomando] --parametro1 --parametro2=valor
         /// </summary>
         /// <param name="lineaComando">Ruta de búsqueda en el arbol y parámetros de ejecución</param>
         /// <returns>Comando creado y preparado</returns>

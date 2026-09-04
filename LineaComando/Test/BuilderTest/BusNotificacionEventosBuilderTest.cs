@@ -17,8 +17,7 @@ namespace BuilderTest
             servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
             servicios.AddSingleton<ILogger<ProcesadorColaComandos>>(
                 NullLogger<ProcesadorColaComandos>.Instance);
-            LineaComandoBuilder builder = servicios.AddLineaComando(
-                (_, _, _) => Task.CompletedTask);
+            LineaComandoBuilder builder = servicios.AddLineaComando();
             builder.UsePostgresql("Host=localhost;Database=no_utilizada");
             builder.Build();
 

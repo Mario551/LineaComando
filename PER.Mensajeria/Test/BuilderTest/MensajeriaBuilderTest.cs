@@ -578,7 +578,7 @@ public class MensajeriaBuilderTest
     public void AgregarMensajeria_PostgreSql_DebeUsarConexionEsquemaYRegistrarInicializador()
     {
         ServiceCollection servicios = new();
-        LineaComandoBuilder lineaComandoBuilder = new(servicios, (_, _, _) => Task.CompletedTask);
+        LineaComandoBuilder lineaComandoBuilder = new(servicios);
         lineaComandoBuilder.UsePostgresql(
             "Host=localhost;Database=lineacomando;Username=postgres;Password=123456789",
             "mensajeria_test");
@@ -598,7 +598,7 @@ public class MensajeriaBuilderTest
     public void AgregarMensajeria_SqlServer_DebeUsarConexionEsquemaYRegistrarInicializador()
     {
         ServiceCollection servicios = new();
-        LineaComandoBuilder lineaComandoBuilder = new(servicios, (_, _, _) => Task.CompletedTask);
+        LineaComandoBuilder lineaComandoBuilder = new(servicios);
         lineaComandoBuilder.UseSqlServer(
             "Server=localhost;Database=lineacomando;User Id=sa;Password=ClaveTemporal123;TrustServerCertificate=True",
             "mensajeria_sql");
@@ -617,7 +617,7 @@ public class MensajeriaBuilderTest
     public void AgregarMensajeria_Sqlite_DebeRechazarMotorNoSoportado()
     {
         ServiceCollection servicios = new();
-        LineaComandoBuilder lineaComandoBuilder = new(servicios, (_, _, _) => Task.CompletedTask);
+        LineaComandoBuilder lineaComandoBuilder = new(servicios);
         lineaComandoBuilder.UseSqlite("Data Source=:memory:");
 
         Assert.Throws<NotSupportedException>(() => lineaComandoBuilder.AgregarMensajeria(_ => { }));
@@ -628,7 +628,8 @@ public class MensajeriaBuilderTest
     {
         ServiceCollection servicios = new();
         List<string> ejecuciones = [];
-        LineaComandoBuilder lineaComandoBuilder = new(servicios, (_, _, _) =>
+        LineaComandoBuilder lineaComandoBuilder = new(servicios);
+        servicios.AddLineaComando("prueba", (_, _, _) =>
         {
             ejecuciones.Add("configuracion");
             return Task.CompletedTask;
@@ -641,7 +642,9 @@ public class MensajeriaBuilderTest
         });
 
         servicios.AddSingleton(lineaComandoBuilder);
-        servicios.AddSingleton(new FactoriaComandos<string, ResultadoComando>());
+        servicios.AddSingleton<FactoriaAbstractaComandos<string, ResultadoComando>>();
+        servicios.AddSingleton<IFactoriaAbstractaComandos<string, ResultadoComando>>(
+            provider => provider.GetRequiredService<FactoriaAbstractaComandos<string, ResultadoComando>>());
         servicios.AddSingleton<IRegistroComandos<string, ResultadoComando>>(new RegistroComandosFake(ejecuciones));
 
         using ServiceProvider serviceProvider = servicios.BuildServiceProvider();
@@ -667,7 +670,9 @@ public class MensajeriaBuilderTest
             return Task.FromResult<IEnumerable<MetadatosComando>>([]);
         }
 
-        public Task ConstruirFactoriaAsync(FactoriaComandos<string, ResultadoComando> factoria, CancellationToken token = default)
+        public Task ConstruirFactoriaAsync(
+            IFactoriaAbstractaComandos<string, ResultadoComando> factoria,
+            CancellationToken token = default)
         {
             ejecuciones.Add("factoria");
             return Task.CompletedTask;

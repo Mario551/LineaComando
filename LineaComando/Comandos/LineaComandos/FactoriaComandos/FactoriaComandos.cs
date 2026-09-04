@@ -8,8 +8,16 @@ namespace PER.Comandos.LineaComandos.FactoriaComandos
     {
         private IDictionary<string, Nodo<TRead, TWrite>> _nodos;
 
-        public FactoriaComandos()
+        public string Nombre { get; }
+
+        public FactoriaComandos(string nombre)
         {
+            ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
+
+            if (nombre.Any(char.IsWhiteSpace) || nombre.StartsWith("--", StringComparison.Ordinal))
+                throw new ArgumentException("El nombre de la factoría debe ser una sola palabra válida.", nameof(nombre));
+
+            Nombre = nombre;
             _nodos = new Dictionary<string, Nodo<TRead, TWrite>>();
         }
 

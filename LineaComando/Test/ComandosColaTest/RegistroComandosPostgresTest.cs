@@ -1,8 +1,10 @@
 using Dapper;
 using ComandosColaTest.Helpers;
+using PER.Comandos.LineaComandos;
 using PER.Comandos.LineaComandos.Cola.Almacen;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.Registro;
+using PER.Comandos.LineaComandos.Excepcion;
 using PER.Comandos.LineaComandos.Registro;
 
 namespace ComandosColaTest
@@ -22,7 +24,7 @@ namespace ComandosColaTest
         [Fact]
         public async Task RegistrarComandoAsync_DebeInsertarComando()
         {
-            var ruta = PrefijoTest + "insertar";
+            var ruta = PrefijoTest + "modulo insertar";
             var metadatos = new MetadatosComando
             {
                 RutaComando = ruta,
@@ -48,8 +50,8 @@ namespace ComandosColaTest
         [Fact]
         public async Task ObtenerComandosRegistradosAsync_DebeRetornarSoloActivos()
         {
-            var rutaActivo = PrefijoTest + "activo";
-            var rutaInactivo = PrefijoTest + "inactivo";
+            var rutaActivo = PrefijoTest + "modulo activo";
+            var rutaInactivo = PrefijoTest + "modulo inactivo";
             var metadatos1 = new MetadatosComando { RutaComando = rutaInactivo };
             var metadatos2 = new MetadatosComando { RutaComando = rutaActivo };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
@@ -75,7 +77,7 @@ namespace ComandosColaTest
         [Fact]
         public async Task EliminarRegistroComandoAsync_DebeDesactivarComando()
         {
-            var ruta = PrefijoTest + "eliminar";
+            var ruta = PrefijoTest + "modulo eliminar";
             var metadatos = new MetadatosComando { RutaComando = ruta };
             var nodo = new Nodo<string, ResultadoComando>(new ComandoPrueba());
             await _registro.RegistrarComandoAsync(metadatos, nodo);
@@ -96,30 +98,79 @@ namespace ComandosColaTest
         [Fact]
         public async Task ConstruirFactoriaAsync_DebeConstruirArbolDeComandos()
         {
-            var rutaBase = PrefijoTest + "orden";
-            var rutaCrear = PrefijoTest + "orden crear";
-            var rutaPagar = PrefijoTest + "orden pagar";
+            var nombreFactoria = PrefijoTest + "orden";
+            var rutaCrear = nombreFactoria + " crear";
+            var rutaPagar = nombreFactoria + " pagar";
 
-            var metadatos1 = new MetadatosComando { RutaComando = rutaBase };
-            var metadatos2 = new MetadatosComando { RutaComando = rutaCrear };
-            var metadatos3 = new MetadatosComando { RutaComando = rutaPagar };
+            var metadatosCrear = new MetadatosComando { RutaComando = rutaCrear };
+            var metadatosPagar = new MetadatosComando { RutaComando = rutaPagar };
 
-            var nodoOrden = new Nodo<string, ResultadoComando>();
             var nodoCrear = new Nodo<string, ResultadoComando>(new ComandoPrueba("Orden creada"));
             var nodoPagar = new Nodo<string, ResultadoComando>(new ComandoPrueba("Orden pagada"));
 
-            await _registro.RegistrarComandoAsync(metadatos1, nodoOrden);
-            await _registro.RegistrarComandoAsync(metadatos2, nodoCrear);
-            await _registro.RegistrarComandoAsync(metadatos3, nodoPagar);
+            await _registro.RegistrarComandoAsync(metadatosCrear, nodoCrear);
+            await _registro.RegistrarComandoAsync(metadatosPagar, nodoPagar);
 
-            var factoria = new FactoriaComandos<string, ResultadoComando>();
+            FactoriaComandos<string, ResultadoComando> factoriaComandos = new(nombreFactoria);
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new([factoriaComandos]);
 
             await _registro.ConstruirFactoriaAsync(factoria);
 
             var comandos = (await _registro.ObtenerComandosRegistradosAsync())
                 .Where(c => c.RutaComando.StartsWith(PrefijoTest));
-            Assert.Equal(3, comandos.Count());
+            ResultadoComando resultadoCrear = await factoria
+                .Crear(new LineaComando(rutaCrear.Split(' ')))
+                .EjecutarAsync(string.Empty);
+            ResultadoComando resultadoPagar = await factoria
+                .Crear(new LineaComando(rutaPagar.Split(' ')))
+                .EjecutarAsync(string.Empty);
+
+            Assert.Equal(2, comandos.Count());
+            Assert.Equal("Orden creada", resultadoCrear.Salida);
+            Assert.Equal("Orden pagada", resultadoPagar.Salida);
         }
 
+        [Fact]
+        public async Task ConstruirFactoriaAsync_ConMismaRutaLocal_DebeSepararFactorias()
+        {
+            string nombrePedidos = PrefijoTest + "pedidos";
+            string nombreClientes = PrefijoTest + "clientes";
+            await _registro.RegistrarComandoAsync(
+                new MetadatosComando { RutaComando = nombrePedidos + " consultar" },
+                new Nodo<string, ResultadoComando>(new ComandoPrueba("pedido")));
+            await _registro.RegistrarComandoAsync(
+                new MetadatosComando { RutaComando = nombreClientes + " consultar" },
+                new Nodo<string, ResultadoComando>(new ComandoPrueba("cliente")));
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new(
+                [
+                    new FactoriaComandos<string, ResultadoComando>(nombrePedidos),
+                    new FactoriaComandos<string, ResultadoComando>(nombreClientes)
+                ]);
+
+            await _registro.ConstruirFactoriaAsync(factoria);
+
+            ResultadoComando pedido = await factoria
+                .Crear(new LineaComando([nombrePedidos, "consultar"]))
+                .EjecutarAsync(string.Empty);
+            ResultadoComando cliente = await factoria
+                .Crear(new LineaComando([nombreClientes, "consultar"]))
+                .EjecutarAsync(string.Empty);
+            Assert.Equal("pedido", pedido.Salida);
+            Assert.Equal("cliente", cliente.Salida);
+        }
+
+        [Fact]
+        public async Task ConstruirFactoriaAsync_ConRutaSinComando_DebeLanzarExcepcion()
+        {
+            string nombreFactoria = PrefijoTest + "incompleta";
+            await _registro.RegistrarComandoAsync(
+                new MetadatosComando { RutaComando = nombreFactoria },
+                new Nodo<string, ResultadoComando>(new ComandoPrueba()));
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new(
+                [new FactoriaComandos<string, ResultadoComando>(nombreFactoria)]);
+
+            await Assert.ThrowsAsync<ErrorDeSintaxisExcepcion>(() =>
+                _registro.ConstruirFactoriaAsync(factoria));
+        }
     }
 }

@@ -13,11 +13,24 @@ namespace PER.Comandos.LineaComandos.Builder
 {
     public static class LineaComandoExtensions
     {
-        public static LineaComandoBuilder AddLineaComando(
+        public static LineaComandoBuilder AddLineaComando(this IServiceCollection services)
+        {
+            return new LineaComandoBuilder(services);
+        }
+
+        public static IServiceCollection AddLineaComando(
             this IServiceCollection services,
+            string nombreFactoria,
             Func<IServiceProvider, IBuilderInicializador, CancellationToken, Task> configuracionLineaComandos)
         {
-            return new LineaComandoBuilder(services, configuracionLineaComandos);
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configuracionLineaComandos);
+
+            FactoriaComandos<string, ResultadoComando> factoria = new(nombreFactoria);
+            services.AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria);
+            services.AddSingleton(new ConfiguracionFactoriaComandos(nombreFactoria, configuracionLineaComandos));
+
+            return services;
         }
 
         public static async Task InicializarLineaComandoAsync(
@@ -53,10 +66,19 @@ namespace PER.Comandos.LineaComandos.Builder
                 await inicializadorExterno(services, builder, token);
             }
 
-            await builder.ConfiguracionLineaComandos(services, new BuilderInicializador.BuilderInicializador(services), token);
-
             var registroComandos = services.GetRequiredService<IRegistroComandos<string, ResultadoComando>>();
-            var factoriaComandos = services.GetRequiredService<FactoriaComandos<string, ResultadoComando>>();
+            var factoriaComandos = services.GetRequiredService<IFactoriaAbstractaComandos<string, ResultadoComando>>();
+            IEnumerable<ConfiguracionFactoriaComandos> configuraciones =
+                services.GetServices<ConfiguracionFactoriaComandos>();
+
+            foreach (ConfiguracionFactoriaComandos configuracion in configuraciones)
+            {
+                await configuracion.Configurar(
+                    services,
+                    new BuilderInicializador.BuilderInicializador(services, configuracion.Nombre),
+                    token);
+            }
+
             await registroComandos.ConstruirFactoriaAsync(factoriaComandos, token);
         }
     }

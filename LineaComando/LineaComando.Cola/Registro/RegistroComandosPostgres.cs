@@ -5,6 +5,7 @@ using PER.Comandos.LineaComandos.Comando;
 using PER.Comandos.LineaComandos.FactoriaComandos;
 using PER.Comandos.LineaComandos.Cola.BaseDatos;
 using PER.Comandos.LineaComandos.Cola.DAO;
+using PER.Comandos.LineaComandos.Excepcion;
 using System.Collections.Concurrent;
 
 namespace PER.Comandos.LineaComandos.Cola.Registro
@@ -52,12 +53,12 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
             return comandosDb.Select(MapToMetadatos);
         }
 
-        public async Task ConstruirFactoriaAsync(FactoriaComandos<TRead, TWrite> factoria, CancellationToken token = default)
+        public async Task ConstruirFactoriaAsync(IFactoriaAbstractaComandos<TRead, TWrite> factoria, CancellationToken token = default)
         {
             var comandosActivos = await ObtenerComandosRegistradosAsync(token);
             var rutasActivas = new HashSet<string>(comandosActivos.Select(c => c.RutaComando));
 
-            var nodosCreados = new Dictionary<string, Nodo<TRead, TWrite>>();
+            var nodosCreadosPorFactoria = new Dictionary<string, Dictionary<string, Nodo<TRead, TWrite>>>(StringComparer.Ordinal);
 
             foreach (var kvp in _comandosRegistrados)
             {
@@ -65,7 +66,19 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
                 var creador = kvp.Value;
 
                 var partes = ruta.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                AgregarComandoAFactoria(factoria, partes, creador, nodosCreados);
+                if (partes.Length < 2)
+                    throw new ErrorDeSintaxisExcepcion($"La ruta '{ruta}' debe contener el nombre de una factoría y un comando.");
+
+                string nombreFactoria = partes[0];
+                IFactoriaComandos<TRead, TWrite> factoriaComandos = factoria.Get(nombreFactoria);
+
+                if (!nodosCreadosPorFactoria.TryGetValue(nombreFactoria, out Dictionary<string, Nodo<TRead, TWrite>>? nodosCreados))
+                {
+                    nodosCreados = new Dictionary<string, Nodo<TRead, TWrite>>(StringComparer.Ordinal);
+                    nodosCreadosPorFactoria.Add(nombreFactoria, nodosCreados);
+                }
+
+                AgregarComandoAFactoria(factoriaComandos, partes[1..], creador, nodosCreados);
             }
 
             var rutasEnMemoria = new HashSet<string>(_comandosRegistrados.Keys);
@@ -125,7 +138,7 @@ namespace PER.Comandos.LineaComandos.Cola.Registro
         }
 
         private void AgregarComandoAFactoria(
-            FactoriaComandos<TRead, TWrite> factoria,
+            IFactoriaComandos<TRead, TWrite> factoria,
             string[] partesRuta,
             IComandoCreador<TRead, TWrite> creador,
             Dictionary<string, Nodo<TRead, TWrite>> nodosCreados)

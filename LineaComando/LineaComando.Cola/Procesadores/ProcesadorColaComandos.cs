@@ -22,33 +22,52 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
         private readonly IPublicadorNotificacionEjecucionComandos _publicadorNotificaciones;
         private readonly ILogger<ProcesadorColaComandos> _logger;
         private readonly int _maxParalelismo;
-        private readonly ConcurrentBag<Task> _tareasEnEjecucion;
+        private readonly TimeSpan _umbralComandoLargaDuracion;
+        private readonly int _maxTareasLargaDuracion;
+        private readonly ConcurrentDictionary<Task, byte> _tareasEnEjecucion;
+        private readonly ConcurrentDictionary<Task, long> _tareasLargaDuracion;
 
         public ProcesadorColaComandos(
             IServiceScopeFactory serviceScopeFactory,
             IColaComandosMemoria colaComandosMemoria,
             IPublicadorNotificacionEjecucionComandos publicadorNotificaciones,
             int maxParalelismo,
+            TimeSpan umbralComandoLargaDuracion,
+            int maxTareasLargaDuracion,
             ILogger<ProcesadorColaComandos> logger)
         {
             if (maxParalelismo <= 0)
                 throw new ArgumentException("El máximo paralelismo debe ser mayor a cero", nameof(maxParalelismo));
+
+            if (umbralComandoLargaDuracion <= TimeSpan.Zero)
+                throw new ArgumentException("El umbral de larga duración debe ser mayor a cero", nameof(umbralComandoLargaDuracion));
+
+            if (maxTareasLargaDuracion <= 0)
+                throw new ArgumentException("El máximo de tareas de larga duración debe ser mayor a cero", nameof(maxTareasLargaDuracion));
 
             _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
             _colaComandosMemoria = colaComandosMemoria ?? throw new ArgumentNullException(nameof(colaComandosMemoria));
             _publicadorNotificaciones = publicadorNotificaciones ?? throw new ArgumentNullException(nameof(publicadorNotificaciones));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _maxParalelismo = maxParalelismo;
-            _tareasEnEjecucion = new ConcurrentBag<Task>();
+            _umbralComandoLargaDuracion = umbralComandoLargaDuracion;
+            _maxTareasLargaDuracion = maxTareasLargaDuracion;
+            _tareasEnEjecucion = new ConcurrentDictionary<Task, byte>();
+            _tareasLargaDuracion = new ConcurrentDictionary<Task, long>();
         }
 
         public async Task StartAsync(CancellationToken token)
         {
-            _logger.LogInformation("ProcesadorColaComandos iniciado con paralelismo máximo de {MaxParalelismo}", _maxParalelismo);
+            _logger.LogInformation(
+                "ProcesadorColaComandos iniciado con paralelismo máximo de {MaxParalelismo}, umbral de larga duración de {UmbralLargaDuracion} y máximo de {MaxTareasLargaDuracion} tareas largas",
+                _maxParalelismo,
+                _umbralComandoLargaDuracion,
+                _maxTareasLargaDuracion);
 
             await CargarPendientesConReintentoAsync(token);
 
             using SemaphoreSlim semaforoParalelismo = new(_maxParalelismo, _maxParalelismo);
+            using SemaphoreSlim semaforoLargaDuracion = new(_maxTareasLargaDuracion, _maxTareasLargaDuracion);
 
             try
             {
@@ -58,9 +77,13 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
                     await semaforoParalelismo.WaitAsync(token);
 
-                    Task tarea = ProcesarComandoConLiberacionAsync(comando, semaforoParalelismo, token);
+                    Task tarea = ProcesarComandoConLiberacionAsync(
+                        comando,
+                        semaforoParalelismo,
+                        semaforoLargaDuracion,
+                        token);
 
-                    _tareasEnEjecucion.Add(tarea);
+                    _tareasEnEjecucion.TryAdd(tarea, 0);
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -72,12 +95,17 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                 _logger.LogError(ex, "Error en el consumo de comandos en memoria");
             }
 
-            if (_tareasEnEjecucion.Any())
+            Task[] tareasPendientes = _tareasEnEjecucion.Keys
+                .Concat(_tareasLargaDuracion.Keys)
+                .Distinct()
+                .ToArray();
+
+            if (tareasPendientes.Length > 0)
             {
-                _logger.LogInformation("Esperando que terminen {Count} tareas pendientes", _tareasEnEjecucion.Count);
+                _logger.LogInformation("Esperando que terminen {Count} tareas pendientes", tareasPendientes.Length);
                 try
                 {
-                    await Task.WhenAll(_tareasEnEjecucion);
+                    await Task.WhenAll(tareasPendientes);
                 }
                 catch (Exception ex)
                 {
@@ -116,15 +144,100 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
         private async Task ProcesarComandoConLiberacionAsync(
             ComandoEnCola comando,
             SemaphoreSlim semaforoParalelismo,
+            SemaphoreSlim semaforoLargaDuracion,
             CancellationToken token)
         {
+            bool cupoParalelismoLiberado = false;
+            bool cupoLargaDuracionAdquirido = false;
+
+            Task tareaEjecucion = ProcesarComandoAsync(comando, token);
+
+            using CancellationTokenSource cancelarEsperaUmbral = new();
+
             try
             {
-                await ProcesarComandoAsync(comando, token);
+                Task esperaUmbral = Task.Delay(_umbralComandoLargaDuracion, cancelarEsperaUmbral.Token);
+
+                Task primeraTarea = await Task.WhenAny(tareaEjecucion, esperaUmbral);
+
+                if (primeraTarea == tareaEjecucion || tareaEjecucion.IsCompleted)
+                {
+                    cancelarEsperaUmbral.Cancel();
+                    await tareaEjecucion;
+                    return;
+                }
+
+                if (token.IsCancellationRequested)
+                {
+                    await tareaEjecucion;
+                    return;
+                }
+
+                _logger.LogInformation(
+                    "El comando `{ComandoId}` superó el umbral de larga duración {UmbralLargaDuracion} y espera un cupo en las tareas de largas duración.",
+                    comando.Id,
+                    _umbralComandoLargaDuracion);
+
+                using CancellationTokenSource cancelarEsperaCupo = CancellationTokenSource.CreateLinkedTokenSource(token);
+                Task esperaCupoLargaDuracion = semaforoLargaDuracion.WaitAsync(cancelarEsperaCupo.Token);
+                Task siguienteTarea = await Task.WhenAny(tareaEjecucion, esperaCupoLargaDuracion);
+
+                if (siguienteTarea == tareaEjecucion || tareaEjecucion.IsCompleted)
+                {
+                    cancelarEsperaCupo.Cancel();
+                    try
+                    {
+                        await esperaCupoLargaDuracion;
+                        semaforoLargaDuracion.Release();
+                    }
+                    catch (OperationCanceledException) when (cancelarEsperaCupo.IsCancellationRequested)
+                    { }
+
+                    await tareaEjecucion;
+                    return;
+                }
+
+                try
+                {
+                    await esperaCupoLargaDuracion;
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    await tareaEjecucion;
+                    return;
+                }
+
+                if (token.IsCancellationRequested || tareaEjecucion.IsCompleted)
+                {
+                    semaforoLargaDuracion.Release();
+                    await tareaEjecucion;
+                    return;
+                }
+
+                cupoLargaDuracionAdquirido = true;
+                _tareasLargaDuracion.TryAdd(tareaEjecucion, comando.Id);
+
+                semaforoParalelismo.Release();
+                cupoParalelismoLiberado = true;
+
+                _logger.LogInformation(
+                    "El comando {ComandoId} continúa como tarea de larga duración. Tareas largas activas: {TareasLargaDuracionActivas}/{MaxTareasLargaDuracion}",
+                    comando.Id,
+                    _tareasLargaDuracion.Count,
+                    _maxTareasLargaDuracion);
+
+                await tareaEjecucion;
             }
             finally
             {
-                semaforoParalelismo.Release();
+                cancelarEsperaUmbral.Cancel();
+                _tareasLargaDuracion.TryRemove(tareaEjecucion, out _);
+
+                if (cupoLargaDuracionAdquirido)
+                    semaforoLargaDuracion.Release();
+
+                if (!cupoParalelismoLiberado)
+                    semaforoParalelismo.Release();
             }
         }
 
@@ -147,7 +260,7 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
                 {
                     scope = _serviceScopeFactory.CreateScope();
                     almacenColaComandos = scope.ServiceProvider.GetRequiredService<IAlmacenColaComandos>();
-                    IFactoriaComandos<string, ResultadoComando> factoriaComandos = scope.ServiceProvider.GetRequiredService<IFactoriaComandos<string, ResultadoComando>>();
+                    IFactoriaAbstractaComandos<string, ResultadoComando> factoriaComandos = scope.ServiceProvider.GetRequiredService<IFactoriaAbstractaComandos<string, ResultadoComando>>();
                     IRegistroProcesadoresSerializacionResultadosComando?
                         registroProcesadoresSerializacionResultados =
                             scope.ServiceProvider.GetService<IRegistroProcesadoresSerializacionResultadosComando>();
@@ -438,13 +551,10 @@ namespace PER.Comandos.LineaComandos.Cola.Procesadores
 
         private void LimpiarTareasCompletadas()
         {
-            List<Task> tareasActivas = _tareasEnEjecucion.Where(t => !t.IsCompleted).ToList();
-
-            while (_tareasEnEjecucion.TryTake(out _)) { }
-
-            foreach (var tarea in tareasActivas)
+            foreach (Task tarea in _tareasEnEjecucion.Keys)
             {
-                _tareasEnEjecucion.Add(tarea);
+                if (tarea.IsCompleted)
+                    _tareasEnEjecucion.TryRemove(tarea, out _);
             }
         }
     }

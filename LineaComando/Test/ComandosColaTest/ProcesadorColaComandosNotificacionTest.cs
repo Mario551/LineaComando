@@ -266,6 +266,8 @@ namespace ComandosColaTest
                 cola.Object,
                 null!,
                 1,
+                TimeSpan.FromSeconds(30),
+                10,
                 NullLogger<ProcesadorColaComandos>.Instance));
         }
 
@@ -313,15 +315,15 @@ namespace ComandosColaTest
                 orden.Enqueue("ejecutar");
                 return await ejecutar(token);
             });
-            FactoriaComandos<string, ResultadoComando> factoria =
-                new FactoriaComandos<string, ResultadoComando>();
-            factoria
-                .Add("test")
-                .Add("ciclo", new Nodo<string, ResultadoComando>(comandoPrueba));
+            FactoriaComandos<string, ResultadoComando> factoriaComandos = new("test");
+            factoriaComandos.Add(
+                "ciclo",
+                new Nodo<string, ResultadoComando>(comandoPrueba));
+            FactoriaAbstractaComandos<string, ResultadoComando> factoria = new([factoriaComandos]);
 
             ServiceProvider serviceProvider = new ServiceCollection()
                 .AddSingleton(almacen.Object)
-                .AddSingleton<IFactoriaComandos<string, ResultadoComando>>(factoria)
+                .AddSingleton<IFactoriaAbstractaComandos<string, ResultadoComando>>(factoria)
                 .BuildServiceProvider();
             Mock<IColaComandosMemoria> cola = new Mock<IColaComandosMemoria>();
             cola
@@ -354,6 +356,8 @@ namespace ComandosColaTest
                 cola.Object,
                 publicador.Object,
                 maxParalelismo,
+                TimeSpan.FromSeconds(30),
+                10,
                 NullLogger<ProcesadorColaComandos>.Instance);
 
             return new EscenarioProcesador(

@@ -24,7 +24,9 @@ namespace BuilderTest.Infraestructura;
 
 public static class IntegracionCompletaMensajeriaLineaComandoEscenarioPrueba
 {
-    internal const string CodigoComando = "pedido consultar";
+    internal const string NombreFactoriaComando = "pedido";
+    internal const string RutaRelativaComando = "consultar";
+    internal const string CodigoComando = NombreFactoriaComando + " " + RutaRelativaComando;
     internal const string Pedido = "54013";
     internal const string EstadoPedido = "despachado";
     internal const string PreferenciaAnterior = "entrega en la tarde";
@@ -37,7 +39,7 @@ public static class IntegracionCompletaMensajeriaLineaComandoEscenarioPrueba
 
         await builderInicializador
             .NewBuilderComando()
-            .Argumentos(CodigoComando, "Consulta el estado de un pedido de prueba")
+            .Argumentos(RutaRelativaComando, "Consulta el estado de un pedido de prueba")
             .Accion(new ConsultarPedidoComando(registro))
             .Resultado(new ProcesadorResultadoPedidoPrueba())
             .RegistrarAsync();
